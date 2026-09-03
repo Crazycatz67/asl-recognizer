@@ -12,7 +12,7 @@
 // them", which is what the old fixed threshold demanded (and why it never hit).
 
 import { drawSkeleton, vectorToPixels } from "./skeleton.js";
-import { rotateVector } from "./normalize.js";
+import { rotateVector, mirrorVector } from "./normalize.js";
 
 // A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
 // to a letter we let it rotate up to this much to sit at the letter's own tilt.
@@ -184,6 +184,25 @@ export function buildReference(samples, letters) {
     return deg ? rotateVector(liveVec, deg) : liveVec;
   };
 
+  // Best fit of the live hand to the letter, allowing a small tilt AND a
+  // left/right mirror. Signing with your left hand produces the mirror of the
+  // right-hand template, and a wrist can't physically roll into the mirrored
+  // orientation — so we just try both and take whichever fits, per frame.
+  const fit = (v0, label) => {
+    const c = centroids.get(label);
+    const deg = alignDegFor(v0, label);
+    const v = deg ? rotateVector(v0, deg) : v0;
+    return { v, deg, dist: coordDist(v, c) };
+  };
+  const bestOrientation = (liveVec, label) => {
+    if (!centroids.get(label) || !liveVec) return { v: liveVec, mirrored: false, deg: 0 };
+    const a = fit(liveVec, label);
+    const m = fit(mirrorVector(liveVec), label);
+    return m.dist < a.dist
+      ? { v: m.v, mirrored: true, deg: m.deg }
+      : { v: a.v, mirrored: false, deg: a.deg };
+  };
+
   return {
     letters: [...centroids.keys()].sort(),
 
@@ -198,8 +217,13 @@ export function buildReference(samples, letters) {
       return tolFor(bands.get(label));
     },
 
-    // degrees the on-camera guide should rotate the target by, so it and the
-    // meter judge the same (tilt-forgiven) shape
+    // How the on-camera guide should orient the target so it and the meter
+    // judge the same (tilt- and mirror-forgiven) shape.
+    // -> { mirrored: bool, deg: number }
+    orient(liveVec, label) {
+      const o = bestOrientation(liveVec, label);
+      return { mirrored: o.mirrored, deg: o.deg };
+    },
     alignDeg(liveVec, label) {
       return alignDegFor(liveVec, label);
     },
@@ -208,8 +232,8 @@ export function buildReference(samples, letters) {
       const c = centroids.get(label);
       const b = bands.get(label);
       if (!c || !b || !liveVec)
-        return { dist: Infinity, score: 0, bucket: "off", matched: false, worst: Infinity };
-      const v = aligned(liveVec, label); // forgive a small wrist tilt
+        return { dist: Infinity, score: 0, bucket: "off", matched: false, worst: Infinity, mirrored: false };
+      const { v, mirrored } = bestOrientation(liveVec, label); // forgive tilt + mirror
       const d = coordDist(v, c);
       const s = scoreFor(d, b);
       // "correct" = a READABLE sign, not a pixel-perfect one. The aggregate has
@@ -220,7 +244,7 @@ export function buildReference(samples, letters) {
       const matched = worst <= tolFor(b) * 1.8;
       let bucket = s >= 0.7 ? "correct" : s >= 0.5 ? "close" : "off";
       if (bucket === "correct" && !matched) bucket = "close";
-      return { dist: d, score: s, bucket, matched, worst };
+      return { dist: d, score: s, bucket, matched, worst, mirrored };
     },
 
     // Where on the (mirrored) view the shape is wrong: 0..1 per screen zone.
@@ -229,7 +253,7 @@ export function buildReference(samples, letters) {
     regionErrors(liveVec, label) {
       const c = centroids.get(label);
       if (!c || !liveVec) return { top: 0, left: 0, right: 0 };
-      const v = aligned(liveVec, label);
+      const { v } = bestOrientation(liveVec, label);
       const zones = { top: [0, 0], left: [0, 0], right: [0, 0] };
       for (let j = 0; j < 21; j++) {
         const dx = v[j * 3] - c[j * 3];

@@ -270,6 +270,18 @@ function mkHand() {
         }
         return ref.score(tilted, "B").bucket === "correct";
       })());
+    ok("reference: the MIRROR of a letter's own shape still scores 'correct'",
+      (() => {
+        const mv = ref.centroid("R").slice(); // R is clearly not mirror-symmetric
+        for (let j = 0; j < 21; j++) mv[j * 3] = -mv[j * 3];
+        const s = ref.score(mv, "R");
+        return s.bucket === "correct" && s.mirrored === true;
+      })(), JSON.stringify(ref.score((() => { const m = ref.centroid("R").slice(); for (let j = 0; j < 21; j++) m[j * 3] = -m[j * 3]; return m; })(), "R")));
+    ok("reference: orient() reports {mirrored, deg}",
+      (() => {
+        const o = ref.orient(cN, "N");
+        return typeof o.mirrored === "boolean" && typeof o.deg === "number";
+      })());
     ok("reference: hint() on the centroid says it's right",
       /hold it steady/i.test(ref.hint(cN, "N")), JSON.stringify(ref.hint(cN, "N")));
     ok("reference: hint() on a wrong hand gives an instruction",

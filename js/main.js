@@ -863,11 +863,15 @@ function loop() {
   let guideInfo = null; // { part } for the worst-off joint — named in the hint
   if (hasHand) {
     if (guiding) {
+      // the meter picks the best tilt + mirror fit; the guide must draw the
+      // target in that same orientation or the arrows point where the wrist
+      // can't go
+      const o = vec ? reference.orient(vec, targetLetter) : { mirrored: false, deg: 0 };
       guideInfo = overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
-        mirror: MIRROR_LEFT_HAND && left,
+        mirror: (MIRROR_LEFT_HAND && left) !== o.mirrored,
         tol: reference.tolerance(targetLetter),
-        align: vec ? reference.alignDeg(vec, targetLetter) : 0,
+        align: o.deg,
         reveal: guideAmt,
         settled: m?.bucket === "correct", // don't nag once it already counts
       });

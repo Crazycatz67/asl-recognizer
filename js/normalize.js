@@ -121,3 +121,21 @@ export function rotateVector(vec, degrees) {
   }
   return vec.length > 63 ? out.concat(handFeatures(pts)) : out;
 }
+
+// Mirror an already-normalized vector left<->right (flip x about the wrist).
+// A left hand doing a sign is the mirror of a right hand doing it, so the
+// practice match can try both and take the better fit — you don't have to
+// twist your wrist into an orientation it physically can't reach.
+export function mirrorVector(vec) {
+  const pts = [];
+  for (let i = 0; i < 21; i++) {
+    pts.push({ x: -vec[i * 3], y: vec[i * 3 + 1], z: vec[i * 3 + 2] });
+  }
+  const out = new Array(63);
+  for (let i = 0; i < 21; i++) {
+    out[i * 3] = pts[i].x;
+    out[i * 3 + 1] = pts[i].y;
+    out[i * 3 + 2] = pts[i].z;
+  }
+  return vec.length > 63 ? out.concat(handFeatures(pts)) : out;
+}
