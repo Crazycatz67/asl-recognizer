@@ -15,11 +15,15 @@
       <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
     </div>
   </header>
-  <div class="learn" id="learnRow" hidden>
+  <div class="learn" id="learnRow" hidden data-run="off">
     <span class="learn-label" id="learnLabel">Pick a letter</span>
+    <button class="step-btn" id="prevLetter" type="button" hidden aria-label="previous letter">‹</button>
     <b class="learn-current" id="learnCurrent"></b>
+    <button class="step-btn" id="nextLetter" type="button" hidden aria-label="next letter">›</button>
+    <span class="az-progress" id="azProgress" hidden></span>
     <div class="chips" id="letterPicker"></div>
     <button class="chip clear" id="clearTarget" type="button" hidden>change</button>
+    <button class="az-btn" id="azToggle" type="button">A→Z run</button>
   </div>
 
   <main class="workspace" id="workspace" data-target="off">
@@ -86,6 +90,12 @@
   <div class="controls">
     <button id="stopBtn" type="button" hidden>Stop</button>
     <button id="flipBtn" type="button" class="secondary" hidden>Flip camera</button>
+    <div class="hand-pick" id="handPick" hidden role="group" aria-label="signing hand">
+      <span>Hand</span>
+      <button type="button" data-hand="auto" class="on">Auto</button>
+      <button type="button" data-hand="right">Right</button>
+      <button type="button" data-hand="left">Left</button>
+    </div>
     <label class="ghost-toggle" hidden id="ghostToggleWrap">
       <input type="checkbox" id="ghostToggle" checked /> correction guide on camera
     </label>

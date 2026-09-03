@@ -116,9 +116,52 @@ body {
   min-width: 0;
 }
 /* once a letter is chosen the grid collapses to a compact strip */
-.learn-current { display: none; font-size: 1.15rem; color: var(--accent); }
+.learn-current { display: none; font-size: 1.25rem; font-weight: 800; color: var(--accent); min-width: 1.2em; text-align: center; }
+.step-btn {
+  display: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--fg);
+  border-radius: 7px;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.step-btn:active { transform: scale(0.92); }
 .learn.compact .chips { display: none; }
-.learn.compact .learn-current { display: inline; }
+.learn.compact .learn-current { display: inline-block; }
+.learn.compact .step-btn { display: inline-block; }
+.learn.compact[data-run="on"] .step-btn { display: none; }
+.az-btn {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  font: 700 0.72rem system-ui, sans-serif;
+  cursor: pointer;
+  margin-left: auto;
+}
+.learn[data-run="on"] .az-btn {
+  background: linear-gradient(180deg, #7dd3fc, var(--accent));
+  border-color: #7dd3fc;
+  color: #0b1220;
+}
+.az-progress {
+  flex: none;
+  font: 800 0.8rem system-ui, sans-serif;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.learn[data-run="on"] .chip.done {
+  background: linear-gradient(180deg, #22c55e, #15803d);
+  border-color: #22c55e;
+  color: #dcfce7;
+}
+.learn[data-run="on"] .chip.clear { display: none; }
 .chip.clear {
   width: auto;
   padding: 0 0.6rem;
@@ -661,6 +704,29 @@ button:disabled { opacity: 0.5; cursor: default; }
 .ghost-toggle {
   font-size: 0.78rem; color: var(--muted);
   display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer;
+}
+.hand-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.hand-pick span { font-weight: 700; }
+.hand-pick button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 0.28rem 0.55rem;
+  font: 700 0.75rem system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.hand-pick button.on {
+  background: linear-gradient(180deg, #7dd3fc, var(--accent));
+  border-color: #7dd3fc;
+  color: #0b1220;
 }
 .icon-btn {
   margin-left: auto;

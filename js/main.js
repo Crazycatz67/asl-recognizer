@@ -50,6 +50,10 @@ const flipBtn = $("flipBtn");
 const learnRow = $("learnRow");
 const learnLabel = $("learnLabel");
 const learnCurrent = $("learnCurrent");
+const azToggle = $("azToggle");
+const azProgress = $("azProgress");
+const prevLetterBtn = $("prevLetter");
+const nextLetterBtn = $("nextLetter");
 const letterPicker = $("letterPicker");
 const clearTargetBtn = $("clearTarget");
 const refPanel = $("refPanel");
@@ -63,6 +67,7 @@ const meterLabel = $("meterLabel");
 const refHint = $("refHint");
 const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
+const handPick = $("handPick");
 const muteBtn = $("muteBtn");
 const toast = $("toast");
 const modeToggle = $("modeToggle");
@@ -94,8 +99,9 @@ let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
-let handVote = 0; // signed, +left / -right, hysteresis for which hand is tracked
-let trackedHand = null; // "left" | "right" | null — flips the reference to match
+let handVote = 0; // signed, +right / -left, hysteresis for auto-detect
+let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
+let handOverride = "auto"; // "auto" | "right" | "left" — the Hand control
 let toastTimer = 0;
 
 const PILL = {
@@ -127,6 +133,8 @@ let stabilizer = null;
 let reference = null;
 let refPlayer = null; // animates the canonical shape in the panel
 let challenge = null; // the speed game
+let azRun = false; // practice: walk A -> Z, auto-advancing on each completion
+const azDone = new Set();
 let mode = "practice"; // "practice" | "challenge"
 let pendingChallengeStart = false; // start the game as soon as the camera is up
 let lastPred = null;
@@ -179,12 +187,14 @@ function setTarget(letter) {
   targetLetter = letter;
   for (const b of letterPicker.children) b.classList.toggle("on", b.textContent === letter);
   clearTargetBtn.hidden = !letter;
+  prevLetterBtn.hidden = !letter;
+  nextLetterBtn.hidden = !letter;
   refPanel.hidden = !letter;
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
   // collapse the letter grid to a compact strip once one's chosen
   learnRow.classList.toggle("compact", !!letter);
-  learnLabel.textContent = letter ? "Learning" : "Pick a letter";
+  learnLabel.textContent = azRun ? "A→Z run" : letter ? "Learning" : "Pick a letter";
   learnCurrent.textContent = letter || "";
 
   holdStart = 0;
@@ -208,6 +218,54 @@ function setTarget(letter) {
     bg.setMatch(null);
   }
   refHint.textContent = "";
+}
+
+// ---- A -> Z run: pass every letter once, auto-advancing --------------
+
+function setAzRun(on) {
+  if (!reference) return;
+  azRun = on;
+  learnRow.dataset.run = on ? "on" : "off";
+  azProgress.hidden = !on;
+  if (on) {
+    azDone.clear();
+    for (const b of letterPicker.children) b.classList.remove("done");
+    updateAzProgress();
+    setTarget(reference.letters[0]);
+  } else {
+    for (const b of letterPicker.children) b.classList.remove("done");
+    setTarget(null);
+  }
+}
+
+function updateAzProgress() {
+  azProgress.textContent = `${azDone.size} / ${reference.letters.length}`;
+}
+
+function advanceAz() {
+  if (!azRun || !reference) return;
+  azDone.add(targetLetter);
+  for (const b of letterPicker.children) {
+    if (b.textContent === targetLetter) b.classList.add("done");
+  }
+  updateAzProgress();
+  const next = reference.letters.find((L) => !azDone.has(L));
+  if (next) {
+    setTarget(next);
+  } else {
+    showToast("Alphabet complete!  🎉");
+    fx.flash("#22c55e");
+    sound.success();
+    setTimeout(() => setAzRun(false), 300);
+  }
+}
+
+// The camera view is a selfie mirror of the reference photo. A RIGHT hand's
+// mirrored self-view is the flip of the right-hand reference, so we flip the
+// reference to match; a LEFT hand's mirrored self-view already matches it.
+function applyHand() {
+  refPanel.classList.toggle("mirror", trackedHand === "right");
+  if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
 }
 
 // Crisp canvas: back the animated reference diagram with real device pixels.
@@ -241,6 +299,7 @@ function setMode(next) {
   mode = next;
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) b.classList.toggle("on", b.dataset.mode === mode);
+  if (azRun) setAzRun(false); // exit an A->Z run when leaving practice
   setTarget(null); // drop any practice target
   challenge.stop();
   clearChallengeHud();
@@ -376,6 +435,7 @@ function reward(originLandmark) {
   void letterBadge.offsetWidth; // restart the animation
   letterBadge.classList.add("pop");
   showToast(`Nailed ${targetLetter}!  ✓`);
+  if (azRun) setTimeout(advanceAz, 950); // let the reward land, then move on
 }
 
 function showToast(msg) {
@@ -407,6 +467,7 @@ function setState(next, detail) {
 
   const live = next !== "idle" && next !== "error";
   stopBtn.hidden = !live;
+  handPick.hidden = !live;
   startBtn.disabled = next === "requesting" || next === "loading";
   if (!live) {
     statsEl.hidden = true;
@@ -553,21 +614,24 @@ function loop() {
   overlay.clear();
 
   const hasHand = result.landmarks?.length > 0;
-  const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
+  const mpLabel = hasHand ? result.handedness?.[0]?.[0]?.categoryName : null;
+  // `left` drives the classification mirror — kept keyed on MediaPipe's raw
+  // label because the dataset was built with the exact same rule.
+  const left = mpLabel === "Left";
+  // We feed MediaPipe a NON-mirrored frame; it reports handedness assuming a
+  // mirrored (selfie) one, so the REAL hand is the opposite of its label.
+  const realHand = mpLabel === "Left" ? "right" : mpLabel === "Right" ? "left" : null;
   // guide is a practice-mode thing only — the challenge gives you no help
   const guiding =
     mode === "practice" && reference && targetLetter && ghostToggle.checked;
 
-  // which hand is on camera — sticky with hysteresis so a flicker doesn't
-  // thrash it. The reference photo + diagram flip to match, and the guide's
-  // mirror handling already canonicalises either hand for scoring.
-  if (hasHand) {
-    handVote = Math.max(-8, Math.min(8, handVote + (left ? 1 : -1)));
-    const h = handVote > 3 ? "left" : handVote < -3 ? "right" : trackedHand;
+  // which hand is signing — sticky with hysteresis, unless the user forced it
+  if (hasHand && handOverride === "auto" && realHand) {
+    handVote = Math.max(-8, Math.min(8, handVote + (realHand === "right" ? 1 : -1)));
+    const h = handVote > 3 ? "right" : handVote < -3 ? "left" : trackedHand;
     if (h !== trackedHand) {
       trackedHand = h;
-      refPanel.classList.toggle("mirror", trackedHand === "left");
-      if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
+      applyHand();
     }
   }
 
@@ -795,6 +859,26 @@ muteBtn.addEventListener("click", () => {
 modeToggle.addEventListener("click", (e) => {
   const b = e.target.closest(".mode-btn");
   if (b) setMode(b.dataset.mode);
+});
+azToggle.addEventListener("click", () => setAzRun(!azRun));
+const stepLetter = (dir) => {
+  if (!reference || !targetLetter || azRun) return;
+  const list = reference.letters;
+  const i = list.indexOf(targetLetter);
+  setTarget(list[(i + dir + list.length) % list.length]);
+};
+prevLetterBtn.addEventListener("click", () => stepLetter(-1));
+nextLetterBtn.addEventListener("click", () => stepLetter(1));
+handPick.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-hand]");
+  if (!b) return;
+  handOverride = b.dataset.hand;
+  for (const el of handPick.querySelectorAll("button")) el.classList.toggle("on", el === b);
+  if (handOverride !== "auto") {
+    trackedHand = handOverride;
+    handVote = 0;
+  }
+  applyHand();
 });
 chStart.addEventListener("click", () => {
   chStart.textContent = "Start";
