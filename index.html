@@ -49,16 +49,24 @@
           <span>👆</span> Pick a letter above to start learning
         </div>
 
+        <!-- A→Z run: brief "next letter" bridge -->
+        <div class="az-next" id="azNext" hidden></div>
+
         <!-- challenge HUD -->
         <div class="timebar" id="timeBar" hidden><i></i></div>
-        <div class="score-badge" id="scoreBadge" hidden><b id="scoreVal">0</b><span class="streak" id="chStreak" hidden></span></div>
+        <div class="score-badge" id="scoreBadge" hidden>
+          <b id="scoreVal">0</b>
+          <span class="streak" id="chStreak" hidden></span>
+          <span class="lives" id="chLives" hidden></span>
+        </div>
         <div class="ch-gain" id="chGain" hidden></div>
         <div class="ch-banner" id="chBanner" hidden></div>
         <div class="ch-seeing" id="chSeeing" hidden></div>
+        <button class="ch-skip" id="chSkip" type="button" hidden>Skip (–1 ♥)</button>
         <div class="ch-card" id="chCard" hidden>
           <div class="ch-card-inner">
             <p class="ch-card-title" id="chCardTitle">Challenge</p>
-            <p class="ch-card-sub" id="chCardSub">See a letter, then race the timer to sign it. Land it fast for more points — one miss ends the run.</p>
+            <p class="ch-card-sub" id="chCardSub">See a letter, then race the timer to sign it. Land it fast for more points. 3 lives — a timeout or a Skip costs one.</p>
             <button class="cta" id="chStart" type="button">Start</button>
           </div>
         </div>
@@ -80,14 +88,49 @@
       <div class="ref-head">Make this shape: <b id="refLetter">–</b><span class="ref-hand" id="refHand"></span></div>
       <p class="ref-desc" id="refDesc"></p>
       <img class="ref-photo" id="refImg" alt="reference hand photo" />
-      <canvas class="ref-canvas" id="refCanvas" width="320" height="320"></canvas>
+      <button class="ref-canvas-wrap" id="demoZoomBtn" type="button" aria-label="enlarge the demo">
+        <canvas class="ref-canvas" id="refCanvas" width="320" height="320"></canvas>
+        <span class="zoom-icon" aria-hidden="true">⤢</span>
+      </button>
       <div class="ref-match">
         <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
-        <span class="meter-label" id="meterLabel">show your hand</span>
+        <div class="ref-match-row">
+          <span class="meter-label" id="meterLabel">show your hand</span>
+          <span class="reco" id="reco" hidden><i></i><span id="recoText"></span></span>
+        </div>
         <p class="ref-hint" id="refHint"></p>
+        <p class="letter-stat" id="letterStat" hidden></p>
       </div>
     </aside>
   </main>
+
+  <!-- enlarged demo (mobile: tap the panel canvas) -->
+  <div class="demo-zoom" id="demoZoom" hidden>
+    <canvas id="demoZoomCanvas" width="600" height="600"></canvas>
+    <p>Tap anywhere to close</p>
+  </div>
+
+  <!-- A→Z run results -->
+  <div class="run-card" id="runCard" hidden>
+    <div class="run-card-inner">
+      <p class="run-card-title">Alphabet complete! 🎉</p>
+      <p class="run-card-body" id="runCardBody"></p>
+      <button class="cta" id="runCardClose" type="button">Nice</button>
+    </div>
+  </div>
+
+  <!-- first-visit walkthrough -->
+  <div class="intro" id="intro" hidden>
+    <div class="intro-inner">
+      <h2>How it works</h2>
+      <ol>
+        <li><b>Turn on your camera.</b> Everything runs on your device — nothing is uploaded.</li>
+        <li><b>Pick a letter</b> to learn, walk the whole alphabet with <b>A→Z run</b>, or test yourself in <b>Challenge</b>.</li>
+        <li><b>Match the shape.</b> The on-camera guide points to the finger to fix; hold it steady to lock it in.</li>
+      </ol>
+      <button class="cta" id="introClose" type="button">Got it</button>
+    </div>
+  </div>
 
   <div class="controls" hidden>
     <button id="stopBtn" type="button" hidden>Stop</button>

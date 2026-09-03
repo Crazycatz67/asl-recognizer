@@ -1,20 +1,23 @@
 // "Simon says" speed game. A random letter is shown with its demo for a short
 // study window, a "GO!" flash, then you race a shrinking timer to actually FORM
 // it — you advance when the recogniser reads your hand as that letter, not when
-// a shape meter guesses. Land it fast for more points; miss the timer and it's
-// game over (score, best, streak, the letter you missed).
+// a shape meter guesses. Land it fast for more points. You have 3 lives; a
+// timeout or a Skip costs one. Out of lives ends the run.
 //
 //   const game = createChallenge({ letters });
 //   game.start(now);
-//   const snap = game.update(now, seenLetter);   // seenLetter: recognised letter or null
-//   snap -> { phase, letter, round, score, best, streak, bestStreak,
+//   game.skip();                                  // spend a life, jump to next
+//   const snap = game.update(now, seenLetter);    // seenLetter: recognised letter or null
+//   snap -> { phase, letter, round, score, best, streak, bestStreak, lives,
 //             remainingFrac, low, lastGain, missedLetter, event }
-//     phase: "study" | "go" | "play" | "won" | "over"
-//     event: "letter" | "go" | "win" | "over" | null   (fires once on the change)
+//     phase: "study" | "go" | "play" | "won" | "miss" | "over"
+//     event: "letter" | "go" | "win" | "miss" | "over" | null  (fires once)
 
 const STUDY_MS = 2400;
 const GO_MS = 560; // brief "GO!" between study and play
 const WON_MS = 560;
+const MISS_MS = 800; // "-1 life" beat before the next letter
+const START_LIVES = 3;
 const roundDur = (r) => Math.max(2200, 6000 - r * 240); // ms, floors at 2.2s
 
 export function createChallenge({ letters }) {
@@ -25,6 +28,7 @@ export function createChallenge({ letters }) {
   let score = 0;
   let streak = 0;
   let bestStreak = 0;
+  let lives = START_LIVES;
   let best = 0;
   try {
     best = Number(localStorage.getItem("asl-challenge-best")) || 0;
@@ -33,6 +37,7 @@ export function createChallenge({ letters }) {
   let announced = 0;
   let lastGain = 0;
   let missedLetter = null;
+  let skipRequested = false;
 
   const pick = () => {
     if (letters.length < 2) return letters[0];
@@ -66,15 +71,21 @@ export function createChallenge({ letters }) {
       score = 0;
       streak = 0;
       bestStreak = 0;
+      lives = START_LIVES;
       announced = 0;
       lastGain = 0;
       missedLetter = null;
+      skipRequested = false;
       nextLetter(now);
     },
     stop() {
       active = false;
       phase = "idle";
       letter = null;
+    },
+    // spend a life and jump to the next letter (only mid-play)
+    skip() {
+      if (active && phase === "play") skipRequested = true;
     },
 
     update(now, seenLetter) {
@@ -109,19 +120,27 @@ export function createChallenge({ letters }) {
           phase = "won";
           phaseEnd = now + WON_MS;
           event = "win";
-        } else if (now >= phaseEnd) {
+        } else if (skipRequested || now >= phaseEnd) {
+          skipRequested = false;
+          lives--;
           missedLetter = letter;
           streak = 0;
-          phase = "over";
-          event = "over";
-          if (score > best) {
-            best = score;
-            try {
-              localStorage.setItem("asl-challenge-best", String(best));
-            } catch {}
+          if (lives <= 0) {
+            phase = "over";
+            event = "over";
+            if (score > best) {
+              best = score;
+              try {
+                localStorage.setItem("asl-challenge-best", String(best));
+              } catch {}
+            }
+          } else {
+            phase = "miss";
+            phaseEnd = now + MISS_MS;
+            event = "miss";
           }
         }
-      } else if (phase === "won") {
+      } else if (phase === "won" || phase === "miss") {
         if (now >= phaseEnd) nextLetter(now); // the announce check emits "letter"
       }
 
@@ -129,6 +148,7 @@ export function createChallenge({ letters }) {
         phase === "study" ? STUDY_MS
         : phase === "go" ? GO_MS
         : phase === "play" ? roundDur(round)
+        : phase === "miss" ? MISS_MS
         : 1;
       const remainingFrac = Math.max(0, Math.min(1, (phaseEnd - now) / span));
 
@@ -140,6 +160,7 @@ export function createChallenge({ letters }) {
         best,
         streak,
         bestStreak,
+        lives,
         remainingFrac,
         low: phase === "play" && remainingFrac < 0.28,
         lastGain,

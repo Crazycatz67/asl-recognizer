@@ -293,28 +293,39 @@ function mkHand() {
 
     // ---- challenge.js (speed game) ----
     const gameMod = await import("../js/challenge.js");
-    ok("challenge: study -> go -> play -> win(by recognised letter) -> over", (() => {
+    ok("challenge: study -> go -> play -> win, then 3 misses -> over", (() => {
       try {
         const g = gameMod.createChallenge({ letters: ["A", "B", "C"] });
         g.start(0);
-        let s = g.update(0, null);
-        if (s.phase !== "study" || s.event !== "letter") return false;
-        const L = s.letter;
-        s = g.update(5000, null); // past study -> "go"
-        if (s.phase !== "go" || s.event !== "go") return false;
-        s = g.update(6000, null); // past go -> "play"
-        if (s.phase !== "play" || s.event !== "play") return false;
-        // wrong letter does nothing; the right one wins and scores > 0
-        g.update(6100, "Z");
-        s = g.update(6200, L);
+        let t = 0;
+        let s = g.update(t, null);
+        if (s.phase !== "study" || s.event !== "letter" || s.lives !== 3) return false;
+        // advance until we're in "play", stepping big
+        const toPlay = () => {
+          for (let i = 0; i < 8 && g.phase !== "play"; i++) s = g.update((t += 3000), null);
+        };
+        toPlay();
+        if (s.phase !== "play") return false;
+        s = g.update((t += 100), s.letter); // sign the right letter -> win
         if (s.event !== "win" || s.score <= 0 || s.streak !== 1) return false;
-        // let the next round's timer run out -> game over, best recorded
-        s = g.update(7200, null); // won window elapsed -> new letter (study)
-        s = g.update(20000, null); // past study
-        s = g.update(25000, null); // past go
-        s = g.update(90000, null); // past the play deadline
-        return s.phase === "over" && s.event === "over" && s.best === s.score
-          && typeof s.missedLetter === "string";
+        // three timeouts drain the lives
+        for (let life = 2; life >= 0; life--) {
+          toPlay();
+          s = g.update((t += 90000), null); // timeout
+          if (life > 0 && (s.event !== "miss" || s.lives !== life)) return false;
+        }
+        return s.phase === "over" && s.event === "over" && s.lives === 0
+          && s.best === s.score && typeof s.missedLetter === "string";
+      } catch (e) { return false; }
+    })());
+    ok("challenge: skip() spends a life and jumps ahead", (() => {
+      try {
+        const g = gameMod.createChallenge({ letters: ["A", "B", "C"] });
+        g.start(0);
+        g.update(0, null); g.update(5000, null); g.update(6000, null); // -> play
+        g.skip();
+        const s = g.update(6100, null);
+        return s.event === "miss" && s.lives === 2 && s.phase === "miss";
       } catch (e) { return false; }
     })());
     ok("challenge: a wrong recognised letter never advances the round",

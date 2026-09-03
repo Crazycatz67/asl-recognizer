@@ -83,10 +83,63 @@ const chCard = $("chCard");
 const chCardTitle = $("chCardTitle");
 const chCardSub = $("chCardSub");
 const chStart = $("chStart");
+const chSkip = $("chSkip");
+const chLives = $("chLives");
+const azNext = $("azNext");
+const reco = $("reco");
+const recoText = $("recoText");
+const letterStat = $("letterStat");
+const demoZoomBtn = $("demoZoomBtn");
+const demoZoom = $("demoZoom");
+const demoZoomCanvas = $("demoZoomCanvas");
+const runCard = $("runCard");
+const runCardBody = $("runCardBody");
+const runCardClose = $("runCardClose");
+const intro = $("intro");
+const introClose = $("introClose");
 
 const sound = createSound();
 const fx = createFx();
 const bg = createBackground();
+
+// ---- tiny persistence ------------------------------------------
+const PREF = "asl-pref-";
+const loadPref = (k, d = null) => {
+  try {
+    const v = localStorage.getItem(PREF + k);
+    return v === null ? d : v;
+  } catch {
+    return d;
+  }
+};
+const savePref = (k, v) => {
+  try {
+    localStorage.setItem(PREF + k, v);
+  } catch {}
+};
+const loadJSON = (k, d) => {
+  try {
+    return JSON.parse(localStorage.getItem(PREF + k)) ?? d;
+  } catch {
+    return d;
+  }
+};
+const saveJSON = (k, v) => savePref(k, JSON.stringify(v));
+const buzz = (p) => {
+  try {
+    navigator.vibrate?.(p);
+  } catch {}
+};
+
+// first-visit walkthrough
+if (loadPref("seen-intro") !== "1") intro.hidden = false;
+introClose.addEventListener("click", () => {
+  intro.hidden = true;
+  savePref("seen-intro", "1");
+});
+
+const HARD_LETTERS = new Set(["M", "N", "D"]); // recogniser is weaker on these
+const statsMap = loadJSON("stats", {});
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
@@ -132,9 +185,15 @@ let classifier = null;
 let stabilizer = null;
 let reference = null;
 let refPlayer = null; // animates the canonical shape in the panel
+let demoZoomPlayer = null; // the enlarged demo
 let challenge = null; // the speed game
 let azRun = false; // practice: walk A -> Z, auto-advancing on each completion
+let azAdvancing = false; // guards the "next: X" bridge
 const azDone = new Set();
+let azTimes = []; // {letter, ms} per completion in the current run
+let firstHandAt = 0; // when a hand first appeared for the current target
+let stuckSince = 0; // when the current (uncompleted) attempt began
+let stuckShown = false;
 let mode = "practice"; // "practice" | "challenge"
 let pendingChallengeStart = false; // start the game as soon as the camera is up
 let lastPred = null;
@@ -159,10 +218,27 @@ const datasetPromise = loadDataset(DATASET_URL)
     });
     reference = buildReference(train, LETTERS); // self-calibrates per letter
     refPlayer = createCanonicalPlayer(refCanvas);
+    demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     challenge = createChallenge({ letters: reference.letters });
     buildLetterPicker(reference.letters);
     learnRow.hidden = false;
     modeToggle.hidden = false;
+
+    // restore last session's setup
+    const savedHand = loadPref("hand");
+    if (savedHand === "right" || savedHand === "left") {
+      handOverride = savedHand;
+      trackedHand = savedHand;
+      for (const b of handPick.querySelectorAll("button"))
+        b.classList.toggle("on", b.dataset.hand === savedHand);
+      applyHand();
+    }
+    if (loadPref("mode") === "challenge") setMode("challenge");
+    else {
+      const savedLetter = loadPref("letter");
+      if (savedLetter && reference.letters.includes(savedLetter)) setTarget(savedLetter);
+    }
+
     console.info(
       `recognition on: ${classifier.size} vectors, ${classifier.classes.length} letters`
     );
@@ -176,11 +252,19 @@ function buildLetterPicker(letters) {
   for (const L of letters) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "chip";
+    b.className = "chip" + (HARD_LETTERS.has(L) ? " hard" : "");
     b.textContent = L;
+    b.title = HARD_LETTERS.has(L) ? `${L} — trickier for the recogniser` : L;
     b.addEventListener("click", () => setTarget(targetLetter === L ? null : L));
     letterPicker.appendChild(b);
   }
+}
+
+function updateLetterStat() {
+  const s = targetLetter && statsMap[targetLetter];
+  letterStat.textContent = s?.done
+    ? `done ${s.done}× · best ${(s.bestMs / 1000).toFixed(1)}s`
+    : "";
 }
 
 function setTarget(letter) {
@@ -198,11 +282,18 @@ function setTarget(letter) {
 
   holdStart = 0;
   rewarded = false;
+  firstHandAt = 0;
+  stuckSince = 0;
+  stuckShown = false;
+  refPanel.classList.remove("nudge");
   viewport.style.setProperty("--hold", "0");
+  reco.hidden = true;
   if (letter) {
     refLetter.textContent = letter;
     refImg.src = REFERENCE_IMG(letter); // photo always on when learning
     if (refDesc) refDesc.textContent = reference?.describe(letter) || "";
+    updateLetterStat();
+    if (!azRun && mode === "practice") savePref("letter", letter);
     // the panel was just un-hidden — wait one frame so its real width exists
     // before we size the canvas to it, otherwise the diagram can draw blank.
     requestAnimationFrame(() => {
@@ -212,6 +303,7 @@ function setTarget(letter) {
     sound.select();
   } else {
     if (refDesc) refDesc.textContent = "";
+    letterStat.textContent = "";
     refPlayer?.setTarget(null);
     updateMeter(0, null);
     bg.setMatch(null);
@@ -224,16 +316,18 @@ function setTarget(letter) {
 function setAzRun(on) {
   if (!reference) return;
   azRun = on;
+  azAdvancing = false;
+  azNext.hidden = true;
   learnRow.dataset.run = on ? "on" : "off";
   azProgress.hidden = !on;
   for (const b of subMode.children) b.classList.toggle("on", (b.dataset.sub === "az") === on);
+  for (const b of letterPicker.children) b.classList.remove("done");
   if (on) {
     azDone.clear();
-    for (const b of letterPicker.children) b.classList.remove("done");
+    azTimes = [];
     updateAzProgress();
     setTarget(reference.letters[0]);
   } else {
-    for (const b of letterPicker.children) b.classList.remove("done");
     setTarget(null);
   }
 }
@@ -243,22 +337,47 @@ function updateAzProgress() {
 }
 
 function advanceAz() {
-  if (!azRun || !reference) return;
-  azDone.add(targetLetter);
+  if (!azRun || !reference || azAdvancing) return;
+  azAdvancing = true;
+  const done = targetLetter;
+  azDone.add(done);
+  if (firstHandAt) azTimes.push({ letter: done, ms: performance.now() - firstHandAt });
   for (const b of letterPicker.children) {
-    if (b.textContent === targetLetter) b.classList.add("done");
+    if (b.textContent === done) b.classList.add("done");
   }
   updateAzProgress();
   const next = reference.letters.find((L) => !azDone.has(L));
   if (next) {
-    setTarget(next);
+    azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
+    azNext.hidden = false;
+    setTimeout(() => {
+      azNext.hidden = true;
+      azAdvancing = false;
+      setTarget(next);
+    }, 1300);
   } else {
-    showToast("Alphabet complete!  🎉");
-    fx.flash("#22c55e");
-    sound.success();
-    setTimeout(() => setAzRun(false), 300);
+    showRunCard();
   }
 }
+
+function showRunCard() {
+  const times = [...azTimes].sort((a, b) => a.ms - b.ms);
+  const fmt = (t) => `${t.letter} ${(t.ms / 1000).toFixed(1)}s`;
+  const fast = times.slice(0, 3).map(fmt).join(" · ") || "—";
+  const tricky = times.filter((t) => t.ms > 8000).map((t) => t.letter);
+  runCardBody.innerHTML =
+    `You signed all ${azDone.size} letters.<br>` +
+    `<br><b>Fastest:</b> ${fast}` +
+    (tricky.length ? `<br><b>Took a while:</b> ${tricky.join(" ")}` : "");
+  runCard.hidden = false;
+  fx.flash("#22c55e");
+  sound.success();
+  buzz([0, 40, 30, 60, 30, 90]);
+}
+runCardClose.addEventListener("click", () => {
+  runCard.hidden = true;
+  setAzRun(false);
+});
 
 // The camera view is a selfie mirror of the reference photo. A RIGHT hand's
 // mirrored self-view is the flip of the right-hand reference, so we flip the
@@ -297,6 +416,7 @@ function updateMeter(score, bucket) {
 function setMode(next) {
   if (!challenge || next === mode) return;
   mode = next;
+  savePref("mode", mode);
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) b.classList.toggle("on", b.dataset.mode === mode);
   if (azRun) setAzRun(false); // exit an A->Z run when leaving practice
@@ -319,8 +439,10 @@ function clearChallengeHud() {
   timeBar.classList.remove("low");
   scoreBadge.hidden = true;
   chStreak.hidden = true;
+  chLives.hidden = true;
   chGain.hidden = true;
   chSeeing.hidden = true;
+  chSkip.hidden = true;
   chBanner.hidden = true;
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
@@ -358,6 +480,9 @@ function renderChallenge(snap, seeing) {
     sound.tick();
   }
 
+  chLives.hidden = false;
+  chLives.textContent = "♥".repeat(snap.lives) + "♡".repeat(Math.max(0, 3 - snap.lives));
+
   if (snap.event === "letter") {
     setTarget(snap.letter); // shows the demo + description in the panel
     refPanel.hidden = false;
@@ -388,13 +513,26 @@ function renderChallenge(snap, seeing) {
     chBanner.textContent = "✓";
     chBanner.hidden = false;
     chSeeing.hidden = true;
+    chSkip.hidden = true;
     fx.flash("#22c55e");
     sound.success();
+    buzz([0, 30, 25, 55]);
+  } else if (snap.event === "miss") {
+    chBanner.className = "ch-banner miss";
+    chBanner.textContent = "✕";
+    chBanner.hidden = false;
+    chSeeing.hidden = true;
+    chSkip.hidden = true;
+    chStreak.hidden = true;
+    fx.flash("#f87171");
+    sound.fail();
+    buzz(90);
   } else if (snap.event === "over") {
     timeBar.hidden = true;
     timeBar.classList.remove("low");
     chBanner.hidden = true;
     chSeeing.hidden = true;
+    chSkip.hidden = true;
     refPanel.hidden = true;
     chCardTitle.textContent = "Run over";
     chCardSub.innerHTML =
@@ -404,6 +542,7 @@ function renderChallenge(snap, seeing) {
     chCard.hidden = false;
     sound.charge(0);
     sound.fail();
+    buzz([0, 60, 40, 120]);
   }
 
   if (snap.phase === "play") {
@@ -413,16 +552,26 @@ function renderChallenge(snap, seeing) {
     chBanner.textContent = snap.letter;
     chBanner.hidden = false;
     chSeeing.hidden = false;
-    chSeeing.innerHTML = seeing
-      ? `seeing <b>${seeing}</b>`
-      : `seeing <b>—</b>`;
+    chSeeing.innerHTML = seeing ? `seeing <b>${seeing}</b>` : `seeing <b>—</b>`;
+    chSkip.hidden = false;
   } else if (snap.phase === "study") {
     chBanner.hidden = true;
     chSeeing.hidden = true;
+    chSkip.hidden = true;
   }
 }
 
 function reward(originLandmark) {
+  // per-letter stats: completions + best time from first-sighting to lock
+  if (targetLetter) {
+    const s = (statsMap[targetLetter] ||= { done: 0, bestMs: Infinity });
+    s.done++;
+    const ms = firstHandAt ? performance.now() - firstHandAt : Infinity;
+    if (ms < s.bestMs) s.bestMs = ms;
+    saveJSON("stats", statsMap);
+    updateLetterStat();
+  }
+  buzz([0, 35, 25, 55]);
   const r = viewport.getBoundingClientRect();
   const x = originLandmark ? r.left + (1 - originLandmark.x) * r.width : r.left + r.width / 2;
   const y = originLandmark ? r.top + originLandmark.y * r.height : r.top + r.height / 2;
@@ -729,6 +878,19 @@ function loop() {
       // the problem (fingers off -> top; thumb side off -> that side)
       bg.setMatch(m.score, m.bucket, reference.regionErrors(vec, targetLetter));
 
+      if (!firstHandAt) firstHandAt = now; // starts the "time to complete" clock
+
+      // calm recogniser-agreement readout — reassures that the computer reads
+      // the letter, not just that the shape meter is happy
+      const agrees = stabilizer.current === targetLetter;
+      reco.hidden = false;
+      reco.classList.toggle("match", agrees);
+      recoText.textContent = agrees
+        ? "recognised"
+        : stabilizer.current
+        ? `reads ${stabilizer.current}`
+        : "…";
+
       // reward when the sign is readable (m.bucket === "correct" — a decent
       // shape OR one the recogniser reads as the target) and held for HOLD_MS.
       // Small tracking dropouts inside HOLD_GRACE_MS don't reset the timer.
@@ -736,9 +898,22 @@ function loop() {
       if (complete) {
         if (!holdStart) holdStart = now;
         lastGoodAt = now;
+        stuckSince = 0;
+        stuckShown = false;
+        refPanel.classList.remove("nudge");
       } else if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
         holdStart = 0;
         rewarded = false;
+      }
+      // "stuck" assist: ~12s on one letter without landing it -> replay the
+      // demo and flag the panel
+      if (!complete && !azAdvancing) {
+        if (!stuckSince) stuckSince = now;
+        else if (!stuckShown && now - stuckSince > 12000) {
+          stuckShown = true;
+          refPanel.classList.add("nudge");
+          refPlayer?.setTarget(reference.centroid(targetLetter));
+        }
       }
       const heldMs = holdStart ? now - holdStart : 0;
       const heldFrac = Math.min(1, heldMs / HOLD_MS);
@@ -770,18 +945,20 @@ function loop() {
             : "Keep shaping it";
         }
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
+        const prefix = stuckShown && !complete ? "Still tricky? " : "";
         refHint.textContent = rewarded
           ? `Nailed it — that's ${targetLetter} ✓`
           : complete
           ? `Hold it…  ${dots}`
           : misread
-          ? `${tip}  ·  (reading as ${lastPred.label})`
-          : tip;
+          ? `${prefix}${tip}  ·  (reading as ${lastPred.label})`
+          : `${prefix}${tip}`;
       }
     } else {
       updateMeter(0, null);
       bg.setMatch(null);
       refHint.textContent = "";
+      reco.hidden = true;
       if (!rewarded) sound.charge(0);
       // hand lost mid-hold: keep the timer alive briefly (grace), else drop it
       if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
@@ -880,6 +1057,7 @@ handPick.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-hand]");
   if (!b) return;
   handOverride = b.dataset.hand;
+  savePref("hand", handOverride);
   for (const el of handPick.querySelectorAll("button")) el.classList.toggle("on", el === b);
   if (handOverride !== "auto") {
     trackedHand = handOverride;
@@ -890,4 +1068,37 @@ handPick.addEventListener("click", (e) => {
 chStart.addEventListener("click", () => {
   chStart.textContent = "Start";
   startChallenge();
+});
+chSkip.addEventListener("click", () => challenge?.skip());
+
+// enlarge the demo (tap the panel canvas)
+demoZoomBtn.addEventListener("click", () => {
+  if (!reference || !targetLetter) return;
+  demoZoomPlayer?.setTarget(reference.centroid(targetLetter));
+  demoZoom.hidden = false;
+});
+demoZoom.addEventListener("click", () => {
+  demoZoom.hidden = true;
+  demoZoomPlayer?.setTarget(null);
+});
+
+// keyboard: arrows step letters, space starts/skips the challenge, a-z jump
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (!intro.hidden && e.key === "Enter") { introClose.click(); return; }
+
+  if (e.key === "ArrowRight") stepLetter(1);
+  else if (e.key === "ArrowLeft") stepLetter(-1);
+  else if (e.key === " ") {
+    if (mode === "challenge") {
+      e.preventDefault();
+      if (!chCard.hidden) chStart.click();
+      else if (challenge?.phase === "play") challenge.skip();
+    }
+  } else if (/^[a-z]$/i.test(e.key) && mode === "practice" && !azRun && reference) {
+    const L = e.key.toUpperCase();
+    if (reference.letters.includes(L)) setTarget(L);
+  }
 });
