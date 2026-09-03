@@ -19,7 +19,14 @@
 
 * { box-sizing: border-box; }
 
-html { background: var(--bg); }
+html {
+  /* soft depth behind the animated bg canvas so it never reads as flat black */
+  background:
+    radial-gradient(1200px 760px at 50% -12%, #1b2b47, rgba(15, 23, 42, 0) 62%),
+    radial-gradient(900px 600px at 100% 110%, #17233c, rgba(15, 23, 42, 0) 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
 
 body {
   margin: 0;
@@ -27,21 +34,32 @@ body {
   color: var(--fg);
   -webkit-text-size-adjust: 100%;
   background: transparent; /* the animated <canvas> from js/bg.js shows through */
-  min-height: 100vh;
+  /* the app owns exactly one screen: header + workspace + controls, no page
+     scroll on any device. dvh tracks mobile browser chrome. */
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ---- top bar: title + letter picker ------------------------------- */
 
 .topbar {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  padding: 0.7rem 1rem;
-  max-width: 1100px;
+  padding: 0.6rem 1rem;
+  width: 100%;
+  max-width: 1180px;
   margin: 0 auto;
 }
 .topbar h1 { margin: 0; font-size: 1rem; font-weight: 700; flex: none; }
+@media (max-width: 520px) {
+  .topbar h1 { font-size: 0.9rem; width: 100%; }
+}
 
 .learn {
   display: flex;
@@ -84,29 +102,37 @@ body {
 .chip.clear { border-color: var(--line); color: var(--muted); font-size: 1.05rem; background: var(--panel); }
 
 /* ---- workspace: camera + reference panel ------------------------ */
+/* fills the space between header and controls on ANY screen. the camera box
+   flexes to whatever room is left; the video + overlay canvas both cover it,
+   so the device / camera aspect ratio never forces a scroll or a letterbox. */
 
 .workspace {
-  max-width: 1100px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 0 1rem;
-  display: grid;
+  padding: 0.2rem 1rem 0;
+  display: flex;
   gap: 0.9rem;
-  grid-template-columns: 1fr;
+  /* default (portrait / narrow): camera stacked over the reference strip */
+  flex-direction: column;
 }
 
-/* wide screens with a target selected: camera left (big), reference right */
-@media (min-width: 760px) {
-  .workspace[data-target="on"] {
-    grid-template-columns: minmax(0, 1.7fr) minmax(230px, 0.8fr);
-    align-items: start;
+/* landscape and roomy: camera left, reference panel a column on the right */
+@media (min-width: 760px) and (orientation: landscape) {
+  .workspace {
+    flex-direction: row;
+    align-items: stretch;
+    padding-bottom: 0.2rem;
   }
 }
 
 .viewport {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  max-height: 82vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   background: #020617;
   border-radius: 18px;
   overflow: hidden;
@@ -116,13 +142,23 @@ body {
     0 0 0 1px rgba(148, 163, 184, 0.08);
   transition: box-shadow 0.22s ease, transform 0.22s ease;
 }
-
-/* keep the whole app inside the window — no page scroll on a laptop. this
-   must come AFTER the base rule above (equal specificity, last one wins) so
-   the camera box shrinks to the vertical room left by the header + controls;
-   object-fit: cover keeps the video filling whatever height remains. */
-@media (min-width: 760px) {
-  .viewport { max-height: min(82vh, calc(100vh - 190px)); }
+/* gentle life before the camera is even on */
+.viewport[data-state="idle"] {
+  animation: vp-idle-breathe 4.4s ease-in-out infinite;
+}
+@keyframes vp-idle-breathe {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 3px rgba(56, 189, 248, 0.06),
+      0 20px 50px -24px rgba(0, 0, 0, 0.7),
+      0 0 34px -18px rgba(56, 189, 248, 0.35);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 3px rgba(56, 189, 248, 0.14),
+      0 20px 50px -24px rgba(0, 0, 0, 0.7),
+      0 0 60px -12px rgba(56, 189, 248, 0.55);
+  }
 }
 .viewport[data-match="off"] {
   box-shadow: inset 0 0 0 4px var(--off), 0 0 34px -6px rgba(248, 113, 113, 0.45);
@@ -262,38 +298,58 @@ body {
 /* ---- reference panel ---------------------------------------- */
 
 .reference {
+  flex: none;
   background: linear-gradient(180deg, #1e293b, #16202f);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 0.9rem 1rem;
+  padding: 0.8rem 0.95rem;
   display: grid;
-  gap: 0.55rem 0.75rem;
-  grid-template-columns: 1fr 1fr; /* photo | skeleton side by side, keeps it short */
-  align-content: start;
+  gap: 0.5rem 0.75rem;
   box-shadow: 0 16px 40px -22px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  /* PORTRAIT / narrow: a short horizontal strip under the camera */
+  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "head  head   head"
+    "photo canvas match";
+  align-items: center;
 }
-.ref-head { grid-column: 1 / -1; font-size: 0.85rem; color: var(--muted); }
-.ref-head b { color: var(--fg); font-size: 1.1rem; }
-.ref-match { grid-column: 1 / -1; }
-/* photo + skeleton: capped and centred so they read as compact thumbnails,
-   not two big blocks that tower next to the camera */
+.ref-head  { grid-area: head;  font-size: 0.82rem; color: var(--muted); }
+.ref-head b { color: var(--fg); font-size: 1.05rem; }
+.ref-photo  { grid-area: photo; }
+.ref-canvas { grid-area: canvas; }
+.ref-match  { grid-area: match; min-width: 0; }
 .ref-photo,
 .ref-canvas {
-  width: 100%;
-  max-width: 140px;
-  justify-self: center;
+  width: 72px;
   aspect-ratio: 1;
   border-radius: 12px;
 }
-.ref-photo {
-  object-fit: cover;
-  background: #020617;
+.ref-photo { object-fit: cover; background: #020617; }
+.ref-canvas { background: #0b1220; border: 1px solid rgba(148, 163, 184, 0.12); }
+
+/* LANDSCAPE + roomy: a full-height column beside the camera */
+@media (min-width: 760px) and (orientation: landscape) {
+  .reference {
+    width: clamp(230px, 26vw, 330px);
+    align-self: start; /* compact card at the top — don't stretch to camera height */
+    align-content: start;
+    align-items: stretch;
+    gap: 0.6rem 0.7rem;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "head  head"
+      "photo canvas"
+      "match match";
+  }
+  .ref-photo,
+  .ref-canvas {
+    width: 100%;
+    max-width: 138px;
+    justify-self: center;
+  }
 }
-.ref-canvas {
-  background: #0b1220;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-}
-.ref-match { display: grid; gap: 0.4rem; }
+.ref-match { display: grid; gap: 0.35rem; align-content: center; }
 .meter {
   position: relative;
   height: 0.7rem;
@@ -322,19 +378,35 @@ body {
 .meter-label.correct { text-shadow: 0 0 12px rgba(34, 197, 94, 0.6); }
 .ref-hint {
   margin: 0;
-  min-height: 2.4em;
-  font-size: 0.92rem;
-  line-height: 1.35;
+  min-height: 1.3em;
+  font-size: 0.9rem;
+  line-height: 1.3;
   font-weight: 600;
   color: var(--fg);
 }
 .ref-hint:empty { display: none; }
 
+/* landscape column has the room for a taller hint; portrait strip keeps it to
+   two lines so the strip stays short and the camera keeps the screen */
+@media (min-width: 760px) and (orientation: landscape) {
+  .ref-hint { min-height: 2.4em; font-size: 0.92rem; }
+}
+@media (max-width: 759px), (orientation: portrait) {
+  .ref-hint {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
 /* ---- controls --------------------------------------------- */
 
 .controls {
-  max-width: 1100px;
-  margin: 0.7rem auto 0.7rem;
+  flex: none;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0.55rem auto 0.6rem;
   padding: 0 1rem;
   display: flex;
   align-items: center;
@@ -391,7 +463,8 @@ button:disabled { opacity: 0.5; cursor: default; }
   .chip, .cta, .icon-btn, #stopBtn, #flipBtn, .viewport, .letter-badge, .toast {
     transition: opacity 0.15s;
   }
-  .viewport.celebrate, .letter-badge.pop, .meter-fill.correct { animation: none; }
+  .viewport.celebrate, .letter-badge.pop, .meter-fill.correct,
+  .viewport[data-state="idle"] { animation: none; }
   .chip.on { transform: none; }
   .toast.show { transform: translate(-50%, 0); }
 }

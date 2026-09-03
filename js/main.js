@@ -261,7 +261,8 @@ async function start() {
   try {
     stream = await startCamera(video, { facingMode });
     facingMode = facingOf(stream) || facingMode;
-    viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
+    // the viewport is sized by the layout, not the camera — the video and the
+    // overlay canvas both `object-fit: cover` it, so any box shape works.
 
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
@@ -322,7 +323,6 @@ async function flip() {
     stopCamera(stream);
     stream = await startCamera(video, { facingMode: want });
     facingMode = facingOf(stream) || want;
-    viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
   } catch (err) {
     console.error(err);
     fail(err);

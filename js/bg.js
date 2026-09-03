@@ -59,6 +59,7 @@ export function createBackground() {
   }));
 
   let want = { greenness: 0, energy: 0, regions: { top: 0, left: 0, right: 0 } };
+  let idle = true; // no target / no hand yet — show a calm living ambience
   let raf = 0;
   let last = performance.now();
 
@@ -68,28 +69,43 @@ export function createBackground() {
     const t = now / 1000;
     const k = 1 - Math.pow(0.0015, dt); // ease factor
 
+    // whole-field slow "breath" — most visible at idle, subtle when active
+    const breath = 0.5 + 0.5 * Math.sin(t * 0.55);
+
     ctx.clearRect(0, 0, BW, BH);
     ctx.globalCompositeOperation = "lighter";
 
     for (const b of blobs) {
-      // region error pulls this blob's greenness back down
-      const regErr = b.region === "overall" ? 0 : want.regions[b.region] || 0;
-      const localGreen = Math.max(0, want.greenness - regErr * 0.9);
-      const wantHue = hueFor(localGreen);
-      b.hue += (wantHue - b.hue) * k * 2.4;
+      let wantHue, wantEnergy, move;
 
-      // a wrong region stays energetic (lit + moving); calm when fine
-      const wantEnergy = Math.min(1, want.energy * (0.55 + 0.9 * (regErr + 0.15)));
+      if (idle) {
+        // calm cool ambience: cyan/blue blobs, gently pulsing and drifting,
+        // each a little out of phase so the field feels alive, not looping
+        wantHue = 198 + 20 * Math.sin(t * 0.16 + b.ph);
+        wantEnergy = 0.22 + 0.12 * (0.5 + 0.5 * Math.sin(t * 0.5 + b.ph));
+        move = reduce ? 0.015 : 0.05;
+        b.hue += (wantHue - b.hue) * k * 1.4;
+      } else {
+        // region error pulls this blob's greenness back down
+        const regErr = b.region === "overall" ? 0 : want.regions[b.region] || 0;
+        const localGreen = Math.max(0, want.greenness - regErr * 0.9);
+        wantHue = hueFor(localGreen);
+        // a wrong region stays energetic (lit + moving); calm when fine
+        wantEnergy = Math.min(1, want.energy * (0.55 + 0.9 * (regErr + 0.15)));
+        move = reduce ? 0.02 : 0.06 + 0.12 * (b.region === "overall" ? want.energy : regErr);
+        b.hue += (wantHue - b.hue) * k * 2.4;
+      }
+
       b.energy += (wantEnergy - b.energy) * k * 2;
 
-      const move = reduce ? 0.02 : 0.06 + 0.12 * (b.region === "overall" ? want.energy : regErr);
       const x = (b.x + Math.sin(t * b.spd + b.ph) * move) * BW;
       const y = (b.y + Math.cos(t * b.spd * 0.9 + b.ph) * move * 1.1) * BH;
-      const rad = b.r * Math.max(BW, BH) * (0.92 + 0.08 * Math.sin(t * 0.25 + b.ph));
+      const pulse = idle ? 0.88 + 0.12 * breath : 0.92 + 0.08 * Math.sin(t * 0.25 + b.ph);
+      const rad = b.r * Math.max(BW, BH) * pulse;
 
-      const sat = 28 + 58 * b.energy;
-      const lig = 11 + 17 * b.energy;
-      const alpha = 0.09 + 0.5 * b.energy;
+      const sat = 32 + 52 * b.energy;
+      const lig = 13 + 16 * b.energy;
+      const alpha = (idle ? 0.14 : 0.09) + 0.5 * b.energy;
       const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
       g.addColorStop(0, `hsla(${b.hue}, ${sat}%, ${lig + 7}%, ${alpha})`);
       g.addColorStop(1, `hsla(${b.hue}, ${sat}%, ${lig}%, 0)`);
@@ -107,9 +123,11 @@ export function createBackground() {
   return {
     setMatch(score, bucket, regions) {
       if (score == null || bucket == null) {
+        idle = true;
         want = { greenness: 0, energy: 0, regions: { top: 0, left: 0, right: 0 } };
         return;
       }
+      idle = false;
       want = {
         greenness: bucket === "correct" ? 1 : Math.max(0.08, Math.min(0.85, score)),
         energy: bucket === "off" ? 0.5 : bucket === "close" ? 0.8 : 1,
