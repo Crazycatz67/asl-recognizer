@@ -12,7 +12,7 @@
 
 const WINDOW_MS = 1600;
 const COOLDOWN_MS = 900; // after a hit, don't re-fire until the hand resets
-const MIN_FRAMES = 6;
+const MIN_FRAMES = 5;
 
 // Ideal fingertip path for the panel demo — normalised (wrist ~origin, +y down,
 // units ≈ hand span). Selfie-mirrored view: +x is toward the pinky side here.
@@ -54,6 +54,13 @@ export function createMotionMatcher() {
   let buf = [];
   let coolUntil = 0;
 
+  const pathLen = (pts) => {
+    let L = 0;
+    for (let i = 1; i < pts.length; i++)
+      L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    return L;
+  };
+
   const resample = (pts, n) => {
     // arc-length resample a polyline to n points
     const seg = [];
@@ -79,6 +86,33 @@ export function createMotionMatcher() {
     return out;
   };
 
+  function computeMetrics() {
+    if (buf.length < 3) return null;
+    const p = buf.map((f) => f.pinky);
+    const ix = buf.map((f) => f.index);
+    const pDrop = Math.max(...p.map((q) => q[1])) - p[0][1];
+    const iPath = resample(ix, 18);
+    let iRev = 0, iX = 0, lastDir = 0;
+    for (let i = 1; i < iPath.length; i++) {
+      const dx = iPath[i][0] - iPath[i - 1][0];
+      iX += Math.abs(dx);
+      const d = dx > 0.015 ? 1 : dx < -0.015 ? -1 : 0;
+      if (d && lastDir && d !== lastDir) iRev++;
+      if (d) lastDir = d;
+    }
+    return {
+      frames: buf.length,
+      ms: Math.round(buf.at(-1).t - buf[0].t),
+      pinkyUp: +(buf.filter((f) => f.pinkyUp).length / buf.length).toFixed(2),
+      indexUp: +(buf.filter((f) => f.indexUp).length / buf.length).toFixed(2),
+      pinkyLen: +pathLen(p).toFixed(2),
+      pinkyDrop: +pDrop.toFixed(2),
+      indexLen: +pathLen(ix).toFixed(2),
+      indexX: +iX.toFixed(2),
+      rev: iRev,
+    };
+  }
+
   return {
     reset() {
       buf = [];
@@ -101,49 +135,28 @@ export function createMotionMatcher() {
       while (buf.length && now - buf[0].t > WINDOW_MS) buf.shift();
     },
 
-    // returns "J" | "Z" | null. Generous on purpose — a rough stroke should
-    // still count; the shape at the start disambiguates J from Z.
+    // live metrics for the current window — used to tune, and shown on screen
+    metrics: computeMetrics,
+
+    // returns "J" | "Z" | null. Deliberately forgiving — a rough deliberate
+    // finger swoosh should count; the extended finger picks J vs Z.
     match(now) {
       if (now < coolUntil || buf.length < MIN_FRAMES) return null;
-      if (now - buf[0].t < 300) return null;
+      if (now - buf[0].t < 260) return null;
+      const mtr = computeMetrics();
+      if (!mtr) return null;
+      const pinkyMoved = mtr.pinkyLen > mtr.indexLen;
 
-      // --- J: "I"-ish hand, pinky tip drops, then curls to the side ---
-      const pinkyMostly = buf.filter((f) => f.pinkyUp).length / buf.length >= 0.4;
-      if (pinkyMostly) {
-        const p = buf.map((f) => f.pinky);
-        const y0 = p[0][1];
-        let lowIdx = 0;
-        for (let i = 1; i < p.length; i++) if (p[i][1] > p[lowIdx][1]) lowIdx = i;
-        const drop = p[lowIdx][1] - y0; // + = moved down
-        // sideways travel any time after it started dropping
-        let hook = 0;
-        for (let i = Math.max(1, Math.floor(lowIdx * 0.6)); i < p.length; i++)
-          hook = Math.max(hook, Math.abs(p[i][0] - p[Math.floor(lowIdx * 0.6)][0]));
-        if (drop > 0.32 && lowIdx >= 1 && hook > 0.16) {
-          coolUntil = now + COOLDOWN_MS;
-          return "J";
-        }
+      // --- J: pinky-ish, tip travels a fair bit and ends up lower ---
+      if ((mtr.pinkyUp >= 0.25 || pinkyMoved) && mtr.pinkyLen > 0.7 && mtr.pinkyDrop > 0.2) {
+        coolUntil = now + COOLDOWN_MS;
+        return "J";
       }
-
-      // --- Z: index-ish up, index tip zigzags (>=2 direction changes in x) ---
-      const indexMostly = buf.filter((f) => f.indexUp).length / buf.length >= 0.4;
-      if (indexMostly) {
-        const path = resample(buf.map((f) => f.index), 20);
-        let reversals = 0, travel = 0, lastDir = 0;
-        for (let i = 1; i < path.length; i++) {
-          const dx = path[i][0] - path[i - 1][0];
-          travel += Math.abs(dx);
-          const dir = dx > 0.015 ? 1 : dx < -0.015 ? -1 : 0;
-          if (dir && lastDir && dir !== lastDir) reversals++;
-          if (dir) lastDir = dir;
-        }
-        const yTravel = Math.abs(path.at(-1)[1] - path[0][1]);
-        if (reversals >= 2 && travel > 1.0 && travel > yTravel * 0.8) {
-          coolUntil = now + COOLDOWN_MS;
-          return "Z";
-        }
+      // --- Z: index-ish, tip travels horizontally with >=1 direction change ---
+      if ((mtr.indexUp >= 0.25 || !pinkyMoved) && mtr.indexLen > 0.7 && mtr.indexX > 0.6 && mtr.rev >= 1) {
+        coolUntil = now + COOLDOWN_MS;
+        return "Z";
       }
-
       return null;
     },
   };

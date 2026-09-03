@@ -938,12 +938,22 @@ function loop() {
       refHint.textContent = rewarded
         ? `Nailed it — that's ${targetLetter} ✓`
         : hasHand
-        ? `Trace the ${targetLetter} — follow the moving dot`
+        ? targetLetter === "J"
+          ? "Pinky up, then swing it down and hook"
+          : "Index up, then draw the Z — across, down, across"
         : "Show your hand, then trace it in the air";
+      // live tuning readout
+      const mt = motion.metrics();
+      letterStat.textContent =
+        hasHand && mt
+          ? targetLetter === "J"
+            ? `pinky up ${mt.pinkyUp} · path ${mt.pinkyLen} · drop ${mt.pinkyDrop}`
+            : `index up ${mt.indexUp} · path ${mt.indexLen} · ↔ ${mt.indexX} · turns ${mt.rev}`
+          : "";
     }
     if (stroke === targetLetter && !rewarded) {
       rewarded = true;
-      reward(hand?.[MOTION_LETTERS.indexOf(targetLetter) === 0 ? 20 : 8]);
+      reward(hand?.[targetLetter === "J" ? 20 : 8]);
     }
   } else if (mode === "practice" && reference && targetLetter) {
     if (hasHand && m) {
