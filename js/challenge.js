@@ -1,19 +1,21 @@
 // "Simon says" speed game. A random letter is shown with its demo for a short
-// study window, then the help disappears and you have a shrinking amount of
-// time to form it. Each letter you land speeds the next one up. Miss the timer
-// and it's game over — just a score and a best.
+// study window, a "GO!" flash, then you race a shrinking timer to actually FORM
+// it — you advance when the recogniser reads your hand as that letter, not when
+// a shape meter guesses. Land it fast for more points; miss the timer and it's
+// game over (score, best, streak, the letter you missed).
 //
 //   const game = createChallenge({ letters });
 //   game.start(now);
-//   const snap = game.update(now, isCorrectThisFrame); // call every loop frame
-//   snap -> { phase, letter, round, score, best, remainingFrac, event }
-//     phase: "study" | "play" | "won" | "over"
-//     event: "letter" | "win" | "over" | null  (fires once on the transition)
+//   const snap = game.update(now, seenLetter);   // seenLetter: recognised letter or null
+//   snap -> { phase, letter, round, score, best, streak, bestStreak,
+//             remainingFrac, low, lastGain, missedLetter, event }
+//     phase: "study" | "go" | "play" | "won" | "over"
+//     event: "letter" | "go" | "win" | "over" | null   (fires once on the change)
 
-const STUDY_MS = 2600;
-const WIN_HOLD_MS = 360; // brief — it's a race, not a calibration
-const WON_MS = 600;
-const roundDur = (r) => Math.max(2000, 5500 - r * 220); // ms, floors at 2s
+const STUDY_MS = 2400;
+const GO_MS = 560; // brief "GO!" between study and play
+const WON_MS = 560;
+const roundDur = (r) => Math.max(2200, 6000 - r * 240); // ms, floors at 2.2s
 
 export function createChallenge({ letters }) {
   let active = false;
@@ -21,13 +23,16 @@ export function createChallenge({ letters }) {
   let letter = null;
   let round = 0;
   let score = 0;
+  let streak = 0;
+  let bestStreak = 0;
   let best = 0;
   try {
     best = Number(localStorage.getItem("asl-challenge-best")) || 0;
   } catch {}
   let phaseEnd = 0;
-  let holdStart = 0;
-  let announced = 0; // last round whose "letter" event was emitted
+  let announced = 0;
+  let lastGain = 0;
+  let missedLetter = null;
 
   const pick = () => {
     if (letters.length < 2) return letters[0];
@@ -43,7 +48,6 @@ export function createChallenge({ letters }) {
     round++;
     phase = "study";
     phaseEnd = now + STUDY_MS;
-    holdStart = 0;
   };
 
   return {
@@ -60,17 +64,20 @@ export function createChallenge({ letters }) {
       active = true;
       round = 0;
       score = 0;
+      streak = 0;
+      bestStreak = 0;
       announced = 0;
+      lastGain = 0;
+      missedLetter = null;
       nextLetter(now);
     },
     stop() {
       active = false;
       phase = "idle";
       letter = null;
-      holdStart = 0;
     },
 
-    update(now, isCorrect) {
+    update(now, seenLetter) {
       if (!active) return null;
       let event = null;
 
@@ -82,23 +89,29 @@ export function createChallenge({ letters }) {
 
       if (phase === "study") {
         if (now >= phaseEnd) {
+          phase = "go";
+          phaseEnd = now + GO_MS;
+          event = "go";
+        }
+      } else if (phase === "go") {
+        if (now >= phaseEnd) {
           phase = "play";
           phaseEnd = now + roundDur(round);
-          holdStart = 0;
+          event = "play";
         }
       } else if (phase === "play") {
-        if (isCorrect) {
-          if (!holdStart) holdStart = now;
-          if (now - holdStart >= WIN_HOLD_MS) {
-            score++;
-            phase = "won";
-            phaseEnd = now + WON_MS;
-            event = "win";
-          }
-        } else {
-          holdStart = 0;
-        }
-        if (phase === "play" && now >= phaseEnd) {
+        if (seenLetter && seenLetter === letter) {
+          const speed = Math.max(0, (phaseEnd - now) / roundDur(round));
+          lastGain = 10 + Math.round(speed * 20); // 10..30, faster = more
+          score += lastGain;
+          streak++;
+          if (streak > bestStreak) bestStreak = streak;
+          phase = "won";
+          phaseEnd = now + WON_MS;
+          event = "win";
+        } else if (now >= phaseEnd) {
+          missedLetter = letter;
+          streak = 0;
           phase = "over";
           event = "over";
           if (score > best) {
@@ -113,10 +126,26 @@ export function createChallenge({ letters }) {
       }
 
       const span =
-        phase === "study" ? STUDY_MS : phase === "play" ? roundDur(round) : 1;
+        phase === "study" ? STUDY_MS
+        : phase === "go" ? GO_MS
+        : phase === "play" ? roundDur(round)
+        : 1;
       const remainingFrac = Math.max(0, Math.min(1, (phaseEnd - now) / span));
 
-      return { phase, letter, round, score, best, remainingFrac, event };
+      return {
+        phase,
+        letter,
+        round,
+        score,
+        best,
+        streak,
+        bestStreak,
+        remainingFrac,
+        low: phase === "play" && remainingFrac < 0.28,
+        lastGain,
+        missedLetter,
+        event,
+      };
     },
   };
 }

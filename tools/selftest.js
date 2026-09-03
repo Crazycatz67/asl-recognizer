@@ -293,32 +293,45 @@ function mkHand() {
 
     // ---- challenge.js (speed game) ----
     const gameMod = await import("../js/challenge.js");
-    ok("challenge: full round runs study -> play -> win -> over", (() => {
+    ok("challenge: study -> go -> play -> win(by recognised letter) -> over", (() => {
       try {
         const g = gameMod.createChallenge({ letters: ["A", "B", "C"] });
-        let t = 1000;
-        g.start(t);
-        let s = g.update(t, false);
+        g.start(0);
+        let s = g.update(0, null);
         if (s.phase !== "study" || s.event !== "letter") return false;
-        s = g.update(t + 3000, false); // past study window
-        if (s.phase !== "play") return false;
-        // hold correct long enough to win
-        g.update(t + 3100, true);
-        s = g.update(t + 3600, true);
-        if (s.event !== "win" || s.score !== 1) return false;
-        // now let the NEXT letter's timer expire -> game over
-        s = g.update(t + 4400, false); // won window elapsed -> new letter
-        if (s.phase !== "study") return false;
-        s = g.update(t + 8000, false); // past study
-        s = g.update(t + 20000, false); // past the play deadline
-        return s.phase === "over" && s.event === "over" && s.best >= 1;
+        const L = s.letter;
+        s = g.update(5000, null); // past study -> "go"
+        if (s.phase !== "go" || s.event !== "go") return false;
+        s = g.update(6000, null); // past go -> "play"
+        if (s.phase !== "play" || s.event !== "play") return false;
+        // wrong letter does nothing; the right one wins and scores > 0
+        g.update(6100, "Z");
+        s = g.update(6200, L);
+        if (s.event !== "win" || s.score <= 0 || s.streak !== 1) return false;
+        // let the next round's timer run out -> game over, best recorded
+        s = g.update(7200, null); // won window elapsed -> new letter (study)
+        s = g.update(20000, null); // past study
+        s = g.update(25000, null); // past go
+        s = g.update(90000, null); // past the play deadline
+        return s.phase === "over" && s.event === "over" && s.best === s.score
+          && typeof s.missedLetter === "string";
       } catch (e) { return false; }
     })());
+    ok("challenge: a wrong recognised letter never advances the round",
+      (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B"] });
+        g.start(0);
+        let s = g.update(0, null);
+        const wrong = s.letter === "A" ? "B" : "A";
+        g.update(5000, null); g.update(6000, null); // -> play
+        for (let k = 0; k < 20; k++) s = g.update(6000 + k * 50, wrong);
+        return s.phase === "play" && s.score === 0;
+      })());
     ok("challenge: stop() ends it and update() returns null",
       (() => {
         const g = gameMod.createChallenge({ letters: ["A", "B"] });
         g.start(0); g.stop();
-        return g.active === false && g.update(1, true) === null;
+        return g.active === false && g.update(1, "A") === null;
       })());
 
     const fx = (await import("../js/fx.js")).createFx();

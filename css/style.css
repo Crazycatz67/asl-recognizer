@@ -406,16 +406,20 @@ body {
   background: rgba(2, 6, 23, 0.5);
   z-index: 45;
 }
+.timebar { transition: height 0.15s ease; }
 .timebar i {
   display: block;
   height: 100%;
   width: calc(var(--time, 1) * 100%);
   background: linear-gradient(90deg, #ef4444, #f59e0b 45%, #22c55e);
-  /* the bar drains right-to-left; the gradient is anchored to the full width */
   background-size: 100vw 100%;
   background-position: right;
   transition: width 0.12s linear;
 }
+.timebar.low { height: 9px; }
+.timebar.low i { animation: time-pulse 0.5s ease-in-out infinite; }
+@keyframes time-pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.8); } }
+
 .score-badge {
   position: absolute;
   right: 0.7rem;
@@ -429,19 +433,63 @@ body {
   text-align: center;
   box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.15);
   transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 .score-badge.pop { animation: badge-pop 0.5s cubic-bezier(0.2, 1.7, 0.4, 1); }
+.score-badge .streak {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fdba74;
+}
+.ch-gain {
+  position: absolute;
+  right: 1rem;
+  top: 3rem;
+  font: 900 1.1rem system-ui, sans-serif;
+  color: var(--correct);
+  text-shadow: 0 2px 10px rgba(2, 6, 23, 0.8);
+  pointer-events: none;
+  animation: gain-float 0.7s ease-out forwards;
+}
+@keyframes gain-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-18px); }
+}
 .ch-banner {
   position: absolute;
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   font: 900 clamp(4rem, 22vh, 9rem) system-ui, sans-serif;
-  color: rgba(248, 250, 252, 0.9);
+  color: rgba(248, 250, 252, 0.92);
   text-shadow: 0 6px 30px rgba(2, 6, 23, 0.8);
   pointer-events: none;
   letter-spacing: 0.02em;
 }
 .ch-banner.win { color: var(--correct); }
+.ch-banner.go { color: #7dd3fc; animation: go-flash 0.5s ease-out; }
+@keyframes go-flash {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.9; }
+}
+.ch-seeing {
+  position: absolute;
+  left: 50%;
+  bottom: 0.8rem;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(4px);
+  font: 700 0.8rem system-ui, sans-serif;
+  color: var(--muted);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.ch-seeing b { color: #e2e8f0; }
 .ch-card {
   position: absolute;
   inset: 0;

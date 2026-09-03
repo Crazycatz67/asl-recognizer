@@ -69,6 +69,10 @@ const modeToggle = $("modeToggle");
 const pickHint = $("pickHint");
 const timeBar = $("timeBar");
 const scoreBadge = $("scoreBadge");
+const scoreVal = $("scoreVal");
+const chStreak = $("chStreak");
+const chGain = $("chGain");
+const chSeeing = $("chSeeing");
 const chBanner = $("chBanner");
 const chCard = $("chCard");
 const chCardTitle = $("chCardTitle");
@@ -253,7 +257,11 @@ function setMode(next) {
 
 function clearChallengeHud() {
   timeBar.hidden = true;
+  timeBar.classList.remove("low");
   scoreBadge.hidden = true;
+  chStreak.hidden = true;
+  chGain.hidden = true;
+  chSeeing.hidden = true;
   chBanner.hidden = true;
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
@@ -271,51 +279,87 @@ function startChallenge() {
   pendingChallengeStart = false;
   chCard.hidden = true;
   scoreBadge.hidden = false;
-  scoreBadge.textContent = "0";
+  scoreVal.textContent = "0";
+  chStreak.hidden = true;
   timeBar.hidden = false;
   challenge.start(performance.now());
 }
 
-// react to the game snapshot each frame
-function renderChallenge(snap) {
+let lastTickAt = 0;
+
+// react to the game snapshot each frame. `seeing` = what the recogniser reads
+// right now (for the on-screen "seeing: X" feedback).
+function renderChallenge(snap, seeing) {
   if (!snap) return;
   timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
+  timeBar.classList.toggle("low", !!snap.low);
+
+  if (snap.low && performance.now() - lastTickAt > 430) {
+    lastTickAt = performance.now();
+    sound.tick();
+  }
 
   if (snap.event === "letter") {
     setTarget(snap.letter); // shows the demo + description in the panel
     refPanel.hidden = false;
     workspace.dataset.target = "on";
     chBanner.hidden = true;
+    chSeeing.hidden = true;
+  } else if (snap.event === "go") {
+    refPanel.hidden = true;
+    workspace.dataset.target = "off";
+    chBanner.className = "ch-banner go";
+    chBanner.textContent = "GO";
+    chBanner.hidden = false;
+  } else if (snap.event === "play") {
+    stabilizer?.reset(); // the letter must be formed FRESH during play
   } else if (snap.event === "win") {
-    scoreBadge.textContent = String(snap.score);
+    scoreVal.textContent = String(snap.score);
     scoreBadge.classList.remove("pop");
     void scoreBadge.offsetWidth;
     scoreBadge.classList.add("pop");
+    chStreak.hidden = snap.streak < 2;
+    chStreak.textContent = `🔥${snap.streak}`;
+    chGain.textContent = `+${snap.lastGain}`;
+    chGain.hidden = false;
+    chGain.classList.remove("ch-gain");
+    void chGain.offsetWidth;
+    chGain.classList.add("ch-gain");
+    chBanner.className = "ch-banner win";
     chBanner.textContent = "✓";
-    chBanner.classList.add("win");
     chBanner.hidden = false;
+    chSeeing.hidden = true;
     fx.flash("#22c55e");
     sound.success();
   } else if (snap.event === "over") {
     timeBar.hidden = true;
+    timeBar.classList.remove("low");
     chBanner.hidden = true;
+    chSeeing.hidden = true;
     refPanel.hidden = true;
-    chCardTitle.textContent = "Time!";
-    chCardSub.textContent = `Score ${snap.score}  ·  Best ${snap.best}`;
+    chCardTitle.textContent = "Run over";
+    chCardSub.innerHTML =
+      `Score <b>${snap.score}</b> · Best <b>${snap.best}</b><br>` +
+      `Reached round ${snap.round} · missed <b>${snap.missedLetter}</b>`;
     chStart.textContent = "Play again";
     chCard.hidden = false;
     sound.charge(0);
+    sound.fail();
   }
 
   if (snap.phase === "play") {
-    // help hidden — just the letter to hit, big
     refPanel.hidden = true;
     workspace.dataset.target = "off";
-    chBanner.classList.remove("win");
+    chBanner.className = "ch-banner";
     chBanner.textContent = snap.letter;
     chBanner.hidden = false;
+    chSeeing.hidden = false;
+    chSeeing.innerHTML = seeing
+      ? `seeing <b>${seeing}</b>`
+      : `seeing <b>—</b>`;
   } else if (snap.phase === "study") {
     chBanner.hidden = true;
+    chSeeing.hidden = true;
   }
 }
 
@@ -599,9 +643,13 @@ function loop() {
     if (shown) letterBadge.textContent = shown;
   }
 
-  // challenge: drive the game from whether the shape is correct this frame
+  // challenge: you advance when the RECOGNISER reads your hand as the target
+  // (a confident, debounced call — not a shape-meter guess). The "seeing"
+  // readout uses the raw current prediction so it feels responsive.
   if (mode === "challenge" && challenge?.active) {
-    renderChallenge(challenge.update(now, m?.bucket === "correct"));
+    const seen = stabilizer.current; // debounced: only after N sure frames
+    const seeing = lastPred && lastPred.confidence >= 0.5 ? lastPred.label : null;
+    renderChallenge(challenge.update(now, seen), seeing);
     bg.setMatch(null);
   }
 

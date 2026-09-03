@@ -45,12 +45,14 @@
 
         <!-- challenge HUD -->
         <div class="timebar" id="timeBar" hidden><i></i></div>
-        <div class="score-badge" id="scoreBadge" hidden>0</div>
+        <div class="score-badge" id="scoreBadge" hidden><b id="scoreVal">0</b><span class="streak" id="chStreak" hidden></span></div>
+        <div class="ch-gain" id="chGain" hidden></div>
         <div class="ch-banner" id="chBanner" hidden></div>
+        <div class="ch-seeing" id="chSeeing" hidden></div>
         <div class="ch-card" id="chCard" hidden>
           <div class="ch-card-inner">
             <p class="ch-card-title" id="chCardTitle">Challenge</p>
-            <p class="ch-card-sub" id="chCardSub">A random letter, a shrinking timer. How far can you get?</p>
+            <p class="ch-card-sub" id="chCardSub">See a letter, then race the timer to sign it. Land it fast for more points — one miss ends the run.</p>
             <button class="cta" id="chStart" type="button">Start</button>
           </div>
         </div>

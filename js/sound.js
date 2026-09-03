@@ -116,6 +116,20 @@ export function createSound() {
       tone(1320, ctx.currentTime, 0.05, { type: "sine", gain: 0.035 });
     },
 
+    // sharper tick — the challenge timer is running low
+    tick() {
+      if (muted || !ensure()) return;
+      tone(880, ctx.currentTime, 0.06, { type: "square", gain: 0.03 });
+    },
+
+    // a run ended
+    fail() {
+      if (muted || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(300, n, 0.18, { type: "sawtooth", gain: 0.09 });
+      tone(220, n + 0.12, 0.3, { type: "sawtooth", gain: 0.08 });
+    },
+
     // picking a letter to learn
     select() {
       if (muted || !ensure()) return;
