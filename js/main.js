@@ -379,11 +379,12 @@ runCardClose.addEventListener("click", () => {
   setAzRun(false);
 });
 
-// The camera view is a selfie mirror of the reference photo. A RIGHT hand's
-// mirrored self-view is the flip of the right-hand reference, so we flip the
-// reference to match; a LEFT hand's mirrored self-view already matches it.
+// Selfie (front) view: it's a mirror of the reference photo, so a RIGHT hand
+// needs the reference flipped to match. Back camera: the view is un-mirrored,
+// so it's the LEFT hand that needs the flip.
 function applyHand() {
-  refPanel.classList.toggle("mirror", trackedHand === "right");
+  const flipForHand = facingMode === "user" ? "right" : "left";
+  refPanel.classList.toggle("mirror", trackedHand === flipForHand);
   if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
 }
 
@@ -573,7 +574,8 @@ function reward(originLandmark) {
   }
   buzz([0, 35, 25, 55]);
   const r = viewport.getBoundingClientRect();
-  const x = originLandmark ? r.left + (1 - originLandmark.x) * r.width : r.left + r.width / 2;
+  const mx = facingMode === "user" ? 1 - originLandmark?.x : originLandmark?.x; // selfie-mirrored
+  const x = originLandmark ? r.left + mx * r.width : r.left + r.width / 2;
   const y = originLandmark ? r.top + originLandmark.y * r.height : r.top + r.height / 2;
   fx.burst(x, y);
   fx.flash("#22c55e");
@@ -655,6 +657,7 @@ async function start() {
   try {
     stream = await startCamera(video, { facingMode });
     facingMode = facingOf(stream) || facingMode;
+    applyFacing();
     // the viewport is sized by the layout, not the camera — the video and the
     // overlay canvas both `object-fit: cover` it, so any box shape works.
 
@@ -718,12 +721,21 @@ async function flip() {
     stopCamera(stream);
     stream = await startCamera(video, { facingMode: want });
     facingMode = facingOf(stream) || want;
+    applyFacing();
   } catch (err) {
     console.error(err);
     fail(err);
   } finally {
     flipBtn.disabled = false;
   }
+}
+
+// The front camera is a selfie (mirror the display); the back camera shows the
+// world as-is (don't). That reversal also flips the mirror relationship the
+// handedness + reference-flip logic depends on — see the loop and applyHand().
+function applyFacing() {
+  viewport.dataset.facing = facingMode;
+  applyHand();
 }
 
 // ---- per-frame loop --------------------------------------------
@@ -765,13 +777,13 @@ function loop() {
 
   const hasHand = result.landmarks?.length > 0;
   const mpLabel = hasHand ? result.handedness?.[0]?.[0]?.categoryName : null;
-  // `left` drives the classification mirror — kept keyed on MediaPipe's raw
-  // label because the dataset was built with the exact same rule.
-  const left = mpLabel === "Left";
-  // MediaPipe's label matches the actual hand here, so use it directly for the
-  // "· left/right hand" tag and the reference flip. (If a device ever reports
-  // it backwards, the manual Right/Left toggle overrides this.)
-  const realHand = mpLabel === "Left" ? "left" : mpLabel === "Right" ? "right" : null;
+  // On the FRONT (selfie) camera MediaPipe's label matches the real hand and the
+  // classifier pipeline is calibrated to it. The BACK camera feed is the mirror
+  // image of that, so every hand-side reading flips.
+  const rawLeft = mpLabel === "Left";
+  const isLeftHand = facingMode === "user" ? rawLeft : !rawLeft;
+  const left = isLeftHand; // drives the classification mirror (mirrorX)
+  const realHand = mpLabel ? (isLeftHand ? "left" : "right") : null;
   // guide is a practice-mode thing only — the challenge gives you no help
   const guiding =
     mode === "practice" && reference && targetLetter && ghostToggle.checked;

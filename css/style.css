@@ -300,7 +300,9 @@ body {
   to { opacity: 0; }
 }
 
+/* selfie (front) camera is mirrored; the back camera shows the world as-is */
 .stage { position: absolute; inset: 0; transform: scaleX(-1); }
+.viewport[data-facing="environment"] .stage { transform: none; }
 #camera, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 .hud { position: absolute; inset: 0; pointer-events: none; }
