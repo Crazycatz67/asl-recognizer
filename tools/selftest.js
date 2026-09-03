@@ -206,6 +206,21 @@ function mkHand() {
         } catch { return false; }
       })());
 
+    // ---- sound.js + fx.js (juice) ----
+    const snd = (await import("../js/sound.js")).createSound();
+    ok("sound: createSound exposes the API",
+      typeof snd.resume === "function" && typeof snd.success === "function" &&
+      typeof snd.setMuted === "function" && typeof snd.muted === "boolean");
+    ok("sound: mute round-trips", (() => { const was = snd.muted; snd.setMuted(!was); const ok = snd.muted === !was; snd.setMuted(was); return ok; })());
+    ok("sound: calls are safe with no audio unlocked",
+      (() => { try { snd.select(); snd.lock(); snd.success(); return true; } catch { return false; } })());
+
+    const fx = (await import("../js/fx.js")).createFx();
+    ok("fx: createFx returns burst + flash",
+      typeof fx.burst === "function" && typeof fx.flash === "function");
+    ok("fx: burst + flash don't throw",
+      (() => { try { fx.burst(100, 100); fx.flash("#22c55e"); return true; } catch { return false; } })());
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

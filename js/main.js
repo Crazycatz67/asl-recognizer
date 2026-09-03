@@ -18,6 +18,8 @@ import { loadDataset } from "./dataset.js";
 import { createClassifier } from "./knn.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, drawCanonical } from "./reference.js";
+import { createSound } from "./sound.js";
+import { createFx } from "./fx.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -55,12 +57,21 @@ const meterLabel = $("meterLabel");
 const refHint = $("refHint");
 const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
+const muteBtn = $("muteBtn");
+const toast = $("toast");
+
+const sound = createSound();
+const fx = createFx();
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
+const CONFIRM_FRAMES = 6; // hold "correct" this long before the reward fires
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
-const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "got it!  ✓" };
+const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "hold it…" };
 let lastHintAt = 0;
+let correctHold = 0;
+let rewarded = false;
+let toastTimer = 0;
 
 const PILL = {
   idle: "Camera off",
@@ -144,10 +155,13 @@ function setTarget(letter) {
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
 
+  correctHold = 0;
+  rewarded = false;
   if (letter) {
     refLetter.textContent = letter;
     refImg.src = REFERENCE_IMG(letter); // photo always on when learning
     sizeRefCanvas();
+    sound.select();
   } else {
     updateMeter(0, null);
   }
@@ -170,10 +184,40 @@ window.addEventListener("resize", sizeRefCanvas);
 function updateMeter(score, bucket) {
   meterFill.style.width = `${Math.round(score * 100)}%`;
   meterFill.style.background = BUCKET_COLOR[bucket] || "#475569";
+  meterFill.classList.toggle("correct", bucket === "correct");
   meterLabel.textContent = bucket ? BUCKET_LABEL[bucket] : "show your hand";
   meterLabel.style.color = BUCKET_COLOR[bucket] || "#94a3b8";
+  meterLabel.classList.toggle("correct", bucket === "correct");
   viewport.dataset.match = bucket || "none";
 }
+
+function reward(originLandmark) {
+  const r = viewport.getBoundingClientRect();
+  const x = originLandmark ? r.left + (1 - originLandmark.x) * r.width : r.left + r.width / 2;
+  const y = originLandmark ? r.top + originLandmark.y * r.height : r.top + r.height / 2;
+  fx.burst(x, y);
+  fx.flash("#22c55e");
+  sound.success();
+  viewport.classList.add("celebrate");
+  setTimeout(() => viewport.classList.remove("celebrate"), 650);
+  letterBadge.classList.remove("pop");
+  void letterBadge.offsetWidth; // restart the animation
+  letterBadge.classList.add("pop");
+  showToast(`Nailed ${targetLetter}!  ✓`);
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 1600);
+}
+
+function syncMuteBtn() {
+  muteBtn.textContent = sound.muted ? "🔇" : "🔊";
+  muteBtn.classList.toggle("muted", sound.muted);
+}
+syncMuteBtn();
 
 // ---- state machine -------------------------------------------------
 
@@ -196,6 +240,8 @@ function setState(next, detail) {
     statsEl.hidden = true;
     letterBadge.hidden = true;
     viewport.dataset.match = "none";
+    correctHold = 0;
+    rewarded = false;
   }
 }
 
@@ -203,6 +249,7 @@ function setState(next, detail) {
 
 async function start() {
   if (state === "requesting" || state === "loading") return;
+  sound.resume(); // this click is the user gesture that unlocks audio
   setState("requesting");
   try {
     stream = await startCamera(video, { facingMode });
@@ -334,25 +381,40 @@ function loop() {
     if (shown) letterBadge.textContent = shown;
   }
 
-  // practice: camera-frame glow + meter + a plain-words hint
+  // practice: camera-frame glow + meter + a plain-words hint + the reward
   if (reference && targetLetter) {
     if (hasHand && vec) {
       const m = reference.score(vec, targetLetter);
       updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
+
+      if (m.bucket === "correct") {
+        correctHold++;
+        if (correctHold >= CONFIRM_FRAMES && !rewarded) {
+          rewarded = true;
+          reward(result.landmarks[0][0]);
+        }
+      } else {
+        correctHold = 0;
+        rewarded = false;
+      }
+
       if (now - lastHintAt >= HINT_INTERVAL) {
         lastHintAt = now;
         const misread =
           lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8;
-        refHint.textContent =
-          m.bucket === "correct"
-            ? "Looks right — hold it steady"
-            : misread
-            ? `${reference.hint(vec, targetLetter)}  ·  (reading as ${lastPred.label})`
-            : reference.hint(vec, targetLetter);
+        refHint.textContent = rewarded
+          ? `Nailed it — that's ${targetLetter} ✓`
+          : m.bucket === "correct"
+          ? "Hold it steady…"
+          : misread
+          ? `${reference.hint(vec, targetLetter)}  ·  (reading as ${lastPred.label})`
+          : reference.hint(vec, targetLetter);
       }
     } else {
       updateMeter(0, null);
       refHint.textContent = "";
+      correctHold = 0;
+      rewarded = false;
     }
   }
 
@@ -415,3 +477,7 @@ startBtn.addEventListener("click", start); // "Turn on camera" and "Try again"
 stopBtn.addEventListener("click", stop);
 flipBtn.addEventListener("click", flip);
 clearTargetBtn.addEventListener("click", () => setTarget(null));
+muteBtn.addEventListener("click", () => {
+  sound.setMuted(!sound.muted);
+  syncMuteBtn();
+});
