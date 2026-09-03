@@ -3,10 +3,10 @@
 ## Session resume — read this first
 _Last updated 2026-09-03. This block is the fast catch-up after a context reset; the Revision history below is the full detail._
 
-- **Where we are:** Stages 1–4 built, tested, and **deployed** → https://crazycatz67.github.io/asl-recognizer/ . Update = `git push` (repo `Crazycatz67/asl-recognizer`, `main`, `/` root).
-- **Verified working (2026-09-03):** `tools/selftest.html` 68/68 pass; all 16 JS modules load clean; full startup chain OK (dataset → 31,605 rows, classifier 29,420 vectors / 74 dims / 24 classes, `classify` / `reference.score` / `regionErrors` / `hint` all functional); 0 real console errors. Any 404s in the automation-browser console are stale cross-navigation noise from earlier in the session, not current failures.
-- **Can't verify in-session:** the live camera loop, the completion reward, and the reactive background — automation-browser limits (synthetic camera + hidden-pane rAF throttle). The user confirms these on the deployed site. Everything is unit-tested + checked layer-by-layer instead.
-- **What's next (waiting on the user):** they run the live experience on their Mac/phone and report back on — does "got it!" feel reachable, are the finger hints useful, does the reward feel satisfying, is the reactive background right / too subtle / too much. Then pick one of: (a) targeted self-capture of M/N/D to lift those letters, (b) Stage 5 formal evaluation (per-letter live accuracy + skin-tone detection check), (c) Stage 6 (word buffering + space gesture + J/Z via motion buffer).
+- **Where we are:** Stages 1–4 done + a large, live-tested practice/challenge experience on top, all **deployed** → https://crazycatz67.github.io/asl-recognizer/ . Update = `git push` (repo `Crazycatz67/asl-recognizer`, `main`, `/` root).
+- **Verified working:** `tools/selftest.html` **80/80**; all modules load clean; the user has run it live on Mac + phone across ~20 feedback iterations (guide, reward feel, layout, handedness, challenge, A→Z run, back camera all tuned from real use).
+- **Can't verify in-session:** the live camera loop / reward / animations — automation-browser limits (synthetic camera + hidden-pane rAF throttle). The user confirms these on the deployed site; everything else is unit-tested + checked layer-by-layer.
+- **What's genuinely left (roadmap):** (5) formal **evaluation** — per-letter *live* accuracy + skin-tone detection-reliability check (needs a person or two at the webcam), and (6) **words + J/Z** — buffer recognised letters into text with a space gesture; J/Z via a short motion buffer. Optional: targeted **M/N/D self-capture** to lift those three letters (still ~84–87%). PWA/offline is a nice-to-have.
 - **Don't re-explore:** the M↔N / D↔O tie-breaker (`js/refine.js`) is built, disproven, and shelved — M/N/D at 84–87% is a data ceiling (occluded thumb), only cleaner data moves it.
 - **Working agreement:** explain choices plainly as you go; keep this doc current with a dated Revision-history entry per change; flag deviations and wait for confirmation; ask before adding any dependency beyond MediaPipe. User is an AI major building this to learn.
 
@@ -60,15 +60,15 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 
 | Stage | State | Evidence |
 |---|---|---|
-| 1 Camera + skeleton | **done** | confirmed live on user's Mac; state machine tested |
+| 1 Camera + skeleton | **done** | confirmed live on user's Mac + phone; state machine tested; front/back camera both handled |
 | 2 Training data | **done** | `data/dataset.json` — 6321 originals (3.2 MB), 74-dim, grassknoted-sourced; `dataset.js` expands with ±15/±30° rotations to ~31.6k rows on load |
-| 3 kNN classifier | **done** | **95.9%** offline (held-out), **~95% flat across ±30° hand tilt**; `classify` 0.37 ms/call; UI-free + dimension-agnostic; 53/53 selftest |
-| 4 Live inference + overlay | **code done, needs real-webcam confirm** | pipeline verified via injected hands (upright + 28° tilt both → "N 100%"); user's live run pending |
-| 5 Evaluation | **offline half done** | confusion matrix + per-letter in `tools/test-knn.html`; live per-letter + skin-tone detection check pending |
-| Practice mode (in `index.html`) | **done** | letter picker, animated canonical demo, plain-language descriptions, progressive correction guide (declutters when idle, tilt-forgiven), per-letter self-calibrated meter, hold-to-win + charge sound, left/right-hand aware; 76/76 selftest |
-| 6 Challenge / words / J/Z (stretch) | **challenge game done** | `js/challenge.js` speed game (random letter, shrinking timer, speeds up, score + best). Word buffering + J/Z motion still not started. |
+| 3 kNN classifier | **done** | **95.9%** offline (held-out), **~95% flat across ±30° hand tilt**; `classify` 0.37 ms/call; UI-free + dimension-agnostic |
+| 4 Live inference + overlay | **done** | confirmed live by the user across ~20 feedback rounds; progressive correction guide, tilt forgiveness, EMA smoothing, real-time handedness, back-camera aware |
+| 5 Evaluation | **offline done; live pending** | confusion matrix + per-letter in `tools/test-knn.html` (95.9%). Still to do: a structured **live** per-letter accuracy pass + a skin-tone detection-reliability check with 2–3 people |
+| Practice mode (in `index.html`) | **done + heavily polished** | free-pick / **A→Z run**; animated demo (+ tap to enlarge); plain-language descriptions; progressive guide with finger highlight; self-calibrated "readable not perfect" meter; hold-to-win + charge sound + haptics; recogniser readout; per-letter stats; "stuck" assist; remembered setup; first-visit walkthrough |
+| 6 Challenge / words / J/Z (stretch) | **challenge done; words + J/Z not started** | `js/challenge.js` speed game — recogniser-gated advance, GO flash, speed scoring, streak, 3 lives + Skip, low-timer FX, results card. **Word buffering + a space gesture, and J/Z via a motion buffer, are the remaining stretch items.** |
 
-**Immediate next:** user's live webcam run on the redesigned page (confirms Stage 4, starts Stage 5's live half). Then either targeted self-capture for M/N/D, or Stage 6.
+**Immediate next (pick one):** (a) Stage 5 live evaluation — sit down and log per-letter hit rate on the deployed app, ideally with a second person for the skin-tone check; (b) Stage 6 word mode — buffer confirmed letters into text + a "space" gesture, then add J/Z with a short motion buffer; (c) targeted M/N/D self-capture to push those three past 90%; (d) PWA / offline install.
 
 **Known weak letters:** M 85%, N 84%, D 87%. This is a data ceiling, not a tuning gap — the M↔N tie-breaker was built and disproven (no landmark measurement separates them >65%; MediaPipe guesses the occluded thumb). The only lever is cleaner data: self-capture of those letters, front-lit, guided by the practice ghost.
 
