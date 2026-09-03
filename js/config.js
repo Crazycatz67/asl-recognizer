@@ -34,11 +34,13 @@ export const LOST_HAND_FRAMES = 6;
 // tools/extract.html. If it 404s, the app runs skeleton-only.
 export const DATASET_URL = "data/dataset.json";
 
-// The 24 static letters we classify. J and Z are motion letters (they trace a
-// path, not a fixed pose) so they're excluded until Stage 6 adds motion
-// buffering; "space" is a Stage 6 concern too. Any dataset row outside this
-// set is dropped at load time.
+// The 24 static letters the kNN/heads classify. J and Z are MOTION letters —
+// they trace a path, not a fixed pose — handled by js/motion.js instead. Any
+// dataset row outside LETTERS is dropped at load time.
 export const LETTERS = "ABCDEFGHIKLMNOPQRSTUVWXY".split("");
+export const MOTION_LETTERS = ["J", "Z"];
+// full alphabet, in order, for the letter picker / A→Z run / challenge
+export const ALL_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 // Append engineered shape features (per-finger curl, fingertip gaps, thumb
 // position) to the raw 63 coordinates. These make confusable differences

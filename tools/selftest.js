@@ -328,6 +328,57 @@ function mkHand() {
     ok("sound: calls are safe with no audio unlocked",
       (() => { try { snd.select(); snd.lock(); snd.charge(0.5); snd.charge(0); snd.success(); return true; } catch { return false; } })());
 
+    // ---- motion.js (J / Z tracing) ----
+    const motMod = await import("../js/motion.js");
+    ok("motion: STROKE has J + Z polylines", Array.isArray(motMod.STROKE.J) && Array.isArray(motMod.STROKE.Z));
+    // build a fake hand: pinky tip and index tip at wrist-relative positions
+    // (units ~span). Everything else fixed so span + finger geometry are stable.
+    const fakeHand = (pinkyRel, indexRel) => {
+      const S = 0.1, wx = 0.5, wy = 0.55;
+      const lm = [];
+      for (let i = 0; i < 21; i++) lm.push({ x: wx, y: wy - 0.03, z: 0 });
+      lm[0] = { x: wx, y: wy, z: 0 };
+      lm[5] = { x: wx - 0.04, y: wy - 0.09, z: 0 };
+      lm[9] = { x: wx, y: wy - 0.10, z: 0 };
+      lm[13] = { x: wx + 0.04, y: wy - 0.09, z: 0 };
+      lm[17] = { x: wx + 0.06, y: wy - 0.07, z: 0 };
+      lm[20] = { x: wx + pinkyRel[0] * S, y: wy + pinkyRel[1] * S, z: 0 };
+      lm[8] = { x: wx + indexRel[0] * S, y: wy + indexRel[1] * S, z: 0 };
+      return lm;
+    };
+    ok("motion: a J-shaped pinky path fires 'J'", (() => {
+      const mm = motMod.createMotionMatcher();
+      const idxCurl = [-0.4, -0.3]; // index near its MCP -> not "up"
+      // pinky (extended) sweeps: up -> down -> hook back
+      const path = [
+        [0.2, -2.4], [0.8, -1.6], [1.6, -0.6], [2.0, 0.6],
+        [1.8, 1.6], [2.0, 2.1], [0.6, 2.0], [-0.6, 1.7],
+      ];
+      let out = null;
+      path.forEach((p, i) => { mm.push(fakeHand(p, idxCurl), i * 90); out = mm.match(i * 90) || out; });
+      return out === "J";
+    })());
+    ok("motion: a zigzag index path fires 'Z'", (() => {
+      const mm = motMod.createMotionMatcher();
+      const pinkyCurl = [0.3, -0.3];
+      // index (extended) zigzags: right -> down-left -> right
+      const path = [
+        [-2.2, -2.0], [-0.7, -2.0], [0.9, -2.0], [2.2, -2.0],
+        [0.7, -0.9], [-0.9, 0.0], [-2.2, 0.1],
+        [-0.7, 0.1], [0.9, 0.1], [2.2, 0.1],
+      ];
+      let out = null;
+      path.forEach((p, i) => { mm.push(fakeHand(pinkyCurl, p), i * 90); out = mm.match(i * 90) || out; });
+      return out === "Z";
+    })());
+    ok("motion: a still hand fires nothing", (() => {
+      const mm = motMod.createMotionMatcher();
+      for (let i = 0; i < 16; i++) mm.push(fakeHand([0.2, -2.4], [-0.4, -0.3]), i * 90);
+      return mm.match(16 * 90) === null;
+    })());
+    ok("motion: push(null) / reset() don't throw",
+      (() => { try { const mm = motMod.createMotionMatcher(); mm.push(null, 0); mm.reset(); return mm.match(1) === null; } catch { return false; } })());
+
     // ---- challenge.js (speed game) ----
     const gameMod = await import("../js/challenge.js");
     ok("challenge: study -> go -> play -> win, then 3 misses -> over", (() => {

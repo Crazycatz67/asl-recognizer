@@ -13,6 +13,7 @@
 
 import { drawSkeleton, vectorToPixels } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
+import { STROKE } from "./motion.js";
 
 // A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
 // to a letter we let it rotate up to this much to sit at the letter's own tilt.
@@ -72,6 +73,8 @@ export const LETTER_GUIDE = {
   W: "Index, middle and ring fingers spread and straight up; thumb pins the pinky down — three prongs.",
   X: "Hold your index finger up but bend it into a hook at the top knuckle; curl the rest — a beckoning finger.",
   Y: "Stretch your thumb and pinky out as far apart as they go; fold the three middle fingers down — 'hang loose'.",
+  J: "Make the letter I (pinky up, rest in a fist), then trace a J in the air — swing the pinky down and hook it back toward you.",
+  Z: "Point your index finger, then draw a Z in the air — across, diagonally down-left, then across again.",
 };
 
 // Render a letter's canonical hand shape (its class-mean vector) as a clean,
@@ -347,6 +350,7 @@ export function createCanonicalPlayer(canvasEl) {
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ctx = canvasEl.getContext("2d");
   let target = null; // 21 [x,y] from the centroid
+  let stroke = null; // for J/Z: an arc-length-resampled path to trace
   let raf = 0;
   let t0 = 0;
 
@@ -377,7 +381,54 @@ export function createCanonicalPlayer(canvasEl) {
     return out;
   }
 
+  // fit a list of [x,y] (normalised, wrist ~origin) to the canvas
+  function fitPath(pts) {
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (const [x, y] of pts) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+    const w = canvasEl.width, h = canvasEl.height, pad = 0.18;
+    const sx = (w * (1 - 2 * pad)) / (maxX - minX || 1);
+    const sy = (h * (1 - 2 * pad)) / (maxY - minY || 1);
+    const s = Math.min(sx, sy);
+    const ox = (w - (maxX - minX) * s) / 2 - minX * s;
+    const oy = (h - (maxY - minY) * s) / 2 - minY * s;
+    return pts.map(([x, y]) => [x * s + ox, y * s + oy]);
+  }
+
+  // J/Z: trace the stroke — full path faint, a bright head + fading trail
+  function paintStroke(prog) {
+    const w = canvasEl.width, h = canvasEl.height;
+    ctx.clearRect(0, 0, w, h);
+    const px = fitPath(stroke);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // faint full path
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.lineWidth = Math.max(3, w * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(px[0][0], px[0][1]);
+    for (const p of px) ctx.lineTo(p[0], p[1]);
+    ctx.stroke();
+    // drawn-so-far, bright
+    const upto = Math.max(1, Math.round(prog * (px.length - 1)));
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = Math.max(4, w * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(px[0][0], px[0][1]);
+    for (let i = 1; i <= upto; i++) ctx.lineTo(px[i][0], px[i][1]);
+    ctx.stroke();
+    // moving head
+    const head = px[Math.min(px.length - 1, upto)];
+    ctx.fillStyle = "#e2e8f0";
+    ctx.beginPath();
+    ctx.arc(head[0], head[1], Math.max(5, w * 0.05), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   function paint(frac) {
+    if (stroke) { paintStroke(frac); return; }
     const w = canvasEl.width;
     const h = canvasEl.height;
     ctx.clearRect(0, 0, w, h); // full clear every frame — no after-image
@@ -410,6 +461,7 @@ export function createCanonicalPlayer(canvasEl) {
 
   return {
     setTarget(vec) {
+      stroke = null;
       if (!vec) {
         target = null;
         cancelAnimationFrame(raf);
@@ -427,6 +479,20 @@ export function createCanonicalPlayer(canvasEl) {
       } else if (!raf) {
         raf = requestAnimationFrame(loop);
       }
+    },
+    // J / Z: loop a fingertip tracing the letter's stroke
+    setMotion(letter) {
+      target = null;
+      stroke = STROKE[letter] || null;
+      if (!stroke) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        return;
+      }
+      t0 = 0;
+      if (reduce) { cancelAnimationFrame(raf); raf = 0; paint(1); }
+      else if (!raf) raf = requestAnimationFrame(loop);
     },
     // re-draw after a canvas resize without restarting the cycle
     redraw() {

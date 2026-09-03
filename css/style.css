@@ -795,6 +795,21 @@ button:disabled { opacity: 0.5; cursor: default; }
 .chip { position: relative; }
 .chip.hard.on { box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.28), 0 6px 16px -4px rgba(56, 189, 248, 0.5); }
 
+/* motion letters (J, Z) — traced, not held */
+.chip.motion {
+  border-color: #7c3aed;
+  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.4);
+}
+.chip.motion::after {
+  content: "↻";
+  position: absolute;
+  top: -1px; right: 2px;
+  font-size: 0.6rem;
+  line-height: 1;
+  color: #a78bfa;
+}
+.chip.motion.on::after { color: #0b1220; }
+
 /* ---- challenge: lives + skip ------------------------------- */
 .score-badge .lives { font-size: 0.85rem; letter-spacing: 1px; }
 .ch-skip {

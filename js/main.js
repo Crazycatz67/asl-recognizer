@@ -23,11 +23,14 @@ import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
 import { createChallenge } from "./challenge.js";
+import { createMotionMatcher } from "./motion.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
   DATASET_URL,
   LETTERS,
+  ALL_LETTERS,
+  MOTION_LETTERS,
   USE_EXTENDED_FEATURES,
   KNN_K,
   MIRROR_LEFT_HAND,
@@ -35,6 +38,9 @@ import {
   STABLE_FRAMES,
   REFERENCE_IMG,
 } from "./config.js";
+
+const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
+const motion = createMotionMatcher();
 
 const $ = (id) => document.getElementById(id);
 const workspace = $("workspace");
@@ -229,8 +235,8 @@ const datasetPromise = loadDataset(DATASET_URL)
     reference = buildReference(train, LETTERS); // self-calibrates per letter
     refPlayer = createCanonicalPlayer(refCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
-    challenge = createChallenge({ letters: reference.letters });
-    buildLetterPicker(reference.letters);
+    challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
+    buildLetterPicker(ALL_LETTERS);
     learnRow.hidden = false;
     modeToggle.hidden = false;
 
@@ -246,7 +252,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     if (loadPref("mode") === "challenge") setMode("challenge");
     else {
       const savedLetter = loadPref("letter");
-      if (savedLetter && reference.letters.includes(savedLetter)) setTarget(savedLetter);
+      if (savedLetter && ALL_LETTERS.includes(savedLetter)) setTarget(savedLetter);
     }
 
     console.info(
@@ -262,9 +268,14 @@ function buildLetterPicker(letters) {
   for (const L of letters) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "chip" + (HARD_LETTERS.has(L) ? " hard" : "");
+    b.className =
+      "chip" + (HARD_LETTERS.has(L) ? " hard" : "") + (MOTION.has(L) ? " motion" : "");
     b.textContent = L;
-    b.title = HARD_LETTERS.has(L) ? `${L} — trickier for the recogniser` : L;
+    b.title = MOTION.has(L)
+      ? `${L} — a motion letter (trace it)`
+      : HARD_LETTERS.has(L)
+      ? `${L} — trickier for the recogniser`
+      : L;
     b.addEventListener("click", () => setTarget(targetLetter === L ? null : L));
     letterPicker.appendChild(b);
   }
@@ -295,7 +306,9 @@ function setTarget(letter) {
   firstHandAt = 0;
   stuckSince = 0;
   stuckShown = false;
+  motion.reset();
   refPanel.classList.remove("nudge");
+  viewport.classList.toggle("is-motion", MOTION.has(letter));
   viewport.style.setProperty("--hold", "0");
   reco.hidden = true;
   if (letter) {
@@ -308,7 +321,8 @@ function setTarget(letter) {
     // before we size the canvas to it, otherwise the diagram can draw blank.
     requestAnimationFrame(() => {
       sizeRefCanvas();
-      refPlayer?.setTarget(reference?.centroid(letter) || null);
+      if (MOTION.has(letter)) refPlayer?.setMotion(letter);
+      else refPlayer?.setTarget(reference?.centroid(letter) || null);
     });
     sound.select();
   } else {
@@ -336,14 +350,14 @@ function setAzRun(on) {
     azDone.clear();
     azTimes = [];
     updateAzProgress();
-    setTarget(reference.letters[0]);
+    setTarget(ALL_LETTERS[0]);
   } else {
     setTarget(null);
   }
 }
 
 function updateAzProgress() {
-  azProgress.textContent = `${azDone.size} / ${reference.letters.length}`;
+  azProgress.textContent = `${azDone.size} / ${ALL_LETTERS.length}`;
 }
 
 function advanceAz() {
@@ -356,7 +370,7 @@ function advanceAz() {
     if (b.textContent === done) b.classList.add("done");
   }
   updateAzProgress();
-  const next = reference.letters.find((L) => !azDone.has(L));
+  const next = ALL_LETTERS.find((L) => !azDone.has(L));
   if (next) {
     azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
     azNext.hidden = false;
@@ -794,9 +808,10 @@ function loop() {
   const isLeftHand = facingMode === "user" ? rawLeft : !rawLeft;
   const left = isLeftHand; // drives the classification mirror (mirrorX)
   const realHand = mpLabel ? (isLeftHand ? "left" : "right") : null;
-  // guide is a practice-mode thing only — the challenge gives you no help
+  const motionTarget = MOTION.has(targetLetter); // J / Z — traced, no shape match
+  // guide is a practice-mode thing only — and not for the motion letters
   const guiding =
-    mode === "practice" && reference && targetLetter && ghostToggle.checked;
+    mode === "practice" && reference && targetLetter && !motionTarget && ghostToggle.checked;
 
   // which hand is signing — follows whatever's on camera in near real time, so
   // you can swap hands mid-session (A→Z run, practice, challenge) and the
@@ -815,6 +830,10 @@ function loop() {
   // the skeleton look stringy, and steadies the meter. Reset on a lost hand so
   // it doesn't lerp across a re-acquire.
   const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null);
+
+  // J/Z motion buffer — fed every frame (raw landmarks; it does its own scaling)
+  motion.push(hasHand ? result.landmarks[0] : null, now);
+  const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
 
   // normalize once; reused by the classifier, the practice meter, and the guide
   let vec = null;
@@ -839,7 +858,8 @@ function loop() {
   }
 
   // score the shape once — the guide's reveal ramp and the practice block need it
-  const m = hasHand && vec && reference && targetLetter
+  // (motion letters J/Z have no static shape to score)
+  const m = hasHand && vec && reference && targetLetter && !motionTarget
     ? reference.score(vec, targetLetter)
     : null;
   // a "close" shape the recogniser confidently reads AS the target counts as
@@ -896,14 +916,33 @@ function loop() {
   // (a confident, debounced call — not a shape-meter guess). The "seeing"
   // readout uses the raw current prediction so it feels responsive.
   if (mode === "challenge" && challenge?.active) {
-    const seen = stabilizer.current; // debounced: only after N sure frames
-    const seeing = lastPred && lastPred.confidence >= 0.5 ? lastPred.label : null;
+    // a traced J/Z stroke, or the debounced classifier call for a static letter
+    const seen = stroke || stabilizer.current;
+    const seeing = stroke || (lastPred && lastPred.confidence >= 0.5 ? lastPred.label : null);
     renderChallenge(challenge.update(now, seen), seeing);
     bg.setMatch(null);
   }
 
   // practice: camera-frame glow + meter + a plain-words hint + the reward
-  if (mode === "practice" && reference && targetLetter) {
+  if (mode === "practice" && motionTarget) {
+    // J / Z — no shape meter; you complete it by tracing the stroke
+    updateMeter(0, null);
+    bg.setMatch(null);
+    reco.hidden = true;
+    if (hasHand && !firstHandAt) firstHandAt = now;
+    if (now - lastHintAt >= HINT_INTERVAL) {
+      lastHintAt = now;
+      refHint.textContent = rewarded
+        ? `Nailed it — that's ${targetLetter} ✓`
+        : hasHand
+        ? `Trace the ${targetLetter} — follow the moving dot`
+        : "Show your hand, then trace it in the air";
+    }
+    if (stroke === targetLetter && !rewarded) {
+      rewarded = true;
+      reward(hand?.[MOTION_LETTERS.indexOf(targetLetter) === 0 ? 20 : 8]);
+    }
+  } else if (mode === "practice" && reference && targetLetter) {
     if (hasHand && m) {
       updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
       // ambient background warms toward green, and reacts in the direction of
@@ -1079,7 +1118,7 @@ subMode.addEventListener("click", (e) => {
 });
 const stepLetter = (dir) => {
   if (!reference || !targetLetter || azRun) return;
-  const list = reference.letters;
+  const list = ALL_LETTERS;
   const i = list.indexOf(targetLetter);
   setTarget(list[(i + dir + list.length) % list.length]);
 };
@@ -1131,6 +1170,6 @@ document.addEventListener("keydown", (e) => {
     }
   } else if (/^[a-z]$/i.test(e.key) && mode === "practice" && !azRun && reference) {
     const L = e.key.toUpperCase();
-    if (reference.letters.includes(L)) setTarget(L);
+    if (ALL_LETTERS.includes(L)) setTarget(L);
   }
 });
