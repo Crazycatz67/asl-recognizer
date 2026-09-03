@@ -768,9 +768,10 @@ function loop() {
   // `left` drives the classification mirror — kept keyed on MediaPipe's raw
   // label because the dataset was built with the exact same rule.
   const left = mpLabel === "Left";
-  // We feed MediaPipe a NON-mirrored frame; it reports handedness assuming a
-  // mirrored (selfie) one, so the REAL hand is the opposite of its label.
-  const realHand = mpLabel === "Left" ? "right" : mpLabel === "Right" ? "left" : null;
+  // MediaPipe's label matches the actual hand here, so use it directly for the
+  // "· left/right hand" tag and the reference flip. (If a device ever reports
+  // it backwards, the manual Right/Left toggle overrides this.)
+  const realHand = mpLabel === "Left" ? "left" : mpLabel === "Right" ? "right" : null;
   // guide is a practice-mode thing only — the challenge gives you no help
   const guiding =
     mode === "practice" && reference && targetLetter && ghostToggle.checked;
