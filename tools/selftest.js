@@ -186,6 +186,19 @@ function mkHand() {
     ok("reference: a different letter's centroid scores lower for N",
       ref.score(ref.centroid("A"), "N").score < ref.score(cN, "N").score);
     ok("reference: unknown target -> safe zero", ref.score(cN, "ZZ").score === 0);
+    // regression: skeleton fully green (x/y within tolerance) + heavy z noise
+    // must still read "correct" — z is a noisy MediaPipe guess and used to
+    // stall the meter at "close" even with a perfect on-screen match.
+    ok("reference: x/y-matched hand with noisy z still scores 'correct'",
+      (() => {
+        const c = ref.centroid("B"), tol = ref.tolerance("B"), v = c.slice();
+        for (let j = 0; j < 21; j++) {
+          v[j * 3] += (j % 2 ? 1 : -1) * tol * 0.6;
+          v[j * 3 + 1] += (j % 3 ? 1 : -1) * tol * 0.6;
+          v[j * 3 + 2] += (j % 2 ? 1 : -1) * 0.25; // way outside any tolerance
+        }
+        return ref.score(v, "B").bucket === "correct";
+      })());
     ok("reference: tolerance('N') is a small positive number",
       (() => { const t = ref.tolerance("N"); return t > 0 && t < 0.3; })(), String(ref.tolerance("N")));
     ok("reference: hint() on the centroid says it's right",

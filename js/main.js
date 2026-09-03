@@ -412,13 +412,19 @@ function loop() {
         lastHintAt = now;
         const misread =
           lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8;
+        let tip = reference.hint(vec, targetLetter);
+        // hint() can say "looks right" from the coarse feature check while the
+        // meter is still short — don't claim it's right unless the meter agrees
+        if (m.bucket !== "correct" && /looks right/i.test(tip)) {
+          tip = m.bucket === "close" ? "So close — tiny adjustments" : "Keep shaping it";
+        }
         refHint.textContent = rewarded
           ? `Nailed it — that's ${targetLetter} ✓`
           : m.bucket === "correct"
           ? "Hold it steady…"
           : misread
-          ? `${reference.hint(vec, targetLetter)}  ·  (reading as ${lastPred.label})`
-          : reference.hint(vec, targetLetter);
+          ? `${tip}  ·  (reading as ${lastPred.label})`
+          : tip;
       }
     } else {
       updateMeter(0, null);

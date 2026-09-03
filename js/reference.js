@@ -13,8 +13,6 @@
 
 import { drawSkeleton, vectorToPixels } from "./skeleton.js";
 
-const COORD_DIMS = 63;
-
 // engineered-feature indices (see normalize.js handFeatures)
 const F_CURL = 63;   // 63..67  thumb,index,middle,ring,pinky : tip->own-MCP distance
 const F_GAP = 68;    // 68..71  adjacent fingertip gaps
@@ -44,11 +42,22 @@ export function drawCanonical(canvasEl, vec) {
   });
 }
 
+// Distance over the 21 landmark X/Y only — deliberately NOT z.
+//
+// MediaPipe's z is a single-image depth guess: noisy, and its scale differs
+// between the training photos and a live webcam. Including it made the match
+// meter stall around "close" even when the on-screen skeleton was fully green
+// and the hint said "looks right" — the user was matching everything they can
+// see and control, but an invisible z term they can't fix held the score down.
+// The guide overlay, the hints, and the reference photo are all 2-D, so the
+// meter is too. With this, "every joint green" (each within tolerance derived
+// from p50) implies total distance <= p50 implies the "correct" bucket.
 const coordDist = (a, b) => {
   let d = 0;
-  for (let i = 0; i < COORD_DIMS; i++) {
-    const q = a[i] - b[i];
-    d += q * q;
+  for (let j = 0; j < 21; j++) {
+    const dx = a[j * 3] - b[j * 3];
+    const dy = a[j * 3 + 1] - b[j * 3 + 1];
+    d += dx * dx + dy * dy;
   }
   return Math.sqrt(d);
 };
@@ -128,8 +137,7 @@ export function buildReference(samples, letters) {
       for (let j = 0; j < 21; j++) {
         const dx = liveVec[j * 3] - c[j * 3];
         const dy = liveVec[j * 3 + 1] - c[j * 3 + 1];
-        const dz = liveVec[j * 3 + 2] - c[j * 3 + 2];
-        const e = Math.hypot(dx, dy, dz);
+        const e = Math.hypot(dx, dy); // x/y only — matches coordDist / the guide
         const ty = c[j * 3 + 1]; // target y (fingers point up = negative)
         const sx = -c[j * 3]; // mirrored screen x
         if (ty < -0.12) { zones.top[0] += e; zones.top[1]++; }
