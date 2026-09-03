@@ -211,14 +211,6 @@ body {
     justify-content: center;
     padding-bottom: 0.2rem;
   }
-  .viewport {
-    flex: 0 1 auto;
-    /* true 4:3, never distorted: as wide as the row's height allows, capped
-       so it never sprawls, and it shrinks on smaller screens */
-    width: min(100%, calc((100dvh - 128px) * 4 / 3), 900px);
-    height: auto;
-    aspect-ratio: 4 / 3;
-  }
 }
 
 .viewport {
@@ -235,6 +227,26 @@ body {
     0 20px 50px -24px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(148, 163, 184, 0.08);
   transition: box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+/* landscape / desktop: a true 4:3 camera box, driven by the room the row has
+   after the header + learn bar + controls, capped so it never sprawls and
+   shrinks on smaller windows. MUST come after the base `.viewport` rule —
+   equal specificity, source order decides. */
+@media (min-width: 760px) and (orientation: landscape) {
+  .viewport {
+    flex: 0 1 auto;
+    width: min(100%, calc((100dvh - 150px) * 4 / 3), 900px);
+    height: auto;
+    max-height: calc(100dvh - 130px);
+    aspect-ratio: 4 / 3;
+  }
+}
+/* fallback for browsers without dvh (older Safari): plain vh */
+@supports not (height: 100dvh) {
+  @media (min-width: 760px) and (orientation: landscape) {
+    .viewport { width: min(100%, calc((100vh - 150px) * 4 / 3), 900px); max-height: calc(100vh - 130px); }
+  }
 }
 /* "charge" bar along the bottom while you hold a completed sign — fills over
    HOLD_MS, then the reward fires. Invisible at --hold: 0. */
