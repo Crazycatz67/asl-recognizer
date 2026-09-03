@@ -276,6 +276,36 @@ function mkHand() {
     ok("sound: calls are safe with no audio unlocked",
       (() => { try { snd.select(); snd.lock(); snd.charge(0.5); snd.charge(0); snd.success(); return true; } catch { return false; } })());
 
+    // ---- challenge.js (speed game) ----
+    const gameMod = await import("../js/challenge.js");
+    ok("challenge: full round runs study -> play -> win -> over", (() => {
+      try {
+        const g = gameMod.createChallenge({ letters: ["A", "B", "C"] });
+        let t = 1000;
+        g.start(t);
+        let s = g.update(t, false);
+        if (s.phase !== "study" || s.event !== "letter") return false;
+        s = g.update(t + 3000, false); // past study window
+        if (s.phase !== "play") return false;
+        // hold correct long enough to win
+        g.update(t + 3100, true);
+        s = g.update(t + 3600, true);
+        if (s.event !== "win" || s.score !== 1) return false;
+        // now let the NEXT letter's timer expire -> game over
+        s = g.update(t + 4400, false); // won window elapsed -> new letter
+        if (s.phase !== "study") return false;
+        s = g.update(t + 8000, false); // past study
+        s = g.update(t + 20000, false); // past the play deadline
+        return s.phase === "over" && s.event === "over" && s.best >= 1;
+      } catch (e) { return false; }
+    })());
+    ok("challenge: stop() ends it and update() returns null",
+      (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B"] });
+        g.start(0); g.stop();
+        return g.active === false && g.update(1, true) === null;
+      })());
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");

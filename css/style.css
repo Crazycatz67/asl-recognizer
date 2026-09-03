@@ -19,6 +19,10 @@
 
 * { box-sizing: border-box; }
 
+/* author `display` on .reference / .learn / .mode etc. otherwise beats the
+   UA [hidden] rule (equal specificity) — make the attribute reliable */
+[hidden] { display: none !important; }
+
 html {
   /* soft depth behind the animated bg canvas so it never reads as flat black */
   background:
@@ -57,6 +61,30 @@ body {
   margin: 0 auto;
 }
 .topbar h1 { margin: 0; font-size: 1rem; font-weight: 700; flex: none; }
+
+/* Practice / Challenge segmented toggle */
+.mode {
+  flex: none;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: #0b1220;
+  border: 1px solid var(--line);
+}
+.mode-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.78rem system-ui, sans-serif;
+  padding: 0.32rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-btn.on {
+  background: linear-gradient(180deg, #7dd3fc, var(--accent));
+  color: #0b1220;
+}
 @media (max-width: 520px) {
   .topbar h1 { font-size: 0.9rem; width: 100%; }
 }
@@ -322,6 +350,66 @@ body {
 }
 .cta-sub { margin: 0.65rem 0 0; color: var(--fg); font-size: 0.8rem; line-height: 1.5; opacity: 0.85; }
 [data-state="error"] .cta-sub { color: var(--error); opacity: 1; }
+
+/* ---- challenge HUD ---------------------------------------- */
+
+.timebar {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 6px;
+  background: rgba(2, 6, 23, 0.5);
+  z-index: 45;
+}
+.timebar i {
+  display: block;
+  height: 100%;
+  width: calc(var(--time, 1) * 100%);
+  background: linear-gradient(90deg, #ef4444, #f59e0b 45%, #22c55e);
+  /* the bar drains right-to-left; the gradient is anchored to the full width */
+  background-size: 100vw 100%;
+  background-position: right;
+  transition: width 0.12s linear;
+}
+.score-badge {
+  position: absolute;
+  right: 0.7rem;
+  top: 0.9rem;
+  min-width: 2.2rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.8);
+  backdrop-filter: blur(6px);
+  font: 800 1.15rem system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.15);
+  transition: transform 0.15s ease;
+}
+.score-badge.pop { animation: badge-pop 0.5s cubic-bezier(0.2, 1.7, 0.4, 1); }
+.ch-banner {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font: 900 clamp(4rem, 22vh, 9rem) system-ui, sans-serif;
+  color: rgba(248, 250, 252, 0.9);
+  text-shadow: 0 6px 30px rgba(2, 6, 23, 0.8);
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
+.ch-banner.win { color: var(--correct); }
+.ch-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.1rem;
+  background: linear-gradient(rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.8));
+  z-index: 50;
+}
+.ch-card-inner { text-align: center; max-width: 22rem; }
+.ch-card-title { margin: 0 0 0.35rem; font: 800 1.3rem system-ui, sans-serif; }
+.ch-card-sub { margin: 0 0 1rem; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+/* in challenge mode the ch-card owns the "turn on camera" moment */
+.viewport[data-mode="challenge"] .curtain { display: none; }
 
 /* ---- reference panel ---------------------------------------- */
 

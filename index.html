@@ -10,6 +10,10 @@
 <body>
   <header class="topbar">
     <h1>ASL Fingerspelling</h1>
+    <div class="mode" id="modeToggle" role="tablist" hidden>
+      <button class="mode-btn on" type="button" data-mode="practice">Practice</button>
+      <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
+    </div>
     <div class="learn" id="learnRow" hidden>
       <span class="learn-label">Learn</span>
       <div class="chips" id="letterPicker"></div>
@@ -32,6 +36,18 @@
         </div>
         <div class="letter-badge" id="letterBadge" hidden></div>
         <p class="stats" id="stats" hidden></p>
+
+        <!-- challenge HUD -->
+        <div class="timebar" id="timeBar" hidden><i></i></div>
+        <div class="score-badge" id="scoreBadge" hidden>0</div>
+        <div class="ch-banner" id="chBanner" hidden></div>
+        <div class="ch-card" id="chCard" hidden>
+          <div class="ch-card-inner">
+            <p class="ch-card-title" id="chCardTitle">Challenge</p>
+            <p class="ch-card-sub" id="chCardSub">A random letter, a shrinking timer. How far can you get?</p>
+            <button class="cta" id="chStart" type="button">Start</button>
+          </div>
+        </div>
 
         <div class="curtain" id="curtain">
           <div class="curtain-inner">

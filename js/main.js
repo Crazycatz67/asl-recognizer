@@ -21,6 +21,7 @@ import { buildReference, createCanonicalPlayer } from "./reference.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
+import { createChallenge } from "./challenge.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -62,6 +63,14 @@ const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
 const muteBtn = $("muteBtn");
 const toast = $("toast");
+const modeToggle = $("modeToggle");
+const timeBar = $("timeBar");
+const scoreBadge = $("scoreBadge");
+const chBanner = $("chBanner");
+const chCard = $("chCard");
+const chCardTitle = $("chCardTitle");
+const chCardSub = $("chCardSub");
+const chStart = $("chStart");
 
 const sound = createSound();
 const fx = createFx();
@@ -110,6 +119,8 @@ let classifier = null;
 let stabilizer = null;
 let reference = null;
 let refPlayer = null; // animates the canonical shape in the panel
+let challenge = null; // the speed game
+let mode = "practice"; // "practice" | "challenge"
 let lastPred = null;
 let targetLetter = null;
 
@@ -132,8 +143,10 @@ const datasetPromise = loadDataset(DATASET_URL)
     });
     reference = buildReference(train, LETTERS); // self-calibrates per letter
     refPlayer = createCanonicalPlayer(refCanvas);
+    challenge = createChallenge({ letters: reference.letters });
     buildLetterPicker(reference.letters);
     learnRow.hidden = false;
+    modeToggle.hidden = false;
     console.info(
       `recognition on: ${classifier.size} vectors, ${classifier.classes.length} letters`
     );
@@ -213,6 +226,93 @@ function updateMeter(score, bucket) {
   viewport.dataset.match = bucket || "none";
 }
 
+// ---- challenge mode -------------------------------------------
+
+function setMode(next) {
+  if (!challenge || next === mode) return;
+  mode = next;
+  viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
+  for (const b of modeToggle.children) b.classList.toggle("on", b.dataset.mode === mode);
+  setTarget(null); // drop any practice target
+  challenge.stop();
+  clearChallengeHud();
+  learnRow.hidden = mode !== "practice";
+  ghostToggleWrap.hidden = true;
+  if (mode === "challenge") {
+    chCardTitle.textContent = "Challenge";
+    chCardSub.textContent = state === "tracking" || state === "searching"
+      ? "A random letter, a shrinking timer. How far can you get?"
+      : "Turn on the camera, then Start.";
+    chCard.hidden = false;
+  }
+}
+
+function clearChallengeHud() {
+  timeBar.hidden = true;
+  scoreBadge.hidden = true;
+  chBanner.hidden = true;
+  chCard.hidden = true;
+  refPanel.hidden = !targetLetter;
+}
+
+function startChallenge() {
+  if (!challenge) return;
+  if (state !== "tracking" && state !== "searching") {
+    // need the camera first — turn it on, the loop will show the start card again
+    chCardSub.textContent = "Starting camera…";
+    start();
+    return;
+  }
+  chCard.hidden = true;
+  scoreBadge.hidden = false;
+  scoreBadge.textContent = "0";
+  timeBar.hidden = false;
+  challenge.start(performance.now());
+}
+
+// react to the game snapshot each frame
+function renderChallenge(snap) {
+  if (!snap) return;
+  timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
+
+  if (snap.event === "letter") {
+    setTarget(snap.letter); // shows the demo + description in the panel
+    refPanel.hidden = false;
+    workspace.dataset.target = "on";
+    chBanner.hidden = true;
+  } else if (snap.event === "win") {
+    scoreBadge.textContent = String(snap.score);
+    scoreBadge.classList.remove("pop");
+    void scoreBadge.offsetWidth;
+    scoreBadge.classList.add("pop");
+    chBanner.textContent = "✓";
+    chBanner.classList.add("win");
+    chBanner.hidden = false;
+    fx.flash("#22c55e");
+    sound.success();
+  } else if (snap.event === "over") {
+    timeBar.hidden = true;
+    chBanner.hidden = true;
+    refPanel.hidden = true;
+    chCardTitle.textContent = "Time!";
+    chCardSub.textContent = `Score ${snap.score}  ·  Best ${snap.best}`;
+    chStart.textContent = "Play again";
+    chCard.hidden = false;
+    sound.charge(0);
+  }
+
+  if (snap.phase === "play") {
+    // help hidden — just the letter to hit, big
+    refPanel.hidden = true;
+    workspace.dataset.target = "off";
+    chBanner.classList.remove("win");
+    chBanner.textContent = snap.letter;
+    chBanner.hidden = false;
+  } else if (snap.phase === "study") {
+    chBanner.hidden = true;
+  }
+}
+
 function reward(originLandmark) {
   const r = viewport.getBoundingClientRect();
   const x = originLandmark ? r.left + (1 - originLandmark.x) * r.width : r.left + r.width / 2;
@@ -269,6 +369,15 @@ function setState(next, detail) {
     viewport.style.setProperty("--hold", "0");
     sound.charge(0);
     bg.setMatch(null);
+    if (challenge?.active) {
+      challenge.stop();
+      clearChallengeHud();
+    }
+  }
+  // camera just came up while waiting to start a challenge — offer the button
+  if (live && mode === "challenge" && challenge && !challenge.active && !chCard.hidden) {
+    chCardTitle.textContent = "Challenge";
+    chCardSub.textContent = "A random letter, a shrinking timer. How far can you get?";
   }
 }
 
@@ -390,7 +499,9 @@ function loop() {
 
   const hasHand = result.landmarks?.length > 0;
   const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
-  const guiding = reference && targetLetter && ghostToggle.checked;
+  // guide is a practice-mode thing only — the challenge gives you no help
+  const guiding =
+    mode === "practice" && reference && targetLetter && ghostToggle.checked;
 
   // which hand is on camera — sticky with hysteresis so a flicker doesn't
   // thrash it. The reference photo + diagram flip to match, and the guide's
@@ -452,17 +563,23 @@ function loop() {
     if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
   }
 
-  // recognition -> corner badge
+  // recognition -> corner badge (hidden during the challenge — no peeking)
   if (classifier) {
     lastPred = hasHand ? classifier.classify(vec) : null;
     stabilizer.push(hasHand ? lastPred : null);
-    const shown = stabilizer.current;
+    const shown = mode === "practice" ? stabilizer.current : null;
     letterBadge.hidden = !shown;
     if (shown) letterBadge.textContent = shown;
   }
 
+  // challenge: drive the game from whether the shape is correct this frame
+  if (mode === "challenge" && challenge?.active) {
+    renderChallenge(challenge.update(now, m?.bucket === "correct"));
+    bg.setMatch(null);
+  }
+
   // practice: camera-frame glow + meter + a plain-words hint + the reward
-  if (reference && targetLetter) {
+  if (mode === "practice" && reference && targetLetter) {
     if (hasHand && m) {
       updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
       // ambient background warms toward green, and reacts in the direction of
@@ -595,4 +712,12 @@ clearTargetBtn.addEventListener("click", () => setTarget(null));
 muteBtn.addEventListener("click", () => {
   sound.setMuted(!sound.muted);
   syncMuteBtn();
+});
+modeToggle.addEventListener("click", (e) => {
+  const b = e.target.closest(".mode-btn");
+  if (b) setMode(b.dataset.mode);
+});
+chStart.addEventListener("click", () => {
+  chStart.textContent = "Start";
+  startChallenge();
 });
