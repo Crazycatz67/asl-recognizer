@@ -48,6 +48,8 @@ const startBtn = $("startBtn");
 const stopBtn = $("stopBtn");
 const flipBtn = $("flipBtn");
 const learnRow = $("learnRow");
+const learnLabel = $("learnLabel");
+const learnCurrent = $("learnCurrent");
 const letterPicker = $("letterPicker");
 const clearTargetBtn = $("clearTarget");
 const refPanel = $("refPanel");
@@ -64,6 +66,7 @@ const ghostToggleWrap = $("ghostToggleWrap");
 const muteBtn = $("muteBtn");
 const toast = $("toast");
 const modeToggle = $("modeToggle");
+const pickHint = $("pickHint");
 const timeBar = $("timeBar");
 const scoreBadge = $("scoreBadge");
 const chBanner = $("chBanner");
@@ -121,6 +124,7 @@ let reference = null;
 let refPlayer = null; // animates the canonical shape in the panel
 let challenge = null; // the speed game
 let mode = "practice"; // "practice" | "challenge"
+let pendingChallengeStart = false; // start the game as soon as the camera is up
 let lastPred = null;
 let targetLetter = null;
 
@@ -169,15 +173,15 @@ function buildLetterPicker(letters) {
 
 function setTarget(letter) {
   targetLetter = letter;
-  for (const b of letterPicker.children) {
-    const on = b.textContent === letter;
-    b.classList.toggle("on", on);
-    if (on) b.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-  }
+  for (const b of letterPicker.children) b.classList.toggle("on", b.textContent === letter);
   clearTargetBtn.hidden = !letter;
   refPanel.hidden = !letter;
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
+  // collapse the letter grid to a compact strip once one's chosen
+  learnRow.classList.toggle("compact", !!letter);
+  learnLabel.textContent = letter ? "Learning" : "Pick a letter";
+  learnCurrent.textContent = letter || "";
 
   holdStart = 0;
   rewarded = false;
@@ -258,11 +262,13 @@ function clearChallengeHud() {
 function startChallenge() {
   if (!challenge) return;
   if (state !== "tracking" && state !== "searching") {
-    // need the camera first — turn it on, the loop will show the start card again
+    // need the camera first — turn it on and auto-begin once it's tracking
     chCardSub.textContent = "Starting camera…";
+    pendingChallengeStart = true;
     start();
     return;
   }
+  pendingChallengeStart = false;
   chCard.hidden = true;
   scoreBadge.hidden = false;
   scoreBadge.textContent = "0";
@@ -361,6 +367,7 @@ function setState(next, detail) {
   if (!live) {
     statsEl.hidden = true;
     letterBadge.hidden = true;
+    pickHint.hidden = true;
     viewport.dataset.match = "none";
     holdStart = 0;
     rewarded = false;
@@ -374,8 +381,11 @@ function setState(next, detail) {
       clearChallengeHud();
     }
   }
-  // camera just came up while waiting to start a challenge — offer the button
-  if (live && mode === "challenge" && challenge && !challenge.active && !chCard.hidden) {
+  // camera just came up while waiting to start a challenge
+  if ((next === "searching" || next === "tracking") && pendingChallengeStart) {
+    pendingChallengeStart = false;
+    startChallenge();
+  } else if (live && mode === "challenge" && challenge && !challenge.active && !chCard.hidden) {
     chCardTitle.textContent = "Challenge";
     chCardSub.textContent = "A random letter, a shrinking timer. How far can you get?";
   }
@@ -427,7 +437,8 @@ function stop() {
   flipBtn.hidden = true;
   startBtn.textContent = "Turn on camera";
   curtainSub.textContent =
-    "Runs entirely on your device. Nothing is recorded or uploaded.";
+    "Then pick a letter to learn, or switch to Challenge mode. " +
+    "Runs entirely on your device — nothing is recorded or uploaded.";
   if (targetLetter) updateMeter(0, null);
   setState("idle");
 }
@@ -619,8 +630,10 @@ function loop() {
         // guide is pointing at, so the endgame ("near perfect, can't see what")
         // still has something to act on.
         if (!complete && /looks right/i.test(tip)) {
-          tip = guideInfo?.part
-            ? `Nudge your ${guideInfo.part} onto the marker`
+          tip = guideInfo?.finger
+            ? `Adjust your ${guideInfo.finger} finger — follow the yellow marker`
+            : guideInfo?.part
+            ? `Nudge your ${guideInfo.part} to the marker`
             : m.bucket === "close"
             ? "So close — tiny adjustments"
             : "Keep shaping it";
@@ -649,6 +662,9 @@ function loop() {
   } else {
     bg.setMatch(null);
   }
+
+  // "pick a letter" nudge — only in practice, camera live, nothing chosen yet
+  pickHint.hidden = !(mode === "practice" && !targetLetter);
 
   // stats badge (~2x/sec)
   detCount++;

@@ -14,12 +14,13 @@
       <button class="mode-btn on" type="button" data-mode="practice">Practice</button>
       <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
     </div>
-    <div class="learn" id="learnRow" hidden>
-      <span class="learn-label">Learn</span>
-      <div class="chips" id="letterPicker"></div>
-      <button class="chip clear" id="clearTarget" type="button" hidden aria-label="clear target">&times;</button>
-    </div>
   </header>
+  <div class="learn" id="learnRow" hidden>
+    <span class="learn-label" id="learnLabel">Pick a letter</span>
+    <b class="learn-current" id="learnCurrent"></b>
+    <div class="chips" id="letterPicker"></div>
+    <button class="chip clear" id="clearTarget" type="button" hidden>change</button>
+  </div>
 
   <main class="workspace" id="workspace" data-target="off">
     <!-- camera: the hero. .stage is selfie-mirrored; .hud sits on top and isn't -->
@@ -37,6 +38,11 @@
         <div class="letter-badge" id="letterBadge" hidden></div>
         <p class="stats" id="stats" hidden></p>
 
+        <!-- shown once the camera is on but nothing's picked yet -->
+        <div class="pick-hint" id="pickHint" hidden>
+          <span>👆</span> Pick a letter above to start learning
+        </div>
+
         <!-- challenge HUD -->
         <div class="timebar" id="timeBar" hidden><i></i></div>
         <div class="score-badge" id="scoreBadge" hidden>0</div>
@@ -53,7 +59,8 @@
           <div class="curtain-inner">
             <button class="cta" id="startBtn" type="button">Turn on camera</button>
             <p class="cta-sub" id="curtainSub">
-              Runs entirely on your device. Nothing is recorded or uploaded.
+              Then pick a letter to learn, or switch to Challenge mode.
+              Runs entirely on your device — nothing is recorded or uploaded.
             </p>
           </div>
         </div>

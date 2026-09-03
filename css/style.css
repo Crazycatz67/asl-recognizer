@@ -90,26 +90,45 @@ body {
 }
 
 .learn {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  flex: 1;
+  gap: 0.45rem 0.6rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1rem 0.5rem;
 }
-.learn-label { flex: none; font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.learn-label {
+  flex: none;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
 .chips {
   display: flex;
-  gap: 0.28rem;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent);
-  mask-image: linear-gradient(90deg, #000 92%, transparent);
+  flex-wrap: wrap;           /* all 24 letters visible — no hunting in a scroller */
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+/* once a letter is chosen the grid collapses to a compact strip */
+.learn-current { display: none; font-size: 1.15rem; color: var(--accent); }
+.learn.compact .chips { display: none; }
+.learn.compact .learn-current { display: inline; }
+.chip.clear {
+  width: auto;
+  padding: 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 .chip {
   flex: none;
-  width: 1.95rem;
-  height: 1.95rem;
+  width: 2.1rem;
+  height: 2.1rem;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #223048, #1a2434);
@@ -127,7 +146,13 @@ body {
   transform: scale(1.12);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.28), 0 6px 16px -4px rgba(56, 189, 248, 0.5);
 }
-.chip.clear { border-color: var(--line); color: var(--muted); font-size: 1.05rem; background: var(--panel); }
+.chip.clear {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--panel);
+  height: 1.7rem;
+  align-self: center;
+}
 
 /* ---- workspace: camera + reference panel ------------------------ */
 /* fills the space between header and controls on ANY screen. the camera box
@@ -351,6 +376,27 @@ body {
 .cta-sub { margin: 0.65rem 0 0; color: var(--fg); font-size: 0.8rem; line-height: 1.5; opacity: 0.85; }
 [data-state="error"] .cta-sub { color: var(--error); opacity: 1; }
 
+.pick-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.7rem 1.15rem;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font: 700 0.95rem system-ui, sans-serif;
+  color: #e2e8f0;
+  white-space: nowrap;
+  animation: pick-bob 2.2s ease-in-out infinite;
+}
+.pick-hint span { font-size: 1.1rem; }
+@keyframes pick-bob {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50% { transform: translate(-50%, calc(-50% - 6px)); }
+}
+
 /* ---- challenge HUD ---------------------------------------- */
 
 .timebar {
@@ -404,6 +450,7 @@ body {
   padding: 1.1rem;
   background: linear-gradient(rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.8));
   z-index: 50;
+  pointer-events: auto; /* .hud is pointer-events:none — re-enable for the button */
 }
 .ch-card-inner { text-align: center; max-width: 22rem; }
 .ch-card-title { margin: 0 0 0.35rem; font: 800 1.3rem system-ui, sans-serif; }

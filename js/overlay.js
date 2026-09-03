@@ -16,6 +16,17 @@ const PART = [
   "ring base", "ring joint", "ring knuckle", "ring tip",
   "pinky base", "pinky joint", "pinky knuckle", "pinky tip",
 ];
+const FINGER_NAME = ["thumb", "index", "middle", "ring", "pinky"];
+// which finger a joint belongs to (wrist -> -1)
+const FINGER_OF = [-1, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
+// the bones that make up each finger (including the one anchoring it to the palm)
+const FINGER_BONES = [
+  [[0, 1], [1, 2], [2, 3], [3, 4]],
+  [[0, 5], [5, 6], [6, 7], [7, 8]],
+  [[5, 9], [9, 10], [10, 11], [11, 12]],
+  [[9, 13], [13, 14], [14, 15], [15, 16]],
+  [[13, 17], [17, 18], [18, 19], [19, 20]],
+];
 
 const PLAIN_RGB = [56, 189, 248]; // the calm default skeleton blue
 
@@ -199,42 +210,58 @@ export function createOverlay(canvas) {
         dot(lp[i], r);
       }
 
-      // (3) correction markers for the WORST 3 joints only — fade in with reveal
-      if (rv > 0.15) {
-        const lead = offJoints.slice(0, 3);
+      // (3) focus the ONE finger that's most off — highlight its whole length
+      // bright, draw one bold lead to a filled destination disc, and label it
+      // with the finger name so there's no guessing which one.
+      if (rv > 0.15 && worst >= 0) {
+        const f = FINGER_OF[worst];
         ctx.globalAlpha = rv;
-        for (let k = 0; k < lead.length; k++) {
-          const i = lead[k];
-          const col = errColor(band(err[i]));
-          ctx.strokeStyle = col;
-          ctx.lineWidth = Math.max(2, baseW * 0.45);
-          ctx.setLineDash([baseW, baseW]);
-          ctx.beginPath();
-          ctx.moveTo(lp[i][0], lp[i][1]);
-          ctx.lineTo(tp[i][0], tp[i][1]);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.arc(tp[i][0], tp[i][1], baseW * 0.85, 0, Math.PI * 2);
-          ctx.stroke();
+
+        if (f >= 0) {
+          // glow pass + bright pass over that finger's bones
+          for (const pass of [0, 1]) {
+            ctx.strokeStyle = pass ? "#fde047" : "rgba(253, 224, 71, 0.35)";
+            ctx.lineWidth = pass ? baseW * 1.5 : baseW * 3;
+            ctx.beginPath();
+            for (const [a, b] of FINGER_BONES[f]) {
+              ctx.moveTo(lp[a][0], lp[a][1]);
+              ctx.lineTo(lp[b][0], lp[b][1]);
+            }
+            ctx.stroke();
+          }
         }
-        // the single worst: white pulsing marker + arrowhead
-        if (worst >= 0) {
-          const p0 = lp[worst], p1 = tp[worst];
-          ctx.strokeStyle = "#f8fafc";
-          ctx.fillStyle = "#f8fafc";
-          ctx.lineWidth = Math.max(2.5, baseW * 0.55);
-          ctx.beginPath();
-          ctx.arc(p1[0], p1[1], baseW * (1 + 0.45 * pulse), 0, Math.PI * 2);
-          ctx.stroke();
-          const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
-          const s = baseW * 1.5;
-          ctx.beginPath();
-          ctx.moveTo(p1[0], p1[1]);
-          ctx.lineTo(p1[0] - s * Math.cos(ang - 0.42), p1[1] - s * Math.sin(ang - 0.42));
-          ctx.lineTo(p1[0] - s * Math.cos(ang + 0.42), p1[1] - s * Math.sin(ang + 0.42));
-          ctx.closePath();
-          ctx.fill();
+
+        // lead line + filled pulsing destination for the worst joint
+        const p0 = lp[worst], p1 = tp[worst];
+        ctx.strokeStyle = "#fde047";
+        ctx.lineWidth = Math.max(2.5, baseW * 0.6);
+        ctx.setLineDash([baseW * 1.1, baseW * 0.8]);
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const rr = baseW * (1.1 + 0.4 * pulse);
+        ctx.fillStyle = "rgba(253, 224, 71, 0.28)";
+        dot(p1, rr);
+        ctx.strokeStyle = "#fde047";
+        ctx.lineWidth = Math.max(2, baseW * 0.5);
+        ctx.beginPath();
+        ctx.arc(p1[0], p1[1], rr, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // label: "ring" near the destination
+        if (f >= 0) {
+          const fs = Math.max(11, baseW * 2.1);
+          ctx.font = `700 ${fs}px system-ui, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const ly = p1[1] - rr - fs * 0.7;
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = "rgba(2, 6, 23, 0.85)";
+          ctx.strokeText(FINGER_NAME[f], p1[0], ly);
+          ctx.fillStyle = "#fde047";
+          ctx.fillText(FINGER_NAME[f], p1[0], ly);
         }
         ctx.globalAlpha = 1;
       }
@@ -245,7 +272,9 @@ export function createOverlay(canvas) {
         ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
         ctx.fill();
       }
-      return worst >= 0 ? { part: PART[worst], joint: worst, err: err[worst] } : null;
+      return worst >= 0
+        ? { part: PART[worst], finger: FINGER_NAME[FINGER_OF[worst]] || null, joint: worst, err: err[worst] }
+        : null;
     },
   };
 }
