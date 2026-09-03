@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dataset extractor — ASL landmarks</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 1.5rem;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a; color: #f8fafc; max-width: 760px; margin-inline: auto;
+    }
+    h1 { font-size: 1.15rem; }
+    p, li { color: #cbd5e1; font-size: 0.9rem; line-height: 1.55; }
+    code { background: #1e293b; padding: 0.1em 0.35em; border-radius: 4px; }
+    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
+    input[type="number"] { width: 6rem; padding: 0.4rem; background: #1e293b; color: inherit; border: 1px solid #334155; border-radius: 6px; }
+    button {
+      background: #38bdf8; color: #0f172a; border: 0; border-radius: 8px;
+      padding: 0.6rem 1.1rem; font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: default; }
+    progress { width: 100%; height: 1rem; }
+    #log {
+      width: 100%; height: 260px; margin-top: 1rem; padding: 0.75rem;
+      background: #020617; color: #94a3b8; border: 1px solid #1e293b;
+      border-radius: 8px; font-family: ui-monospace, monospace; font-size: 0.8rem;
+      white-space: pre-wrap;
+    }
+    a.download { color: #38bdf8; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Dataset extractor — Kaggle ASL alphabet → landmark vectors</h1>
+
+  <ol>
+    <li>Download and unzip the Kaggle <code>asl-alphabet</code> dataset.</li>
+    <li>Serve this repo over <code>http://localhost</code> and open this page.</li>
+    <li>Pick the <code>asl_alphabet_train</code> folder below. Each letter is a
+      subfolder (<code>A/</code>, <code>B/</code>, …, plus <code>space</code>,
+      <code>del</code>, <code>nothing</code>).</li>
+    <li>Run. When it finishes, download <code>dataset.json</code> and save it to
+      <code>data/dataset.json</code> in the repo.</li>
+  </ol>
+
+  <p><strong>Max images per label</strong> controls the subsample. kNN needs only
+    a few hundred per class; start at 150 for a fast dry run, raise later.
+    Images where no hand is detected are skipped and logged.</p>
+
+  <div class="row">
+    <input type="file" id="dir" webkitdirectory multiple />
+  </div>
+  <div class="row">
+    <label>Max images / label <input type="number" id="perLabel" value="300" min="10" max="3000" /></label>
+    <button id="run" disabled>Run extraction</button>
+  </div>
+
+  <progress id="bar" value="0" max="1"></progress>
+  <div id="out"></div>
+  <textarea id="log" readonly></textarea>
+
+  <script type="module" src="extract.js"></script>
+</body>
+</html>

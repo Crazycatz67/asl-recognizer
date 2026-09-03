@@ -1,0 +1,375 @@
+// Entry point: camera -> hand tracker -> (normalize -> classify -> stabilize)
+// -> overlay, driven by an explicit state machine.
+//
+//   idle -> requesting -> loading -> searching <-> tracking
+//   any state -> error (recoverable via the "Try again" button)
+//
+// Recognition switches on automatically when data/dataset.json is present;
+// without it the app runs skeleton-only. When a dataset is loaded, a "learn a
+// letter" row appears: pick a letter and a glowing ghost hand shows the target
+// shape, turning red -> amber -> green as you match it.
+
+import { startCamera, stopCamera, countCameras, facingOf } from "./camera.js";
+import { createHandTracker } from "./handTracker.js";
+import { createOverlay } from "./overlay.js";
+import { normalizeLandmarks, aspectOf } from "./normalize.js";
+import { loadDataset } from "./dataset.js";
+import { createClassifier } from "./knn.js";
+import { createStabilizer } from "./stabilizer.js";
+import { buildReference } from "./reference.js";
+import {
+  TARGET_FPS,
+  LOST_HAND_FRAMES,
+  DATASET_URL,
+  LETTERS,
+  USE_EXTENDED_FEATURES,
+  KNN_K,
+  MIRROR_LEFT_HAND,
+  MIN_CONFIDENCE,
+  STABLE_FRAMES,
+  MATCH_CLOSE,
+  MATCH_CORRECT,
+  REFERENCE_IMG,
+} from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const viewport = $("viewport");
+const video = $("camera");
+const canvas = $("overlay");
+const pillText = $("pillText");
+const statsEl = $("stats");
+const curtainSub = $("curtainSub");
+const startBtn = $("startBtn");
+const stopBtn = $("stopBtn");
+const flipBtn = $("flipBtn");
+const learnRow = $("learnRow");
+const letterPicker = $("letterPicker");
+const clearTargetBtn = $("clearTarget");
+const practiceBar = $("practiceBar");
+const meterFill = $("meterFill");
+const meterLabel = $("meterLabel");
+const showRefCheck = $("showRef");
+const refImg = $("refImg");
+
+const DETECT_INTERVAL = 1000 / TARGET_FPS;
+const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
+const BUCKET_LABEL = { off: "off", close: "close", correct: "correct!" };
+
+const PILL = {
+  idle: "Camera off",
+  requesting: "Starting camera…",
+  loading: "Loading hand tracker…",
+  searching: "Show your hand ✋",
+  tracking: "Tracking your hand",
+};
+
+let state = "idle";
+let stream = null;
+let tracker = null;
+let overlay = null;
+let wakeLock = null;
+let rafId = 0;
+
+let facingMode = "user";
+let lastDetectAt = 0;
+let missStreak = 0;
+let detCount = 0;
+let detStamp = performance.now();
+let fps = 0;
+
+// ---- recognition + practice (loaded lazily; may be absent) --------
+
+let classifier = null;
+let stabilizer = null;
+let reference = null;
+let lastPred = null;
+let targetLetter = null;
+
+// Load once, build the classifier + reference here, then let the raw sample
+// array be garbage-collected — createClassifier and buildReference each keep
+// their own compact copy, so holding ~31k row objects afterwards is dead
+// weight (~15 MB). Resolves to a boolean, not the dataset.
+const datasetPromise = loadDataset(DATASET_URL)
+  .catch((err) => {
+    if (err.status !== 404) console.warn("dataset load failed:", err);
+    return null;
+  })
+  .then((ds) => {
+    if (!ds) return false;
+    const keep = new Set(LETTERS);
+    const train = ds.samples.filter((s) => keep.has(s.label));
+    classifier = createClassifier(train, { k: KNN_K });
+    stabilizer = createStabilizer({
+      stableFrames: STABLE_FRAMES,
+      minConfidence: MIN_CONFIDENCE,
+    });
+    reference = buildReference(train, LETTERS, {
+      closeAt: MATCH_CLOSE,
+      correctAt: MATCH_CORRECT,
+    });
+    buildLetterPicker(reference.letters);
+    learnRow.hidden = false;
+    console.info(
+      `recognition on: ${classifier.size} vectors, ${classifier.classes.length} letters`
+    );
+    return true;
+  });
+
+// ---- practice: letter picker + match meter ----------------------
+
+function buildLetterPicker(letters) {
+  letterPicker.innerHTML = "";
+  for (const L of letters) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = L;
+    b.addEventListener("click", () => setTarget(targetLetter === L ? null : L));
+    letterPicker.appendChild(b);
+  }
+}
+
+function setTarget(letter) {
+  targetLetter = letter;
+  for (const b of letterPicker.children) {
+    const on = b.textContent === letter;
+    b.classList.toggle("on", on);
+    if (on) b.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }
+  clearTargetBtn.hidden = !letter;
+  practiceBar.hidden = !letter;
+  updateReferenceImg();
+  if (!letter) updateMeter(0, null);
+}
+
+function updateReferenceImg() {
+  const show = targetLetter && showRefCheck.checked;
+  refImg.hidden = !show;
+  if (show) refImg.src = REFERENCE_IMG(targetLetter);
+}
+
+function updateMeter(score, bucket) {
+  meterFill.style.width = `${Math.round(score * 100)}%`;
+  meterFill.style.background = BUCKET_COLOR[bucket] || "#475569";
+  meterLabel.textContent = bucket ? BUCKET_LABEL[bucket] : "show your hand";
+  meterLabel.style.color = BUCKET_COLOR[bucket] || "#94a3b8";
+}
+
+// ---- state machine -------------------------------------------------
+
+function setState(next, detail) {
+  state = next;
+  viewport.dataset.state = next;
+
+  if (next === "error") {
+    pillText.textContent = "Problem";
+    curtainSub.textContent = detail || "Something went wrong.";
+    startBtn.textContent = "Try again";
+  } else {
+    pillText.textContent = detail || PILL[next] || next;
+  }
+
+  const live = next !== "idle" && next !== "error";
+  stopBtn.hidden = !live;
+  startBtn.disabled = next === "requesting" || next === "loading";
+  if (!live) statsEl.hidden = true;
+}
+
+// ---- lifecycle ---------------------------------------------------
+
+async function start() {
+  if (state === "requesting" || state === "loading") return;
+  setState("requesting");
+  try {
+    stream = await startCamera(video, { facingMode });
+    facingMode = facingOf(stream) || facingMode;
+    viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
+
+    setState("loading");
+    [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
+    await acquireWakeLock();
+    await datasetPromise; // ensure classifier/reference are ready if a dataset exists
+    stabilizer?.reset();
+
+    flipBtn.hidden = (await countCameras()) < 2;
+    missStreak = LOST_HAND_FRAMES;
+    detCount = 0;
+    detStamp = performance.now();
+    setState("searching");
+    rafId = requestAnimationFrame(loop);
+  } catch (err) {
+    console.error(err);
+    fail(err);
+  }
+}
+
+function stop() {
+  cancelAnimationFrame(rafId);
+  rafId = 0;
+  stopCamera(stream);
+  stream = null;
+  tracker?.close();
+  tracker = null;
+  overlay?.clear();
+  overlay = null;
+  releaseWakeLock();
+  stabilizer?.reset();
+  lastPred = null;
+  flipBtn.hidden = true;
+  startBtn.textContent = "Turn on camera";
+  curtainSub.textContent =
+    "Runs entirely on your device. Nothing is recorded or uploaded.";
+  if (targetLetter) updateMeter(0, null);
+  setState("idle");
+}
+
+function fail(err) {
+  cancelAnimationFrame(rafId);
+  rafId = 0;
+  stopCamera(stream);
+  stream = null;
+  tracker?.close();
+  tracker = null;
+  releaseWakeLock();
+  flipBtn.hidden = true;
+  setState("error", friendlyError(err));
+}
+
+async function flip() {
+  if (state !== "searching" && state !== "tracking") return;
+  flipBtn.disabled = true;
+  const want = facingMode === "user" ? "environment" : "user";
+  try {
+    stopCamera(stream);
+    stream = await startCamera(video, { facingMode: want });
+    facingMode = facingOf(stream) || want;
+    viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
+  } catch (err) {
+    console.error(err);
+    fail(err);
+  } finally {
+    flipBtn.disabled = false;
+  }
+}
+
+// ---- per-frame loop --------------------------------------------
+
+function loop() {
+  if (!tracker) return;
+  rafId = requestAnimationFrame(loop);
+
+  const now = performance.now();
+  if (now - lastDetectAt < DETECT_INTERVAL) return; // throttle to TARGET_FPS
+  lastDetectAt = now;
+  if (video.readyState < 2) return;
+
+  overlay.resizeToVideo(video);
+  const result = tracker.detect(video, now);
+  overlay.clear();
+
+  const hasHand = result.landmarks?.length > 0;
+  const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
+
+  if (hasHand) {
+    overlay.drawHands(result.landmarks);
+    missStreak = 0;
+    if (state !== "tracking") setState("tracking");
+  } else {
+    missStreak++;
+    if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
+  }
+
+  // normalize once; reused by the classifier and the practice meter
+  let vec = null;
+  if (hasHand && (classifier || reference)) {
+    vec = normalizeLandmarks(result.landmarks[0], {
+      aspect: aspectOf(video),
+      mirrorX: MIRROR_LEFT_HAND && left,
+      extended: USE_EXTENDED_FEATURES, // must match how the dataset was built
+    });
+  }
+
+  // recognition
+  if (classifier) {
+    lastPred = hasHand ? classifier.classify(vec) : null;
+    stabilizer.push(hasHand ? lastPred : null);
+    overlay.drawLetter(stabilizer.current);
+  }
+
+  // practice: ghost overlay + match meter for the chosen target letter
+  if (reference && targetLetter) {
+    if (hasHand && vec) {
+      const m = reference.score(vec, targetLetter);
+      const agree = lastPred?.label === targetLetter;
+      const bucket = m.bucket === "correct" && !agree ? "close" : m.bucket;
+      overlay.drawGhost(reference.centroid(targetLetter), result.landmarks[0], {
+        color: BUCKET_COLOR[bucket],
+        glow: m.score,
+        mirror: MIRROR_LEFT_HAND && left,
+      });
+      updateMeter(m.score, bucket);
+    } else {
+      updateMeter(0, null);
+    }
+  }
+
+  // stats badge (~2x/sec)
+  detCount++;
+  if (now - detStamp >= 500) {
+    fps = Math.round((detCount * 1000) / (now - detStamp));
+    detCount = 0;
+    detStamp = now;
+    statsEl.hidden = false;
+    let line = `${video.videoWidth}×${video.videoHeight} · ${fps} fps · ${tracker.delegate}`;
+    if (classifier) line += lastPred ? ` · ${lastPred.label} ${(lastPred.confidence * 100) | 0}%` : " · —";
+    else line += " · no dataset";
+    statsEl.textContent = line;
+  }
+}
+
+// ---- screen wake lock (best effort) --------------------------
+
+async function acquireWakeLock() {
+  try {
+    wakeLock = (await navigator.wakeLock?.request("screen")) ?? null;
+    wakeLock?.addEventListener?.("release", () => (wakeLock = null));
+  } catch {
+    wakeLock = null;
+  }
+}
+function releaseWakeLock() {
+  wakeLock?.release?.();
+  wakeLock = null;
+}
+document.addEventListener("visibilitychange", () => {
+  const live = state === "searching" || state === "tracking";
+  if (live && document.visibilityState === "visible" && !wakeLock) acquireWakeLock();
+});
+
+// ---- errors --------------------------------------------------
+
+function friendlyError(err) {
+  switch (err?.name) {
+    case "NotAllowedError":
+      return "Camera blocked. Allow it via the camera icon near the address bar, then Try again.";
+    case "NotFoundError":
+      return "No camera found on this device.";
+    case "NotReadableError":
+      return "The camera is being used by another app. Close it and Try again.";
+    case "OverconstrainedError":
+      return "Requested camera settings aren't supported by this device.";
+  }
+  if (!navigator.mediaDevices)
+    return "Camera unavailable here — open the page over http://localhost or an https:// URL.";
+  if (!window.isSecureContext)
+    return "Camera needs a secure context — use http://localhost or https://.";
+  return `Error: ${err?.message || err}`;
+}
+
+// ---- wiring ------------------------------------------------
+
+startBtn.addEventListener("click", start); // "Turn on camera" and "Try again"
+stopBtn.addEventListener("click", stop);
+flipBtn.addEventListener("click", flip);
+clearTargetBtn.addEventListener("click", () => setTarget(null));
+showRefCheck.addEventListener("change", updateReferenceImg);

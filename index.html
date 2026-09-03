@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>ASL Fingerspelling Recognizer</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>ASL Fingerspelling</h1>
+  </header>
+
+  <main>
+    <!-- .stage (video + overlay) is selfie-mirrored; .hud sits on top and is not -->
+    <div class="viewport" id="viewport" data-state="idle">
+      <div class="stage" id="stage">
+        <video id="camera" playsinline webkit-playsinline muted autoplay></video>
+        <canvas id="overlay"></canvas>
+      </div>
+
+      <div class="hud">
+        <div class="pill" id="pill" role="status" aria-live="polite">
+          <span class="pill-dot" aria-hidden="true"></span>
+          <span id="pillText">Camera off</span>
+        </div>
+
+        <img class="refimg" id="refImg" alt="reference photo" hidden />
+        <p class="stats" id="stats" hidden></p>
+
+        <div class="curtain" id="curtain">
+          <div class="curtain-inner">
+            <button class="cta" id="startBtn" type="button">Turn on camera</button>
+            <p class="cta-sub" id="curtainSub">
+              Runs entirely on your device. Nothing is recorded or uploaded.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- practice: pick a letter to learn; a glowing ghost hand shows the shape -->
+    <div class="learn" id="learnRow" hidden>
+      <span class="learn-label">Learn a letter</span>
+      <div class="chips" id="letterPicker"></div>
+      <button class="chip clear" id="clearTarget" type="button" hidden aria-label="clear">&times;</button>
+    </div>
+
+    <div class="practice" id="practiceBar" hidden>
+      <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
+      <span class="meter-label" id="meterLabel">show your hand</span>
+      <label class="ref-toggle"><input type="checkbox" id="showRef" /> photo</label>
+    </div>
+
+    <div class="controls">
+      <button id="stopBtn" type="button" hidden>Stop</button>
+      <button id="flipBtn" type="button" class="secondary" hidden>Flip camera</button>
+    </div>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>ASL Fingerspelling Recognizer — standalone</title>
+  <style>
+    :root {
+      --bg: #0f172a; --fg: #f8fafc; --muted: #94a3b8; --accent: #38bdf8;
+      --idle: #64748b; --busy: #38bdf8; --searching: #f59e0b;
+      --tracking: #22c55e; --error: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg); -webkit-text-size-adjust: 100%;
+    }
+    header { padding: 1rem 1.25rem 0; }
+    h1 { margin: 0; font-size: 1.15rem; }
+    .tagline { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.85rem; }
+    main { padding: 1rem 1.25rem 2rem; max-width: 720px; margin: 0 auto; }
+
+    .viewport {
+      position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 72vh;
+      background: #020617; border-radius: 14px; overflow: hidden;
+    }
+    .stage { position: absolute; inset: 0; transform: scaleX(-1); }
+    #camera, #overlay {
+      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    }
+    .hud { position: absolute; inset: 0; pointer-events: none; }
+
+    .pill {
+      position: absolute; top: 0.75rem; left: 50%; transform: translateX(-50%);
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      max-width: calc(100% - 1.5rem); padding: 0.4rem 0.8rem; border-radius: 999px;
+      background: rgba(2, 6, 23, 0.72); backdrop-filter: blur(6px);
+      font-size: 0.85rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pill-dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--idle); }
+    [data-state="requesting"] .pill-dot,
+    [data-state="loading"] .pill-dot { background: var(--busy); animation: pulse 1s ease-in-out infinite; }
+    [data-state="searching"] .pill-dot { background: var(--searching); animation: pulse 1.4s ease-in-out infinite; }
+    [data-state="tracking"] .pill-dot { background: var(--tracking); }
+    [data-state="error"] .pill-dot { background: var(--error); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    @media (prefers-reduced-motion: reduce) { .pill-dot { animation: none !important; } }
+
+    .stats {
+      position: absolute; left: 0.6rem; bottom: 0.5rem; margin: 0;
+      padding: 0.2rem 0.45rem; border-radius: 6px; background: rgba(2, 6, 23, 0.55);
+      color: rgba(248, 250, 252, 0.65);
+      font: 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .curtain {
+      position: absolute; inset: 0; display: grid; place-items: center; padding: 1.25rem;
+      background: linear-gradient(rgba(2, 6, 23, 0.35), rgba(2, 6, 23, 0.55));
+      pointer-events: auto;
+    }
+    .curtain-inner { text-align: center; max-width: 22rem; }
+    [data-state="requesting"] .curtain,
+    [data-state="loading"] .curtain,
+    [data-state="searching"] .curtain,
+    [data-state="tracking"] .curtain { display: none; }
+
+    .cta {
+      background: var(--accent); color: #0f172a; border: 0; border-radius: 10px;
+      padding: 0.8rem 1.4rem; font-size: 1.05rem; font-weight: 700; cursor: pointer;
+      font-family: inherit;
+    }
+    .cta-sub { margin: 0.75rem 0 0; color: var(--fg); font-size: 0.82rem; line-height: 1.5; opacity: 0.85; }
+    [data-state="error"] .cta-sub { color: var(--error); opacity: 1; }
+
+    .guide { margin: 0.9rem 0 0; color: var(--searching); font-size: 0.88rem; line-height: 1.5; }
+    .controls { margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    #stopBtn, #flipBtn {
+      background: #1e293b; color: var(--fg); border: 1px solid #334155; border-radius: 8px;
+      padding: 0.55rem 1rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    #stopBtn { border-color: #475569; }
+    button:disabled { opacity: 0.5; cursor: default; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ASL Fingerspelling Recognizer</h1>
+    <p class="tagline">Standalone build &mdash; skeleton tracking only</p>
+  </header>
+
+  <main>
+    <div class="viewport" id="viewport" data-state="idle">
+      <div class="stage" id="stage">
+        <video id="camera" playsinline webkit-playsinline muted autoplay></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="hud">
+        <div class="pill" id="pill" role="status" aria-live="polite">
+          <span class="pill-dot" aria-hidden="true"></span>
+          <span id="pillText">Camera off</span>
+        </div>
+        <p class="stats" id="stats" hidden></p>
+        <div class="curtain" id="curtain">
+          <div class="curtain-inner">
+            <button class="cta" id="startBtn" type="button">Turn on camera</button>
+            <p class="cta-sub" id="curtainSub">
+              Runs entirely on your device. Nothing is recorded or uploaded.
+              Needs internet (loads MediaPipe from a CDN). This single-file
+              build shows the hand skeleton only &mdash; letter recognition
+              needs the served app (see README).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="guide" id="guide" hidden></p>
+
+    <div class="controls">
+      <button id="stopBtn" type="button" hidden>Stop</button>
+      <button id="flipBtn" type="button" hidden>Flip camera</button>
+    </div>
+  </main>
+
+  <script type="module">
+    /* =================================================================
+     * Single-file build: js/config.js + mediapipe.js + normalize.js +
+     * camera.js + handTracker.js + overlay.js + main.js, inlined.
+     * Inline module scripts run from file:// (external module imports do
+     * not) so this one file works by just opening it, no server.
+     * Canonical source is index.html + js/*. Keep in sync until there's
+     * a real bundler.
+     * ================================================================= */
+
+    // ---- config -------------------------------------------------------
+    const MEDIAPIPE_VERSION = "0.10.14";
+    const VISION_BUNDLE_URL =
+      `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/vision_bundle.mjs`;
+    const WASM_BASE_URL =
+      `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
+    const HAND_MODEL_URL =
+      "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+    const NUM_HANDS = 2; // both hands drawn in the Stage 1 demo; drop to 1 at classification
+    const TARGET_FPS = 30;
+    const LOST_HAND_FRAMES = 6;
+
+    // ---- mediapipe loader (cached dynamic import) -------------------
+    let _vision = null;
+    const loadVision = () => (_vision ??= import(VISION_BUNDLE_URL));
+
+    // ---- normalize.js (shared with the extractor; unused in Stage 1) --
+    function normalizeLandmarks(landmarks, { aspect = 1, mirrorX = false } = {}) {
+      const wrist = landmarks[0];
+      const sx = mirrorX ? -1 : 1;
+      const pts = landmarks.map((p) => ({
+        x: (p.x - wrist.x) * aspect * sx, y: p.y - wrist.y, z: p.z - wrist.z,
+      }));
+      let radius = 1e-6;
+      for (const p of pts) { const d = Math.hypot(p.x, p.y, p.z); if (d > radius) radius = d; }
+      const out = new Array(63);
+      for (let i = 0; i < pts.length; i++) {
+        out[i * 3] = pts[i].x / radius;
+        out[i * 3 + 1] = pts[i].y / radius;
+        out[i * 3 + 2] = pts[i].z / radius;
+      }
+      return out;
+    }
+    void normalizeLandmarks;
+
+    // ---- camera.js -------------------------------------------------
+    async function startCamera(video, { facingMode = "user" } = {}) {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("This browser does not support camera access (getUserMedia).");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      video.srcObject = stream;
+      await video.play();
+      if (video.readyState < 2) {
+        await new Promise((resolve) => video.addEventListener("loadeddata", resolve, { once: true }));
+      }
+      return stream;
+    }
+    const stopCamera = (stream) => stream?.getTracks().forEach((t) => t.stop());
+    async function countCameras() {
+      try {
+        const d = await navigator.mediaDevices.enumerateDevices();
+        return d.filter((x) => x.kind === "videoinput").length;
+      } catch { return 0; }
+    }
+    const facingOf = (stream) => stream?.getVideoTracks?.()[0]?.getSettings?.().facingMode;
+
+    // ---- handTracker.js -----------------------------------------
+    async function createHandTracker() {
+      const { HandLandmarker, FilesetResolver } = await loadVision();
+      const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+      const build = (delegate) =>
+        HandLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
+          runningMode: "VIDEO", numHands: NUM_HANDS,
+        });
+      let landmarker, delegate = "GPU";
+      try { landmarker = await build("GPU"); }
+      catch (err) {
+        console.warn("GPU delegate failed, using CPU:", err);
+        delegate = "CPU"; landmarker = await build("CPU");
+      }
+      let lastTimestamp = -1;
+      return {
+        delegate,
+        detect(video, timestampMs) {
+          let ts = timestampMs;
+          if (ts <= lastTimestamp) ts = lastTimestamp + 1;
+          lastTimestamp = ts;
+          return landmarker.detectForVideo(video, ts);
+        },
+        close() { landmarker?.close?.(); },
+      };
+    }
+
+    // ---- overlay.js -------------------------------------------
+    async function createOverlay(canvas) {
+      const { DrawingUtils, HandLandmarker } = await loadVision();
+      const ctx = canvas.getContext("2d");
+      const drawer = new DrawingUtils(ctx);
+      return {
+        canvas, ctx,
+        resizeToVideo(video) {
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+        },
+        clear() { ctx.clearRect(0, 0, canvas.width, canvas.height); },
+        drawHands(landmarksList) {
+          for (const landmarks of landmarksList) {
+            drawer.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#38bdf8", lineWidth: 4 });
+            drawer.drawLandmarks(landmarks, { color: "#f8fafc", lineWidth: 1, radius: 4 });
+          }
+        },
+        drawLetter(letter) {
+          if (!letter) return;
+          const { width, height } = canvas;
+          ctx.save();
+          ctx.translate(width, 0); ctx.scale(-1, 1);
+          ctx.font = `bold ${Math.round(height * 0.22)}px system-ui, sans-serif`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.lineWidth = 8; ctx.strokeStyle = "rgba(15, 23, 42, 0.85)"; ctx.fillStyle = "#f8fafc";
+          ctx.strokeText(letter, width / 2, height * 0.82);
+          ctx.fillText(letter, width / 2, height * 0.82);
+          ctx.restore();
+        },
+      };
+    }
+
+    // ---- main.js -------------------------------------------
+    const viewport = document.getElementById("viewport");
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("overlay");
+    const pillText = document.getElementById("pillText");
+    const statsEl = document.getElementById("stats");
+    const curtainSub = document.getElementById("curtainSub");
+    const guideEl = document.getElementById("guide");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const flipBtn = document.getElementById("flipBtn");
+
+    const DETECT_INTERVAL = 1000 / TARGET_FPS;
+    const GUIDE_AFTER_MS = 2500;
+    const GUIDE_TEXT =
+      "No hand yet — bring your whole hand into frame, palm toward the camera, in even light.";
+    const PILL = {
+      idle: "Camera off",
+      requesting: "Starting camera…",
+      loading: "Loading hand tracker… (first time takes a few seconds)",
+      searching: "Show your hand ✋",
+      tracking: "Tracking your hand",
+    };
+
+    let state = "idle";
+    let stream = null, tracker = null, overlay = null, wakeLock = null, rafId = 0;
+    let facingMode = "user";
+    let lastDetectAt = 0, missStreak = 0, lastHandAt = 0;
+    let detCount = 0, detStamp = performance.now(), fps = 0;
+
+    function setState(next, detail) {
+      state = next;
+      viewport.dataset.state = next;
+      if (next === "error") {
+        pillText.textContent = "Problem";
+        curtainSub.textContent = detail || "Something went wrong.";
+        startBtn.textContent = "Try again";
+      } else {
+        pillText.textContent = detail || PILL[next] || next;
+      }
+      const live = next !== "idle" && next !== "error";
+      stopBtn.hidden = !live;
+      startBtn.disabled = next === "requesting" || next === "loading";
+      if (!live) { statsEl.hidden = true; guideEl.hidden = true; }
+    }
+
+    async function start() {
+      if (state === "requesting" || state === "loading") return;
+      setState("requesting");
+      try {
+        stream = await startCamera(video, { facingMode });
+        facingMode = facingOf(stream) || facingMode;
+        viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
+        setState("loading");
+        [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
+        await acquireWakeLock();
+        flipBtn.hidden = (await countCameras()) < 2;
+        missStreak = LOST_HAND_FRAMES;
+        lastHandAt = performance.now();
+        detCount = 0;
+        detStamp = performance.now();
+        setState("searching");
+        rafId = requestAnimationFrame(loop);
+      } catch (err) {
+        console.error(err);
+        fail(err);
+      }
+    }
+
+    function stop() {
+      cancelAnimationFrame(rafId); rafId = 0;
+      stopCamera(stream); stream = null;
+      tracker?.close(); tracker = null;
+      overlay?.clear(); overlay = null;
+      releaseWakeLock();
+      flipBtn.hidden = true;
+      startBtn.textContent = "Turn on camera";
+      curtainSub.textContent =
+        "Runs entirely on your device. Nothing is recorded or uploaded. " +
+        "Skeleton only in this build — letter recognition needs the served app.";
+      setState("idle");
+    }
+
+    function fail(err) {
+      cancelAnimationFrame(rafId); rafId = 0;
+      stopCamera(stream); stream = null;
+      tracker?.close(); tracker = null;
+      releaseWakeLock();
+      flipBtn.hidden = true;
+      setState("error", friendlyError(err));
+    }
+
+    async function flip() {
+      if (state !== "searching" && state !== "tracking") return;
+      flipBtn.disabled = true;
+      const want = facingMode === "user" ? "environment" : "user";
+      try {
+        stopCamera(stream);
+        stream = await startCamera(video, { facingMode: want });
+        facingMode = facingOf(stream) || want;
+        viewport.style.setProperty("aspect-ratio", `${video.videoWidth} / ${video.videoHeight}`);
+      } catch (err) {
+        console.error(err);
+        fail(err);
+      } finally {
+        flipBtn.disabled = false;
+      }
+    }
+
+    function loop() {
+      if (!tracker) return;
+      rafId = requestAnimationFrame(loop);
+      const now = performance.now();
+      if (now - lastDetectAt < DETECT_INTERVAL) return;
+      lastDetectAt = now;
+      if (video.readyState < 2) return;
+
+      overlay.resizeToVideo(video);
+      const result = tracker.detect(video, now);
+      overlay.clear();
+
+      const hasHand = result.landmarks?.length > 0;
+      if (hasHand) {
+        overlay.drawHands(result.landmarks);
+        missStreak = 0;
+        lastHandAt = now;
+        if (state !== "tracking") setState("tracking");
+      } else {
+        missStreak++;
+        if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
+      }
+
+      const struggling = state === "searching" && now - lastHandAt > GUIDE_AFTER_MS;
+      guideEl.hidden = !struggling;
+      if (struggling && guideEl.textContent !== GUIDE_TEXT) guideEl.textContent = GUIDE_TEXT;
+
+      detCount++;
+      if (now - detStamp >= 500) {
+        fps = Math.round((detCount * 1000) / (now - detStamp));
+        detCount = 0;
+        detStamp = now;
+        statsEl.hidden = false;
+        statsEl.textContent = `${video.videoWidth}×${video.videoHeight} · ${fps} fps · ${tracker.delegate}`;
+      }
+    }
+
+    async function acquireWakeLock() {
+      try {
+        wakeLock = (await navigator.wakeLock?.request("screen")) ?? null;
+        wakeLock?.addEventListener?.("release", () => (wakeLock = null));
+      } catch { wakeLock = null; }
+    }
+    function releaseWakeLock() { wakeLock?.release?.(); wakeLock = null; }
+    document.addEventListener("visibilitychange", () => {
+      const live = state === "searching" || state === "tracking";
+      if (live && document.visibilityState === "visible" && !wakeLock) acquireWakeLock();
+    });
+
+    function friendlyError(err) {
+      switch (err?.name) {
+        case "NotAllowedError":
+          return "Camera blocked. Allow it via the camera icon near the address bar, then Try again.";
+        case "NotFoundError":
+          return "No camera found on this device.";
+        case "NotReadableError":
+          return "The camera is being used by another app. Close it and Try again.";
+        case "OverconstrainedError":
+          return "Requested camera settings aren't supported by this device.";
+      }
+      if (!navigator.mediaDevices)
+        return "Camera unavailable here — this browser blocks it for local files. Try Chrome or Firefox, or serve over http://localhost.";
+      if (!window.isSecureContext)
+        return "Camera needs a secure context — use http://localhost or https://.";
+      return `Error: ${err?.message || err}`;
+    }
+
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
+    flipBtn.addEventListener("click", flip);
+  </script>
+</body>
+</html>

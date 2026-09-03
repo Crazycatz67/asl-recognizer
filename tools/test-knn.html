@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kNN accuracy — ASL landmarks</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 1.5rem; max-width: 900px; margin-inline: auto;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a; color: #f8fafc;
+    }
+    h1 { font-size: 1.15rem; }
+    p, label { color: #cbd5e1; font-size: 0.9rem; line-height: 1.55; }
+    code { background: #1e293b; padding: 0.1em 0.35em; border-radius: 4px; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
+    input[type="range"] { width: 12rem; }
+    .big { font-size: 2rem; font-weight: 700; }
+    .muted { color: #94a3b8; }
+    table { border-collapse: collapse; font-size: 0.75rem; margin-top: 1rem; }
+    th, td { border: 1px solid #1e293b; padding: 0.25rem 0.4rem; text-align: center; min-width: 1.6rem; }
+    th { background: #1e293b; position: sticky; top: 0; }
+    td.diag { background: #14532d; }
+    td.hot { background: #7f1d1d; }
+    .wrap { overflow-x: auto; }
+    #perLetter span {
+      display: inline-block; margin: 0.15rem; padding: 0.15rem 0.45rem;
+      border-radius: 6px; background: #1e293b; font-size: 0.8rem;
+    }
+    .bad { background: #7f1d1d !important; }
+    .warn { background: #78350f !important; }
+  </style>
+</head>
+<body>
+  <h1>kNN accuracy test</h1>
+  <p>
+    Loads <code>../data/dataset.json</code>, splits it per letter into train/test,
+    classifies the held-out samples, and reports accuracy + a confusion matrix.
+    Run this before trusting the live recognizer.
+  </p>
+
+  <div class="row">
+    <label>k = <output id="kOut">5</output>
+      <input type="range" id="k" min="1" max="15" step="2" value="5" />
+    </label>
+    <label>test split
+      <input type="range" id="split" min="10" max="40" step="5" value="20" />
+      <output id="splitOut">20</output>%
+    </label>
+    <button id="run">Run</button>
+  </div>
+
+  <p id="status" class="muted">Waiting…</p>
+  <p><span class="big" id="acc">—</span> <span class="muted">overall accuracy</span></p>
+
+  <h2 style="font-size:1rem">Per-letter accuracy</h2>
+  <div id="perLetter" class="muted">—</div>
+
+  <h2 style="font-size:1rem">Most-confused pairs</h2>
+  <div id="confused" class="muted">—</div>
+
+  <h2 style="font-size:1rem">Confusion matrix <span class="muted">(row = actual, col = predicted)</span></h2>
+  <div class="wrap"><table id="matrix"></table></div>
+
+  <script type="module" src="test-knn.js"></script>
+</body>
+</html>

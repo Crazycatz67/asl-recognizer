@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Self-test — ASL recognizer</title>
+  <style>
+    body { margin: 0; padding: 1.25rem; background: #0f172a; color: #f8fafc;
+      font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 { font: 600 1.1rem system-ui; }
+    #summary { font: 700 1rem system-ui; margin: 0.5rem 0 1rem; }
+    .PASS { color: #22c55e; } .FAIL { color: #f87171; } .FATAL { color: #f87171; font-weight: 700; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Component self-test</h1>
+  <p style="font-family:system-ui;color:#94a3b8">
+    Exercises every JS module's public API + the live pipeline. Run this after any change.
+    Needs the dev server (so <code>/data/dataset.json</code> loads).
+  </p>
+  <div id="summary">running…</div>
+  <pre id="out"></pre>
+  <script type="module" src="selftest.js"></script>
+</body>
+</html>
