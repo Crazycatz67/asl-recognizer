@@ -28,8 +28,6 @@ import {
   MIRROR_LEFT_HAND,
   MIN_CONFIDENCE,
   STABLE_FRAMES,
-  MATCH_CLOSE,
-  MATCH_CORRECT,
   REFERENCE_IMG,
 } from "./config.js";
 
@@ -54,12 +52,15 @@ const refImg = $("refImg");
 const refCanvas = $("refCanvas");
 const meterFill = $("meterFill");
 const meterLabel = $("meterLabel");
+const refHint = $("refHint");
 const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
+const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
-const BUCKET_LABEL = { off: "keep adjusting", close: "close…", correct: "got it! ✓" };
+const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "got it!  ✓" };
+let lastHintAt = 0;
 
 const PILL = {
   idle: "Camera off",
@@ -108,10 +109,7 @@ const datasetPromise = loadDataset(DATASET_URL)
       stableFrames: STABLE_FRAMES,
       minConfidence: MIN_CONFIDENCE,
     });
-    reference = buildReference(train, LETTERS, {
-      closeAt: MATCH_CLOSE,
-      correctAt: MATCH_CORRECT,
-    });
+    reference = buildReference(train, LETTERS); // self-calibrates per letter
     buildLetterPicker(reference.letters);
     learnRow.hidden = false;
     console.info(
@@ -153,6 +151,7 @@ function setTarget(letter) {
   } else {
     updateMeter(0, null);
   }
+  refHint.textContent = "";
 }
 
 // Crisp canvas: back the reference diagram with real device pixels, then draw.
@@ -304,6 +303,7 @@ function loop() {
       overlay.drawGuide(result.landmarks[0], reference.centroid(targetLetter), {
         aspect: aspectOf(video),
         mirror: MIRROR_LEFT_HAND && left,
+        tol: reference.tolerance(targetLetter),
       });
     } else {
       overlay.drawHands(result.landmarks);
@@ -334,15 +334,25 @@ function loop() {
     if (shown) letterBadge.textContent = shown;
   }
 
-  // practice: camera-frame glow + meter
+  // practice: camera-frame glow + meter + a plain-words hint
   if (reference && targetLetter) {
     if (hasHand && vec) {
       const m = reference.score(vec, targetLetter);
-      const agree = lastPred?.label === targetLetter;
-      const bucket = m.bucket === "correct" && !agree ? "close" : m.bucket;
-      updateMeter(m.score, bucket);
+      updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
+      if (now - lastHintAt >= HINT_INTERVAL) {
+        lastHintAt = now;
+        const misread =
+          lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8;
+        refHint.textContent =
+          m.bucket === "correct"
+            ? "Looks right — hold it steady"
+            : misread
+            ? `${reference.hint(vec, targetLetter)}  ·  (reading as ${lastPred.label})`
+            : reference.hint(vec, targetLetter);
+      }
     } else {
       updateMeter(0, null);
+      refHint.textContent = "";
     }
   }
 

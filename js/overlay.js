@@ -53,9 +53,11 @@ export function createOverlay(canvas) {
 
     // live: 21 raw landmarks {x,y in 0..1}. target: the letter's centroid vector
     // (wrist-centred, ~unit radius; right-hand canonical). mirror=true for a
-    // left hand. Draws the live skeleton coloured per-segment by joint error,
-    // plus fingertip correction arrows.
-    drawGuide(live, target, { aspect = 1, mirror = false } = {}) {
+    // left hand. tol = per-joint normalized error that counts as "on target".
+    // Draws the live skeleton coloured per-segment by joint error (segments
+    // within tol lock to bright green and thicken), plus correction arrows on
+    // fingertips that are still off.
+    drawGuide(live, target, { aspect = 1, mirror = false, tol = 0.06 } = {}) {
       if (!live?.length || !target) return;
       const w = canvas.width;
       const h = canvas.height;
@@ -89,35 +91,39 @@ export function createOverlay(canvas) {
         off[i] = [tx - ln[i][0], ty - ln[i][1]];
         err[i] = Math.hypot(off[i][0], off[i][1]);
       }
-      // ERR_FULL: error magnitude that reads as "way off" (full red)
-      const ERR_FULL = 0.55;
+      // error at/under `tol` = on target (green); error at ERR_FULL = full red.
+      // Scale is relative to the letter's own tolerance so "almost" still shows
+      // as amber instead of blending into green.
+      const ERR_FULL = Math.max(tol * 6, 0.32);
+      const band = (e) => Math.max(0, Math.min(1, (e - tol) / (ERR_FULL - tol)));
 
-      // segments, coloured by the mean error of their endpoints
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.lineWidth = 5;
       for (const [a, b] of HAND_CONNECTIONS) {
-        ctx.strokeStyle = errColor(((err[a] + err[b]) / 2) / ERR_FULL);
+        const e = (err[a] + err[b]) / 2;
+        const locked = e <= tol;
+        ctx.strokeStyle = locked ? "#22c55e" : errColor(band(e));
+        ctx.lineWidth = locked ? 7 : 5;
         ctx.beginPath();
         ctx.moveTo(lp[a][0], lp[a][1]);
         ctx.lineTo(lp[b][0], lp[b][1]);
         ctx.stroke();
       }
       for (let i = 0; i < 21; i++) {
-        ctx.fillStyle = errColor(err[i] / ERR_FULL);
+        ctx.fillStyle = err[i] <= tol ? "#22c55e" : errColor(band(err[i]));
         ctx.beginPath();
-        ctx.arc(lp[i][0], lp[i][1], 3.5, 0, Math.PI * 2);
+        ctx.arc(lp[i][0], lp[i][1], err[i] <= tol ? 4.5 : 3.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // fingertip correction arrows: from the live tip toward where it should be
-      const ARROW_MIN = 0.12;
+      const ARROW_MIN = tol * 1.8;
       for (const t of FINGERTIPS) {
         if (err[t] < ARROW_MIN) continue;
         const ex = lp[t][0] + (off[t][0] / aspect) * radPx;
         const ey = lp[t][1] + off[t][1] * radPx;
-        const col = errColor(err[t] / ERR_FULL);
+        const col = errColor(band(err[t]));
         ctx.strokeStyle = col;
         ctx.fillStyle = col;
         ctx.lineWidth = 3;

@@ -171,16 +171,30 @@ function mkHand() {
 
     // ---- reference.js (practice mode) ----
     const refm = await import("../js/reference.js");
-    const ref = refm.buildReference(train, cfg.LETTERS, { closeAt: cfg.MATCH_CLOSE, correctAt: cfg.MATCH_CORRECT });
+    const ref = refm.buildReference(train, cfg.LETTERS);
     ok("reference: letters == 24 present classes", ref.letters.length === clf.classes.length);
     const cN = ref.centroid("N");
     ok("reference: centroid('N') is a vlen vector", Array.isArray(cN) && cN.length === ds.vectorLength && cN.every(Number.isFinite));
     ok("reference: centroid scores ~1 against itself",
       (() => { const s = ref.score(cN, "N"); return s.score > 0.95 && s.bucket === "correct"; })(),
       JSON.stringify(ref.score(cN, "N")));
+    ok("reference: 'correct' is reachable by a real training sample",
+      (() => {
+        const nSample = train.find((s) => s.label === "N" && !s.rot);
+        return ref.score(nSample.v, "N").bucket !== "off"; // a typical N should not read as "off"
+      })());
     ok("reference: a different letter's centroid scores lower for N",
       ref.score(ref.centroid("A"), "N").score < ref.score(cN, "N").score);
     ok("reference: unknown target -> safe zero", ref.score(cN, "ZZ").score === 0);
+    ok("reference: tolerance('N') is a small positive number",
+      (() => { const t = ref.tolerance("N"); return t > 0 && t < 0.3; })(), String(ref.tolerance("N")));
+    ok("reference: hint() on the centroid says it's right",
+      /hold it steady/i.test(ref.hint(cN, "N")), JSON.stringify(ref.hint(cN, "N")));
+    ok("reference: hint() on a wrong hand gives an instruction",
+      (() => {
+        const h = ref.hint(ref.centroid("A"), "N");
+        return typeof h === "string" && h.length > 4 && !/hold it steady/i.test(h);
+      })(), JSON.stringify(ref.hint(ref.centroid("A"), "N")));
     ok("reference: drawCanonical renders without throwing",
       (() => {
         try {
@@ -193,8 +207,6 @@ function mkHand() {
       })());
 
     // ---- config practice knobs ----
-    ok("config: MATCH_CLOSE < MATCH_CORRECT, both 0..1",
-      cfg.MATCH_CLOSE > 0 && cfg.MATCH_CLOSE < cfg.MATCH_CORRECT && cfg.MATCH_CORRECT < 1);
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 
     // ---- integration ----

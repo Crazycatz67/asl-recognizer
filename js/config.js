@@ -70,10 +70,9 @@ export const STABLE_FRAMES = 8;
 
 // ---- practice mode -------------------------------------------------
 
-// Ghost-overlay match thresholds (0..1 similarity to the target letter's
-// canonical shape). Below CLOSE = red, CLOSE..CORRECT = amber, above = green.
-export const MATCH_CLOSE = 0.62;
-export const MATCH_CORRECT = 0.82;
+// The off / close / correct bands and the score curve are calibrated per letter
+// from that letter's own training spread — see js/reference.js buildReference().
+// No fixed thresholds here on purpose.
 
 // Path to the per-letter reference photos (one clean grassknoted frame each).
 export const REFERENCE_IMG = (letter) => `assets/reference/${letter}.jpg`;
