@@ -119,12 +119,24 @@ body {
   flex-direction: column;
 }
 
-/* landscape and roomy: camera left, reference panel a column on the right */
+/* landscape / desktop: camera left, reference card right, both centred in the
+   row. the camera keeps a natural 4:3 shape (height drives it) so a normal
+   webcam isn't cropped to a near-square — it just gets as big as the row
+   allows, then the whole group is centred instead of stretched edge to edge. */
 @media (min-width: 760px) and (orientation: landscape) {
   .workspace {
     flex-direction: row;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
     padding-bottom: 0.2rem;
+  }
+  .viewport {
+    flex: 0 1 auto;
+    /* true 4:3, never distorted: as wide as the row's height allows, capped
+       so it never sprawls, and it shrinks on smaller screens */
+    width: min(100%, calc((100dvh - 128px) * 4 / 3), 900px);
+    height: auto;
+    aspect-ratio: 4 / 3;
   }
 }
 
@@ -332,7 +344,7 @@ body {
 @media (min-width: 760px) and (orientation: landscape) {
   .reference {
     width: clamp(230px, 26vw, 330px);
-    align-self: start; /* compact card at the top — don't stretch to camera height */
+    align-self: center; /* compact card, balanced beside the camera */
     align-content: start;
     align-items: stretch;
     gap: 0.6rem 0.7rem;
