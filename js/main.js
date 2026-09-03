@@ -48,9 +48,8 @@ const startBtn = $("startBtn");
 const stopBtn = $("stopBtn");
 const flipBtn = $("flipBtn");
 const learnRow = $("learnRow");
-const learnLabel = $("learnLabel");
+const subMode = $("subMode");
 const learnCurrent = $("learnCurrent");
-const azToggle = $("azToggle");
 const azProgress = $("azProgress");
 const prevLetterBtn = $("prevLetter");
 const nextLetterBtn = $("nextLetter");
@@ -69,6 +68,7 @@ const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
 const handPick = $("handPick");
 const muteBtn = $("muteBtn");
+const controls = document.querySelector(".controls");
 const toast = $("toast");
 const modeToggle = $("modeToggle");
 const pickHint = $("pickHint");
@@ -99,7 +99,7 @@ let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
-let handVote = 0; // signed, +right / -left, hysteresis for auto-detect
+let handVote = 0; // frames the on-camera hand has disagreed with trackedHand
 let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
 let handOverride = "auto"; // "auto" | "right" | "left" — the Hand control
 let toastTimer = 0;
@@ -194,7 +194,6 @@ function setTarget(letter) {
   workspace.dataset.target = letter ? "on" : "off";
   // collapse the letter grid to a compact strip once one's chosen
   learnRow.classList.toggle("compact", !!letter);
-  learnLabel.textContent = azRun ? "A→Z run" : letter ? "Learning" : "Pick a letter";
   learnCurrent.textContent = letter || "";
 
   holdStart = 0;
@@ -227,6 +226,7 @@ function setAzRun(on) {
   azRun = on;
   learnRow.dataset.run = on ? "on" : "off";
   azProgress.hidden = !on;
+  for (const b of subMode.children) b.classList.toggle("on", (b.dataset.sub === "az") === on);
   if (on) {
     azDone.clear();
     for (const b of letterPicker.children) b.classList.remove("done");
@@ -468,6 +468,7 @@ function setState(next, detail) {
   const live = next !== "idle" && next !== "error";
   stopBtn.hidden = !live;
   handPick.hidden = !live;
+  controls.hidden = !live;
   startBtn.disabled = next === "requesting" || next === "loading";
   if (!live) {
     statsEl.hidden = true;
@@ -625,12 +626,15 @@ function loop() {
   const guiding =
     mode === "practice" && reference && targetLetter && ghostToggle.checked;
 
-  // which hand is signing — sticky with hysteresis, unless the user forced it
+  // which hand is signing — follows whatever's on camera in near real time, so
+  // you can swap hands mid-session (A→Z run, practice, challenge) and the
+  // reference re-orients. Just a 3-frame confirm to shrug off a stray misread.
   if (hasHand && handOverride === "auto" && realHand) {
-    handVote = Math.max(-8, Math.min(8, handVote + (realHand === "right" ? 1 : -1)));
-    const h = handVote > 3 ? "right" : handVote < -3 ? "left" : trackedHand;
-    if (h !== trackedHand) {
-      trackedHand = h;
+    if (realHand === trackedHand) {
+      handVote = 0;
+    } else if (++handVote >= 3) {
+      trackedHand = realHand;
+      handVote = 0;
       applyHand();
     }
   }
@@ -860,7 +864,10 @@ modeToggle.addEventListener("click", (e) => {
   const b = e.target.closest(".mode-btn");
   if (b) setMode(b.dataset.mode);
 });
-azToggle.addEventListener("click", () => setAzRun(!azRun));
+subMode.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-sub]");
+  if (b) setAzRun(b.dataset.sub === "az");
+});
 const stepLetter = (dir) => {
   if (!reference || !targetLetter || azRun) return;
   const list = reference.letters;
