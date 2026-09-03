@@ -4,10 +4,11 @@
 //   idle -> requesting -> loading -> searching <-> tracking
 //   any state -> error (recoverable via the "Try again" button)
 //
-// Recognition switches on automatically when data/dataset.json is present;
-// without it the app runs skeleton-only. When a dataset is loaded, a "learn a
-// letter" row appears: pick a letter and a glowing ghost hand shows the target
-// shape, turning red -> amber -> green as you match it.
+// Recognition switches on when data/dataset.json is present; without it the app
+// runs skeleton-only. With a dataset, a "Learn" picker appears: choose a letter
+// and a side panel shows its reference photo + a clean canonical-skeleton
+// diagram, while the camera frame glows red -> amber -> green as you match it.
+// An optional dashed outline guide can be overlaid on the camera too.
 
 import { startCamera, stopCamera, countCameras, facingOf } from "./camera.js";
 import { createHandTracker } from "./handTracker.js";
@@ -16,7 +17,7 @@ import { normalizeLandmarks, aspectOf } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
 import { createClassifier } from "./knn.js";
 import { createStabilizer } from "./stabilizer.js";
-import { buildReference } from "./reference.js";
+import { buildReference, drawCanonical } from "./reference.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -33,27 +34,32 @@ import {
 } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
+const workspace = $("workspace");
 const viewport = $("viewport");
 const video = $("camera");
 const canvas = $("overlay");
 const pillText = $("pillText");
 const statsEl = $("stats");
 const curtainSub = $("curtainSub");
+const letterBadge = $("letterBadge");
 const startBtn = $("startBtn");
 const stopBtn = $("stopBtn");
 const flipBtn = $("flipBtn");
 const learnRow = $("learnRow");
 const letterPicker = $("letterPicker");
 const clearTargetBtn = $("clearTarget");
-const practiceBar = $("practiceBar");
+const refPanel = $("refPanel");
+const refLetter = $("refLetter");
+const refImg = $("refImg");
+const refCanvas = $("refCanvas");
 const meterFill = $("meterFill");
 const meterLabel = $("meterLabel");
-const showRefCheck = $("showRef");
-const refImg = $("refImg");
+const ghostToggle = $("ghostToggle");
+const ghostToggleWrap = $("ghostToggleWrap");
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
-const BUCKET_LABEL = { off: "off", close: "close", correct: "correct!" };
+const BUCKET_LABEL = { off: "keep adjusting", close: "close…", correct: "got it! ✓" };
 
 const PILL = {
   idle: "Camera off",
@@ -86,9 +92,8 @@ let lastPred = null;
 let targetLetter = null;
 
 // Load once, build the classifier + reference here, then let the raw sample
-// array be garbage-collected — createClassifier and buildReference each keep
-// their own compact copy, so holding ~31k row objects afterwards is dead
-// weight (~15 MB). Resolves to a boolean, not the dataset.
+// array be garbage-collected (each keeps its own compact copy). Resolves to a
+// boolean, not the dataset.
 const datasetPromise = loadDataset(DATASET_URL)
   .catch((err) => {
     if (err.status !== 404) console.warn("dataset load failed:", err);
@@ -115,7 +120,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     return true;
   });
 
-// ---- practice: letter picker + match meter ----------------------
+// ---- practice: letter picker + reference panel + match meter -----
 
 function buildLetterPicker(letters) {
   letterPicker.innerHTML = "";
@@ -137,22 +142,38 @@ function setTarget(letter) {
     if (on) b.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }
   clearTargetBtn.hidden = !letter;
-  practiceBar.hidden = !letter;
-  updateReferenceImg();
-  if (!letter) updateMeter(0, null);
+  refPanel.hidden = !letter;
+  ghostToggleWrap.hidden = !letter;
+  workspace.dataset.target = letter ? "on" : "off";
+
+  if (letter) {
+    refLetter.textContent = letter;
+    refImg.src = REFERENCE_IMG(letter); // photo always on when learning
+    sizeRefCanvas();
+  } else {
+    updateMeter(0, null);
+  }
 }
 
-function updateReferenceImg() {
-  const show = targetLetter && showRefCheck.checked;
-  refImg.hidden = !show;
-  if (show) refImg.src = REFERENCE_IMG(targetLetter);
+// Crisp canvas: back the reference diagram with real device pixels, then draw.
+function sizeRefCanvas() {
+  if (refPanel.hidden || !reference || !targetLetter) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = Math.round((refCanvas.clientWidth || 300) * dpr);
+  if (refCanvas.width !== size) {
+    refCanvas.width = size;
+    refCanvas.height = size;
+  }
+  drawCanonical(refCanvas, reference.centroid(targetLetter));
 }
+window.addEventListener("resize", sizeRefCanvas);
 
 function updateMeter(score, bucket) {
   meterFill.style.width = `${Math.round(score * 100)}%`;
   meterFill.style.background = BUCKET_COLOR[bucket] || "#475569";
   meterLabel.textContent = bucket ? BUCKET_LABEL[bucket] : "show your hand";
   meterLabel.style.color = BUCKET_COLOR[bucket] || "#94a3b8";
+  viewport.dataset.match = bucket || "none";
 }
 
 // ---- state machine -------------------------------------------------
@@ -172,7 +193,11 @@ function setState(next, detail) {
   const live = next !== "idle" && next !== "error";
   stopBtn.hidden = !live;
   startBtn.disabled = next === "requesting" || next === "loading";
-  if (!live) statsEl.hidden = true;
+  if (!live) {
+    statsEl.hidden = true;
+    letterBadge.hidden = true;
+    viewport.dataset.match = "none";
+  }
 }
 
 // ---- lifecycle ---------------------------------------------------
@@ -188,8 +213,9 @@ async function start() {
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
     await acquireWakeLock();
-    await datasetPromise; // ensure classifier/reference are ready if a dataset exists
+    await datasetPromise;
     stabilizer?.reset();
+    if (targetLetter) sizeRefCanvas();
 
     flipBtn.hidden = (await countCameras()) < 2;
     missStreak = LOST_HAND_FRAMES;
@@ -269,9 +295,19 @@ function loop() {
 
   const hasHand = result.landmarks?.length > 0;
   const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
+  const guiding = reference && targetLetter && ghostToggle.checked;
 
   if (hasHand) {
-    overlay.drawHands(result.landmarks);
+    // when learning with the guide on, draw the correction guide instead of
+    // the plain skeleton (it IS the skeleton, coloured + with arrows)
+    if (guiding) {
+      overlay.drawGuide(result.landmarks[0], reference.centroid(targetLetter), {
+        aspect: aspectOf(video),
+        mirror: MIRROR_LEFT_HAND && left,
+      });
+    } else {
+      overlay.drawHands(result.landmarks);
+    }
     missStreak = 0;
     if (state !== "tracking") setState("tracking");
   } else {
@@ -289,24 +325,21 @@ function loop() {
     });
   }
 
-  // recognition
+  // recognition -> corner badge
   if (classifier) {
     lastPred = hasHand ? classifier.classify(vec) : null;
     stabilizer.push(hasHand ? lastPred : null);
-    overlay.drawLetter(stabilizer.current);
+    const shown = stabilizer.current;
+    letterBadge.hidden = !shown;
+    if (shown) letterBadge.textContent = shown;
   }
 
-  // practice: ghost overlay + match meter for the chosen target letter
+  // practice: camera-frame glow + meter
   if (reference && targetLetter) {
     if (hasHand && vec) {
       const m = reference.score(vec, targetLetter);
       const agree = lastPred?.label === targetLetter;
       const bucket = m.bucket === "correct" && !agree ? "close" : m.bucket;
-      overlay.drawGhost(reference.centroid(targetLetter), result.landmarks[0], {
-        color: BUCKET_COLOR[bucket],
-        glow: m.score,
-        mirror: MIRROR_LEFT_HAND && left,
-      });
       updateMeter(m.score, bucket);
     } else {
       updateMeter(0, null);
@@ -372,4 +405,3 @@ startBtn.addEventListener("click", start); // "Turn on camera" and "Try again"
 stopBtn.addEventListener("click", stop);
 flipBtn.addEventListener("click", flip);
 clearTargetBtn.addEventListener("click", () => setTarget(null));
-showRefCheck.addEventListener("change", updateReferenceImg);

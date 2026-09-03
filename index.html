@@ -4,16 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>ASL Fingerspelling Recognizer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9C%8B%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <header>
+  <header class="topbar">
     <h1>ASL Fingerspelling</h1>
+    <div class="learn" id="learnRow" hidden>
+      <span class="learn-label">Learn</span>
+      <div class="chips" id="letterPicker"></div>
+      <button class="chip clear" id="clearTarget" type="button" hidden aria-label="clear target">&times;</button>
+    </div>
   </header>
 
-  <main>
-    <!-- .stage (video + overlay) is selfie-mirrored; .hud sits on top and is not -->
-    <div class="viewport" id="viewport" data-state="idle">
+  <main class="workspace" id="workspace" data-target="off">
+    <!-- camera: the hero. .stage is selfie-mirrored; .hud sits on top and isn't -->
+    <div class="viewport" id="viewport" data-state="idle" data-match="none">
       <div class="stage" id="stage">
         <video id="camera" playsinline webkit-playsinline muted autoplay></video>
         <canvas id="overlay"></canvas>
@@ -24,8 +30,7 @@
           <span class="pill-dot" aria-hidden="true"></span>
           <span id="pillText">Camera off</span>
         </div>
-
-        <img class="refimg" id="refImg" alt="reference photo" hidden />
+        <div class="letter-badge" id="letterBadge" hidden></div>
         <p class="stats" id="stats" hidden></p>
 
         <div class="curtain" id="curtain">
@@ -39,24 +44,25 @@
       </div>
     </div>
 
-    <!-- practice: pick a letter to learn; a glowing ghost hand shows the shape -->
-    <div class="learn" id="learnRow" hidden>
-      <span class="learn-label">Learn a letter</span>
-      <div class="chips" id="letterPicker"></div>
-      <button class="chip clear" id="clearTarget" type="button" hidden aria-label="clear">&times;</button>
-    </div>
-
-    <div class="practice" id="practiceBar" hidden>
-      <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
-      <span class="meter-label" id="meterLabel">show your hand</span>
-      <label class="ref-toggle"><input type="checkbox" id="showRef" /> photo</label>
-    </div>
-
-    <div class="controls">
-      <button id="stopBtn" type="button" hidden>Stop</button>
-      <button id="flipBtn" type="button" class="secondary" hidden>Flip camera</button>
-    </div>
+    <!-- reference panel: shows only when a letter is selected -->
+    <aside class="reference" id="refPanel" hidden>
+      <div class="ref-head">Make this shape: <b id="refLetter">–</b></div>
+      <img class="ref-photo" id="refImg" alt="reference hand photo" />
+      <canvas class="ref-canvas" id="refCanvas" width="320" height="320"></canvas>
+      <div class="ref-match">
+        <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
+        <span class="meter-label" id="meterLabel">show your hand</span>
+      </div>
+    </aside>
   </main>
+
+  <div class="controls">
+    <button id="stopBtn" type="button" hidden>Stop</button>
+    <button id="flipBtn" type="button" class="secondary" hidden>Flip camera</button>
+    <label class="ghost-toggle" hidden id="ghostToggleWrap">
+      <input type="checkbox" id="ghostToggle" checked /> correction guide on camera
+    </label>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

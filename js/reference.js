@@ -9,7 +9,26 @@
 // score() uses only the first 63 values (the raw coordinates) so the glow
 // tracks visible hand shape, not the engineered feature block.
 
+import { drawSkeleton, vectorToPixels } from "./skeleton.js";
+
 const COORD_DIMS = 63;
+
+// Render a letter's canonical hand shape (its class-mean vector) as a clean,
+// large, upright diagram in a panel canvas — the "make this" reference.
+export function drawCanonical(canvasEl, vec) {
+  const ctx = canvasEl.getContext("2d");
+  const w = canvasEl.width;
+  const h = canvasEl.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!vec) return;
+  const px = vectorToPixels(vec, w, h, { pad: 0.16 });
+  drawSkeleton(ctx, px, {
+    stroke: "#e2e8f0",
+    joint: "#38bdf8",
+    lineWidth: Math.max(4, w * 0.02),
+    jointRadius: Math.max(4, w * 0.018),
+  });
+}
 
 export function buildReference(samples, letters, { closeAt = 0.62, correctAt = 0.82 } = {}) {
   const keep = new Set(letters);

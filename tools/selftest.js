@@ -85,23 +85,31 @@ function mkHand() {
     tracker.close();
     ok("handTracker: close() no throw", true);
 
+    // ---- skeleton.js (shared drawing) ----
+    const sk = await import("../js/skeleton.js");
+    ok("skeleton: HAND_CONNECTIONS is 21 edges", sk.HAND_CONNECTIONS.length === 21);
+    ok("skeleton: vectorToPixels -> 21 in-bounds points",
+      (() => {
+        const px = sk.vectorToPixels(new Array(63).fill(0).map(() => Math.random() - 0.5), 200, 200);
+        return px.length === 21 && px.every(([x, y]) => x >= 0 && x <= 200 && y >= 0 && y <= 200 && Number.isFinite(x));
+      })());
+
     const ov = await import("../js/overlay.js");
     const cnv = document.createElement("canvas");
-    const overlay = await ov.createOverlay(cnv);
+    const overlay = ov.createOverlay(cnv);
     overlay.resizeToVideo({ videoWidth: 320, videoHeight: 240 });
     ok("overlay: resizeToVideo sizes the canvas", cnv.width === 320 && cnv.height === 240);
     let threw = false;
     try {
-      overlay.clear();
-      overlay.drawHands([]);
-      overlay.drawLetter("A");
-      overlay.drawLetter(null);
       const liveHand = mkHand();
-      overlay.drawGhost(new Array(74).fill(0.1), liveHand, { color: "#22c55e", glow: 0.7 });
-      overlay.drawGhost(null, liveHand); // null vec no-op
-      overlay.drawGhost(new Array(74).fill(0.1), []); // no live hand no-op
+      overlay.clear();
+      overlay.drawHands([liveHand]);
+      overlay.drawHands([]);
+      overlay.drawGuide(liveHand, new Array(74).fill(0.1), { aspect: 4 / 3, mirror: false });
+      overlay.drawGuide(liveHand, null); // null target -> no-op
+      overlay.drawGuide([], new Array(74).fill(0.1)); // no hand -> no-op
     } catch (e) { threw = e.message; }
-    ok("overlay: draw methods (incl. drawGhost) no throw", threw === false, threw || "");
+    ok("overlay: draw methods (drawHands + drawGuide) no throw", threw === false, threw || "");
 
     const dsm = await import("../js/dataset.js");
     const ds = await dsm.loadDataset("../data/dataset.json?" + Date.now());
@@ -173,6 +181,16 @@ function mkHand() {
     ok("reference: a different letter's centroid scores lower for N",
       ref.score(ref.centroid("A"), "N").score < ref.score(cN, "N").score);
     ok("reference: unknown target -> safe zero", ref.score(cN, "ZZ").score === 0);
+    ok("reference: drawCanonical renders without throwing",
+      (() => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = 200; c.height = 200;
+          refm.drawCanonical(c, cN);
+          refm.drawCanonical(c, null); // no-op
+          return true;
+        } catch { return false; }
+      })());
 
     // ---- config practice knobs ----
     ok("config: MATCH_CLOSE < MATCH_CORRECT, both 0..1",
