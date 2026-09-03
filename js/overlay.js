@@ -42,12 +42,8 @@ export function createOverlay(canvas) {
       const h = canvas.height;
       for (const landmarks of landmarksList) {
         const px = landmarks.map((p) => [p.x * w, p.y * h]);
-        drawSkeleton(ctx, px, {
-          stroke: "#38bdf8",
-          joint: "#f8fafc",
-          lineWidth: 4,
-          jointRadius: 4,
-        });
+        // sizes auto-derive from the hand's on-screen span (see skeleton.js)
+        drawSkeleton(ctx, px, { stroke: "#38bdf8", joint: "#e0f2fe", glow: 0.5 });
       }
     },
 
@@ -97,23 +93,49 @@ export function createOverlay(canvas) {
       const ERR_FULL = Math.max(tol * 6, 0.32);
       const band = (e) => Math.max(0, Math.min(1, (e - tol) / (ERR_FULL - tol)));
 
+      // stroke sizes scale to the hand's on-screen size so the guide reads the
+      // same on a hand held close or far — not a fixed thin web
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of lp) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      const span = Math.hypot(maxX - minX, maxY - minY) || 1;
+      const baseW = Math.max(3, Math.min(10, span * 0.055));
+
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+      // dark contrast halo under the whole skeleton
+      ctx.strokeStyle = "rgba(2, 6, 23, 0.5)";
+      ctx.lineWidth = baseW + 3;
+      ctx.beginPath();
+      for (const [a, b] of HAND_CONNECTIONS) {
+        ctx.moveTo(lp[a][0], lp[a][1]);
+        ctx.lineTo(lp[b][0], lp[b][1]);
+      }
+      ctx.stroke();
       for (const [a, b] of HAND_CONNECTIONS) {
         const e = (err[a] + err[b]) / 2;
         const locked = e <= tol;
         ctx.strokeStyle = locked ? "#22c55e" : errColor(band(e));
-        ctx.lineWidth = locked ? 7 : 5;
+        ctx.lineWidth = locked ? baseW * 1.35 : baseW;
         ctx.beginPath();
         ctx.moveTo(lp[a][0], lp[a][1]);
         ctx.lineTo(lp[b][0], lp[b][1]);
         ctx.stroke();
       }
       for (let i = 0; i < 21; i++) {
-        ctx.fillStyle = err[i] <= tol ? "#22c55e" : errColor(band(err[i]));
+        const locked = err[i] <= tol;
+        ctx.fillStyle = "rgba(2, 6, 23, 0.5)";
         ctx.beginPath();
-        ctx.arc(lp[i][0], lp[i][1], err[i] <= tol ? 4.5 : 3.5, 0, Math.PI * 2);
+        ctx.arc(lp[i][0], lp[i][1], (locked ? baseW * 0.8 : baseW * 0.62) + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = locked ? "#22c55e" : errColor(band(err[i]));
+        ctx.beginPath();
+        ctx.arc(lp[i][0], lp[i][1], locked ? baseW * 0.8 : baseW * 0.62, 0, Math.PI * 2);
         ctx.fill();
       }
 

@@ -17,7 +17,7 @@ import { normalizeLandmarks, aspectOf } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
 import { createClassifier } from "./knn.js";
 import { createStabilizer } from "./stabilizer.js";
-import { buildReference, drawCanonical } from "./reference.js";
+import { buildReference, createCanonicalPlayer } from "./reference.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
@@ -53,6 +53,7 @@ const refPanel = $("refPanel");
 const refLetter = $("refLetter");
 const refImg = $("refImg");
 const refCanvas = $("refCanvas");
+const refDesc = $("refDesc");
 const meterFill = $("meterFill");
 const meterLabel = $("meterLabel");
 const refHint = $("refHint");
@@ -104,6 +105,7 @@ let fps = 0;
 let classifier = null;
 let stabilizer = null;
 let reference = null;
+let refPlayer = null; // animates the canonical shape in the panel
 let lastPred = null;
 let targetLetter = null;
 
@@ -125,6 +127,7 @@ const datasetPromise = loadDataset(DATASET_URL)
       minConfidence: MIN_CONFIDENCE,
     });
     reference = buildReference(train, LETTERS); // self-calibrates per letter
+    refPlayer = createCanonicalPlayer(refCanvas);
     buildLetterPicker(reference.letters);
     learnRow.hidden = false;
     console.info(
@@ -165,18 +168,24 @@ function setTarget(letter) {
   if (letter) {
     refLetter.textContent = letter;
     refImg.src = REFERENCE_IMG(letter); // photo always on when learning
+    if (refDesc) refDesc.textContent = reference?.describe(letter) || "";
     // the panel was just un-hidden — wait one frame so its real width exists
     // before we size the canvas to it, otherwise the diagram can draw blank.
-    requestAnimationFrame(sizeRefCanvas);
+    requestAnimationFrame(() => {
+      sizeRefCanvas();
+      refPlayer?.setTarget(reference?.centroid(letter) || null);
+    });
     sound.select();
   } else {
+    if (refDesc) refDesc.textContent = "";
+    refPlayer?.setTarget(null);
     updateMeter(0, null);
     bg.setMatch(null);
   }
   refHint.textContent = "";
 }
 
-// Crisp canvas: back the reference diagram with real device pixels, then draw.
+// Crisp canvas: back the animated reference diagram with real device pixels.
 function sizeRefCanvas() {
   if (refPanel.hidden || !reference || !targetLetter) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -186,7 +195,7 @@ function sizeRefCanvas() {
     refCanvas.width = size;
     refCanvas.height = size;
   }
-  drawCanonical(refCanvas, reference.centroid(targetLetter));
+  refPlayer?.redraw();
 }
 window.addEventListener("resize", sizeRefCanvas);
 
@@ -251,7 +260,9 @@ function setState(next, detail) {
     viewport.dataset.match = "none";
     holdStart = 0;
     rewarded = false;
+    smoothPts = null;
     viewport.style.setProperty("--hold", "0");
+    sound.charge(0);
     bg.setMatch(null);
   }
 }
@@ -337,6 +348,28 @@ async function flip() {
 
 // ---- per-frame loop --------------------------------------------
 
+// exponential moving average over the 21 landmarks — smooths tracker jitter so
+// the skeleton looks fluid and the match meter doesn't twitch. alpha ~0.5 is a
+// good jitter/latency trade. Pass null to reset (hand lost).
+let smoothPts = null;
+function smoothLandmarks(raw) {
+  if (!raw) {
+    smoothPts = null;
+    return null;
+  }
+  if (!smoothPts || smoothPts.length !== raw.length) {
+    smoothPts = raw.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    return smoothPts;
+  }
+  const a = 0.5;
+  for (let i = 0; i < raw.length; i++) {
+    smoothPts[i].x += (raw[i].x - smoothPts[i].x) * a;
+    smoothPts[i].y += (raw[i].y - smoothPts[i].y) * a;
+    smoothPts[i].z += (raw[i].z - smoothPts[i].z) * a;
+  }
+  return smoothPts;
+}
+
 function loop() {
   if (!tracker) return;
   rafId = requestAnimationFrame(loop);
@@ -354,17 +387,22 @@ function loop() {
   const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
   const guiding = reference && targetLetter && ghostToggle.checked;
 
+  // smooth the raw landmarks (EMA) — kills the frame-to-frame jitter that makes
+  // the skeleton look stringy, and steadies the meter. Reset on a lost hand so
+  // it doesn't lerp across a re-acquire.
+  const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null);
+
   if (hasHand) {
     // when learning with the guide on, draw the correction guide instead of
     // the plain skeleton (it IS the skeleton, coloured + with arrows)
     if (guiding) {
-      overlay.drawGuide(result.landmarks[0], reference.centroid(targetLetter), {
+      overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
         mirror: MIRROR_LEFT_HAND && left,
         tol: reference.tolerance(targetLetter),
       });
     } else {
-      overlay.drawHands(result.landmarks);
+      overlay.drawHands([hand]);
     }
     missStreak = 0;
     if (state !== "tracking") setState("tracking");
@@ -376,7 +414,7 @@ function loop() {
   // normalize once; reused by the classifier and the practice meter
   let vec = null;
   if (hasHand && (classifier || reference)) {
-    vec = normalizeLandmarks(result.landmarks[0], {
+    vec = normalizeLandmarks(hand, {
       aspect: aspectOf(video),
       mirrorX: MIRROR_LEFT_HAND && left,
       extended: USE_EXTENDED_FEATURES, // must match how the dataset was built
@@ -416,9 +454,12 @@ function loop() {
       const heldMs = holdStart ? now - holdStart : 0;
       const heldFrac = Math.min(1, heldMs / HOLD_MS);
       viewport.style.setProperty("--hold", heldFrac.toFixed(3));
+      // rising "charge" tone tracks the hold; success() resolves it
+      if (holdStart && !rewarded) sound.charge(0.05 + 0.95 * heldFrac);
+      else if (!rewarded) sound.charge(0);
       if (holdStart && heldMs >= HOLD_MS && !rewarded) {
         rewarded = true;
-        reward(result.landmarks[0][0]);
+        reward(hand[0]);
       }
 
       if (now - lastHintAt >= HINT_INTERVAL) {
@@ -444,6 +485,7 @@ function loop() {
       updateMeter(0, null);
       bg.setMatch(null);
       refHint.textContent = "";
+      if (!rewarded) sound.charge(0);
       // hand lost mid-hold: keep the timer alive briefly (grace), else drop it
       if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
         holdStart = 0;

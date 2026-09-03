@@ -218,15 +218,34 @@ function mkHand() {
           return true;
         } catch { return false; }
       })());
+    ok("reference: describe() returns a sentence for every letter",
+      ref.letters.every((L) => {
+        const d = ref.describe(L);
+        return typeof d === "string" && d.length > 25;
+      }));
+    ok("reference: createCanonicalPlayer setTarget/redraw/stop don't throw",
+      (() => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = 160; c.height = 160;
+          const p = refm.createCanonicalPlayer(c);
+          p.setTarget(cN);
+          p.redraw();
+          p.setTarget(null);
+          p.stop();
+          return typeof p.setTarget === "function";
+        } catch (e) { return false; }
+      })());
 
     // ---- sound.js + fx.js (juice) ----
     const snd = (await import("../js/sound.js")).createSound();
     ok("sound: createSound exposes the API",
       typeof snd.resume === "function" && typeof snd.success === "function" &&
-      typeof snd.setMuted === "function" && typeof snd.muted === "boolean");
+      typeof snd.setMuted === "function" && typeof snd.muted === "boolean" &&
+      typeof snd.charge === "function");
     ok("sound: mute round-trips", (() => { const was = snd.muted; snd.setMuted(!was); const ok = snd.muted === !was; snd.setMuted(was); return ok; })());
     ok("sound: calls are safe with no audio unlocked",
-      (() => { try { snd.select(); snd.lock(); snd.success(); return true; } catch { return false; } })());
+      (() => { try { snd.select(); snd.lock(); snd.charge(0.5); snd.charge(0); snd.success(); return true; } catch { return false; } })());
 
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",

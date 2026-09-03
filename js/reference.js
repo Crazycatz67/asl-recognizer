@@ -25,6 +25,36 @@ const GAP_PAIRS = [
   ["ring", "pinky"],
 ];
 
+// A plain-language picture of each handshape — shown while you learn it, so the
+// panel isn't just "copy this diagram". Kept to one or two sentences with a
+// real-world image where there's a good one.
+export const LETTER_GUIDE = {
+  A: "Close your hand into a fist and lay your thumb flat along the outside, against your index finger — like a thumbs-up that never went up.",
+  B: "Flat hand, fingers straight and pressed together pointing up, thumb folded across your palm — a little wall facing the camera.",
+  C: "Curve your whole hand into the shape of a C, fingers together — as if you're holding a soda can.",
+  D: "Point your index finger straight up; curl the other three down so their tips meet your thumb in a circle — a candle above its holder.",
+  E: "Curl all four fingertips down to press against your thumb, knuckles facing forward — a closed claw.",
+  F: "Touch the tip of your thumb to the tip of your index finger to make a small circle; the other three fingers stand up straight — the 'OK' sign.",
+  G: "Hold your index finger and thumb out flat and parallel, pointing sideways, a small gap between them — pinching the air.",
+  H: "Index and middle fingers together and straight, pointing sideways; thumb tucked, ring and pinky curled — two barrels laid flat.",
+  I: "Stand your pinky straight up on its own; curl the rest into a fist — a tiny antenna.",
+  K: "Index finger up, middle finger up and spread toward it, thumb pressed into the notch between them — a little catapult.",
+  L: "Thumb straight out to the side, index finger straight up, the rest curled down — a clean capital L.",
+  M: "Fold your first three fingers down over your thumb, so the thumb tip peeks out between your ring and pinky — three fingers over the thumb.",
+  N: "Fold your first two fingers down over your thumb, so the thumb tip peeks out between your middle and ring finger — two fingers over the thumb.",
+  O: "Bring all your fingertips and thumb together into a round O — like holding a single Cheerio.",
+  P: "Make a K, then tip it forward so the index points down at the floor and the middle finger and thumb sit under it.",
+  Q: "Point your thumb and index finger straight down toward the floor, a small gap between them — a downward pinch.",
+  R: "Cross your middle finger tightly over the front of your index finger and hold both up; curl the rest — fingers twisted for 'good luck'.",
+  S: "Make a fist and wrap your thumb across the front of your fingers — a knuckle punch.",
+  T: "Make a fist and poke your thumb up between your index and middle finger.",
+  U: "Index and middle fingers together and straight up; thumb holds the ring and pinky down — a two-prong fork.",
+  V: "Index and middle fingers up in a spread V, the rest held down by the thumb — 'peace' or 'victory'.",
+  W: "Index, middle and ring fingers spread and straight up; thumb pins the pinky down — three prongs.",
+  X: "Hold your index finger up but bend it into a hook at the top knuckle; curl the rest — a beckoning finger.",
+  Y: "Stretch your thumb and pinky out as far apart as they go; fold the three middle fingers down — 'hang loose'.",
+};
+
 // Render a letter's canonical hand shape (its class-mean vector) as a clean,
 // large, upright diagram in a panel canvas — the "make this" reference.
 export function drawCanonical(canvasEl, vec) {
@@ -181,7 +211,10 @@ export function buildReference(samples, letters) {
         if (Math.abs(dev) > 0.11) {
           cand.push({
             mag: Math.abs(dev),
-            text: dev > 0 ? `Curl your ${FINGERS[f]} in more` : `Straighten your ${FINGERS[f]}`,
+            text:
+              dev > 0
+                ? `Curl your ${FINGERS[f]} further down toward your palm`
+                : `Straighten your ${FINGERS[f]} — extend it out fully`,
           });
         }
       }
@@ -191,7 +224,10 @@ export function buildReference(samples, letters) {
           const [a, bb] = GAP_PAIRS[g];
           cand.push({
             mag: Math.abs(dev),
-            text: dev > 0 ? `Bring your ${a} and ${bb} closer` : `Spread your ${a} and ${bb} apart`,
+            text:
+              dev > 0
+                ? `Close the gap — bring your ${a} and ${bb} together until they touch`
+                : `Open a clear gap between your ${a} and ${bb}`,
           });
         }
       }
@@ -199,13 +235,127 @@ export function buildReference(samples, letters) {
       if (Math.abs(thumbDev) > 0.12) {
         cand.push({
           mag: Math.abs(thumbDev),
-          text: thumbDev > 0 ? "Tuck your thumb in tighter" : "Move your thumb out a bit",
+          text:
+            thumbDev > 0
+              ? "Tuck your thumb in tight against the side of your hand"
+              : "Bring your thumb out away from your palm",
         });
       }
 
       if (!cand.length) return "Looks right — hold it steady";
       cand.sort((x, y) => y.mag - x.mag);
       return cand[0].text;
+    },
+
+    // The plain-language "how to shape it" description for the panel.
+    describe(label) {
+      return LETTER_GUIDE[label] || "";
+    },
+  };
+}
+
+// A relaxed open right hand in the normalized frame (wrist ~origin, fingers up
+// = negative y). The animated player eases from this into the target shape so
+// you see the sign FORM, not just a still.
+const NEUTRAL_HAND = [
+  [0.0, 0.0], [-0.16, -0.09], [-0.31, -0.2], [-0.42, -0.31], [-0.52, -0.41],
+  [-0.1, -0.42], [-0.12, -0.63], [-0.13, -0.77], [-0.14, -0.9],
+  [0.02, -0.45], [0.02, -0.67], [0.02, -0.82], [0.02, -0.96],
+  [0.14, -0.42], [0.16, -0.62], [0.17, -0.76], [0.18, -0.88],
+  [0.25, -0.36], [0.29, -0.52], [0.31, -0.63], [0.33, -0.73],
+];
+
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+// Plays a short looping animation in a panel canvas: the hand eases from a
+// relaxed open pose into the target letter, holds, then resets — a "how they
+// did it" clip instead of a static picture. Falls back to a still diagram when
+// the viewer prefers reduced motion.
+export function createCanonicalPlayer(canvasEl) {
+  const reduce =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ctx = canvasEl.getContext("2d");
+  let target = null; // 21 [x,y] from the centroid
+  let raf = 0;
+  let t0 = 0;
+
+  const FORM = 950; // ease in
+  const HOLD = 1250; // sit at the target
+  const BACK = 450; // ease back to neutral
+  const REST = 350; // pause before looping
+  const CYCLE = FORM + HOLD + BACK + REST;
+
+  function phaseFrac(elapsed) {
+    const t = elapsed % CYCLE;
+    if (t < FORM) return easeInOut(t / FORM);
+    if (t < FORM + HOLD) return 1;
+    if (t < FORM + HOLD + BACK) return 1 - easeInOut((t - FORM - HOLD) / BACK);
+    return 0;
+  }
+
+  function paint(frac) {
+    const w = canvasEl.width;
+    const h = canvasEl.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!target) return;
+    // faint target underneath so you can see where the motion is heading
+    const ghost = [];
+    for (let i = 0; i < 21; i++) ghost.push([target[i][0], target[i][1], 0]);
+    drawSkeleton(ctx, vectorToPixels(ghost.flat(), w, h, { pad: 0.16 }), {
+      stroke: "#334155",
+      joint: "#334155",
+      alpha: 0.5,
+      halo: null,
+    });
+    // the moving hand
+    const now = [];
+    for (let i = 0; i < 21; i++) {
+      now.push(
+        NEUTRAL_HAND[i][0] + (target[i][0] - NEUTRAL_HAND[i][0]) * frac,
+        NEUTRAL_HAND[i][1] + (target[i][1] - NEUTRAL_HAND[i][1]) * frac,
+        0
+      );
+    }
+    drawSkeleton(ctx, vectorToPixels(now, w, h, { pad: 0.16 }), {
+      stroke: "#e2e8f0",
+      joint: "#38bdf8",
+      glow: 0.35,
+    });
+  }
+
+  function loop(ts) {
+    if (!t0) t0 = ts;
+    paint(phaseFrac(ts - t0));
+    raf = requestAnimationFrame(loop);
+  }
+
+  return {
+    setTarget(vec) {
+      if (!vec) {
+        target = null;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        return;
+      }
+      target = [];
+      for (let i = 0; i < 21; i++) target.push([vec[i * 3], vec[i * 3 + 1]]);
+      t0 = 0;
+      if (reduce) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        paint(1); // just the finished shape
+      } else if (!raf) {
+        raf = requestAnimationFrame(loop);
+      }
+    },
+    // re-draw after a canvas resize without restarting the cycle
+    redraw() {
+      if (reduce) paint(1);
+    },
+    stop() {
+      cancelAnimationFrame(raf);
+      raf = 0;
     },
   };
 }

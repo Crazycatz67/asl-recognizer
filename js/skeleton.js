@@ -14,50 +14,95 @@ export const HAND_CONNECTIONS = [
   [0, 17],                               // palm base
 ];
 
+const KNUCKLES = new Set([0, 5, 9, 13, 17]);
+const TIPS = new Set([4, 8, 12, 16, 20]);
+
+// span of the point cloud (bbox diagonal) — used to size strokes to the hand
+export function handSpan(pts) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return Math.hypot(maxX - minX, maxY - minY) || 1;
+}
+
 // pts: array of 21 [x, y] pairs already in canvas pixels.
+// When lineWidth / jointRadius aren't given they're derived from the hand's
+// on-screen size, so the skeleton stays proportioned instead of turning into a
+// thin stringy web on a big hand or a blob on a small one. Every stroke gets a
+// dark contrast halo underneath so it reads cleanly over any background.
 export function drawSkeleton(
   ctx,
   pts,
   {
     stroke = "#38bdf8",
     joint = stroke,
-    lineWidth = 4,
-    jointRadius = 3.5,
+    lineWidth,
+    jointRadius,
     alpha = 1,
     dashed = false,
     glow = 0,
+    halo = "rgba(2, 6, 23, 0.55)",
   } = {}
 ) {
   if (!pts || pts.length < 21) return;
+  const span = handSpan(pts);
+  const lw = lineWidth ?? Math.max(2.5, Math.min(9, span * 0.05));
+  const jr = jointRadius ?? lw * 0.85;
+
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = stroke;
-  ctx.fillStyle = joint;
-  if (dashed) ctx.setLineDash([lineWidth * 2.2, lineWidth * 2.2]);
 
   if (glow > 0) {
-    // fake soft glow with a fat translucent under-stroke (cheap; no shadowBlur)
-    ctx.globalAlpha = alpha * 0.25;
-    ctx.lineWidth = lineWidth + 8 * glow;
-    strokeAll();
+    ctx.globalAlpha = alpha * 0.22;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lw + 10 * glow;
+    strokeBones();
     ctx.globalAlpha = alpha;
-    ctx.setLineDash(dashed ? [lineWidth * 2.2, lineWidth * 2.2] : []);
   }
 
-  ctx.lineWidth = lineWidth;
-  strokeAll();
+  // contrast halo (skip when dashed so the dashes stay crisp)
+  if (halo && !dashed) {
+    ctx.strokeStyle = halo;
+    ctx.lineWidth = lw + 3;
+    strokeBones();
+  }
 
+  if (dashed) ctx.setLineDash([lw * 2.2, lw * 2.2]);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lw;
+  strokeBones();
   ctx.setLineDash([]);
+
+  // joints: halo dot + colour dot; knuckles a touch bigger, fingertips brightest
   for (let i = 0; i < 21; i++) {
-    ctx.beginPath();
-    ctx.arc(pts[i][0], pts[i][1], jointRadius, 0, Math.PI * 2);
-    ctx.fill();
+    const r = jr * (KNUCKLES.has(i) ? 1.25 : TIPS.has(i) ? 1.15 : 1);
+    if (halo) {
+      ctx.fillStyle = halo;
+      dot(pts[i], r + 1.5);
+    }
+    ctx.fillStyle = joint;
+    dot(pts[i], r);
+    if (TIPS.has(i)) {
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillStyle = "#f8fafc";
+      dot(pts[i], r * 0.42);
+      ctx.globalAlpha = alpha;
+    }
   }
   ctx.restore();
 
-  function strokeAll() {
+  function dot(p, r) {
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function strokeBones() {
     ctx.beginPath();
     for (const [a, b] of HAND_CONNECTIONS) {
       ctx.moveTo(pts[a][0], pts[a][1]);

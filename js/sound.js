@@ -35,6 +35,24 @@ export function createSound() {
     o.stop(at + dur + 0.03);
   };
 
+  // persistent "charging" voice while a completed sign is being held — a low
+  // tone that rises in pitch and volume as progress 0 -> 1, then resolves into
+  // success(). charge(p<=0) or chargeStop() ends it.
+  let chg = null;
+  const chargeStop = (fade = 0.12) => {
+    if (!chg || !ctx) return;
+    const c = chg;
+    chg = null;
+    const n = ctx.currentTime;
+    try {
+      c.g.gain.cancelScheduledValues(n);
+      c.g.gain.setValueAtTime(Math.max(0.0001, c.g.gain.value), n);
+      c.g.gain.linearRampToValueAtTime(0.0001, n + fade);
+      c.o.stop(n + fade + 0.03);
+      c.o2.stop(n + fade + 0.03);
+    } catch {}
+  };
+
   return {
     resume() {
       ensure();
@@ -44,13 +62,46 @@ export function createSound() {
     },
     setMuted(m) {
       muted = !!m;
+      if (muted) chargeStop(0.05);
       try {
         localStorage.setItem("asl-muted", muted ? "1" : "0");
       } catch {}
     },
 
+    // p: 0..1 hold progress. call repeatedly while holding; <=0 stops.
+    charge(p) {
+      if (muted || !ensure()) {
+        chargeStop(0.03);
+        return;
+      }
+      if (p <= 0) {
+        chargeStop();
+        return;
+      }
+      const n = ctx.currentTime;
+      if (!chg) {
+        const g = ctx.createGain();
+        g.gain.value = 0.0001;
+        const o = ctx.createOscillator();
+        o.type = "triangle";
+        const o2 = ctx.createOscillator();
+        o2.type = "sine";
+        o.connect(g);
+        o2.connect(g);
+        g.connect(ctx.destination);
+        o.start();
+        o2.start();
+        chg = { o, o2, g };
+      }
+      const f = 240 + p * 540; // ~240 -> ~780 Hz
+      chg.o.frequency.linearRampToValueAtTime(f, n + 0.09);
+      chg.o2.frequency.linearRampToValueAtTime(f * 2.01, n + 0.09); // shimmer
+      chg.g.gain.linearRampToValueAtTime(0.03 + p * 0.06, n + 0.09);
+    },
+
     // triumphant little rising arpeggio + a sparkle tail
     success() {
+      chargeStop(0.04);
       if (muted || !ensure()) return;
       const n = ctx.currentTime;
       [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>

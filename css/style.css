@@ -339,11 +339,20 @@ body {
   grid-template-columns: auto auto minmax(0, 1fr);
   grid-template-areas:
     "head  head   head"
+    "desc  desc   desc"
     "photo canvas match";
   align-items: center;
 }
 .ref-head  { grid-area: head;  font-size: 0.82rem; color: var(--muted); }
 .ref-head b { color: var(--fg); font-size: 1.05rem; }
+.ref-desc {
+  grid-area: desc;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+.ref-desc:empty { display: none; }
 .ref-photo  { grid-area: photo; }
 .ref-canvas { grid-area: canvas; }
 .ref-match  { grid-area: match; min-width: 0; }
@@ -356,6 +365,17 @@ body {
 .ref-photo { object-fit: cover; background: #020617; }
 .ref-canvas { background: #0b1220; border: 1px solid rgba(148, 163, 184, 0.12); }
 
+/* PORTRAIT: keep the description to 3 lines so the strip stays short */
+@media (max-width: 759px), (orientation: portrait) {
+  .ref-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.82rem;
+  }
+}
+
 /* LANDSCAPE + roomy: a full-height column beside the camera */
 @media (min-width: 760px) and (orientation: landscape) {
   .reference {
@@ -367,6 +387,7 @@ body {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "head  head"
+      "desc  desc"
       "photo canvas"
       "match match";
   }
