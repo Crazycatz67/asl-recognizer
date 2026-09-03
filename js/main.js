@@ -162,7 +162,9 @@ function setTarget(letter) {
   if (letter) {
     refLetter.textContent = letter;
     refImg.src = REFERENCE_IMG(letter); // photo always on when learning
-    sizeRefCanvas();
+    // the panel was just un-hidden — wait one frame so its real width exists
+    // before we size the canvas to it, otherwise the diagram can draw blank.
+    requestAnimationFrame(sizeRefCanvas);
     sound.select();
   } else {
     updateMeter(0, null);
@@ -175,7 +177,8 @@ function setTarget(letter) {
 function sizeRefCanvas() {
   if (refPanel.hidden || !reference || !targetLetter) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const size = Math.round((refCanvas.clientWidth || 300) * dpr);
+  const cssW = refCanvas.clientWidth || refCanvas.parentElement?.clientWidth / 2 || 140;
+  const size = Math.max(80, Math.round(cssW * dpr));
   if (refCanvas.width !== size) {
     refCanvas.width = size;
     refCanvas.height = size;

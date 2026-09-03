@@ -97,7 +97,7 @@ body {
 /* wide screens with a target selected: camera left (big), reference right */
 @media (min-width: 760px) {
   .workspace[data-target="on"] {
-    grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.85fr);
+    grid-template-columns: minmax(0, 1.7fr) minmax(230px, 0.8fr);
     align-items: start;
   }
 }
@@ -115,6 +115,14 @@ body {
     0 20px 50px -24px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(148, 163, 184, 0.08);
   transition: box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+/* keep the whole app inside the window — no page scroll on a laptop. this
+   must come AFTER the base rule above (equal specificity, last one wins) so
+   the camera box shrinks to the vertical room left by the header + controls;
+   object-fit: cover keeps the video filling whatever height remains. */
+@media (min-width: 760px) {
+  .viewport { max-height: min(82vh, calc(100vh - 190px)); }
 }
 .viewport[data-match="off"] {
   box-shadow: inset 0 0 0 4px var(--off), 0 0 34px -6px rgba(248, 113, 113, 0.45);
@@ -256,30 +264,34 @@ body {
 .reference {
   background: linear-gradient(180deg, #1e293b, #16202f);
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 0.85rem;
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
   display: grid;
-  gap: 0.6rem 0.7rem;
+  gap: 0.55rem 0.75rem;
   grid-template-columns: 1fr 1fr; /* photo | skeleton side by side, keeps it short */
-  align-items: start;
+  align-content: start;
   box-shadow: 0 16px 40px -22px rgba(0, 0, 0, 0.6);
 }
 .ref-head { grid-column: 1 / -1; font-size: 0.85rem; color: var(--muted); }
 .ref-head b { color: var(--fg); font-size: 1.1rem; }
 .ref-match { grid-column: 1 / -1; }
-.ref-photo {
+/* photo + skeleton: capped and centred so they read as compact thumbnails,
+   not two big blocks that tower next to the camera */
+.ref-photo,
+.ref-canvas {
   width: 100%;
+  max-width: 140px;
+  justify-self: center;
   aspect-ratio: 1;
+  border-radius: 12px;
+}
+.ref-photo {
   object-fit: cover;
-  border-radius: 10px;
   background: #020617;
 }
 .ref-canvas {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 10px;
   background: #0b1220;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 .ref-match { display: grid; gap: 0.4rem; }
 .meter {
@@ -322,7 +334,7 @@ body {
 
 .controls {
   max-width: 1100px;
-  margin: 0.9rem auto 1.5rem;
+  margin: 0.7rem auto 0.7rem;
   padding: 0 1rem;
   display: flex;
   align-items: center;
