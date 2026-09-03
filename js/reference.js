@@ -212,12 +212,13 @@ export function buildReference(samples, letters) {
       const v = aligned(liveVec, label); // forgive a small wrist tilt
       const d = coordDist(v, c);
       const s = scoreFor(d, b);
-      // "correct" needs BOTH: the aggregate is good AND no single joint is still
-      // off (i.e. the skeleton is fully green, not "close on average while a
-      // finger's out"). Otherwise the reward can fire on a near-miss.
+      // "correct" = a READABLE sign, not a pixel-perfect one. The aggregate has
+      // to be decent and no single joint wildly off, but a joint may drift to
+      // ~1.8x the tight "green" tolerance and still count — holding a perfect
+      // pose was exhausting. (A truly wrong finger, several x tol, still fails.)
       const worst = worstJoint(v, c);
-      const matched = worst <= tolFor(b);
-      let bucket = s >= 0.85 ? "correct" : s >= 0.6 ? "close" : "off";
+      const matched = worst <= tolFor(b) * 1.8;
+      let bucket = s >= 0.7 ? "correct" : s >= 0.5 ? "close" : "off";
       if (bucket === "correct" && !matched) bucket = "close";
       return { dist: d, score: s, bucket, matched, worst };
     },

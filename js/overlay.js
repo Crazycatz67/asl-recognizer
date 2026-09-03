@@ -93,7 +93,7 @@ export function createOverlay(canvas) {
     drawGuide(
       live,
       target,
-      { aspect = 1, mirror = false, tol = 0.06, align = 0, reveal = 1 } = {}
+      { aspect = 1, mirror = false, tol = 0.06, align = 0, reveal = 1, settled = false } = {}
     ) {
       if (!live?.length || !target) return null;
       const w = canvas.width;
@@ -212,8 +212,9 @@ export function createOverlay(canvas) {
 
       // (3) focus the ONE finger that's most off — highlight its whole length
       // bright, draw one bold lead to a filled destination disc, and label it
-      // with the finger name so there's no guessing which one.
-      if (rv > 0.15 && worst >= 0) {
+      // with the finger name. Suppressed once the sign already counts (`settled`)
+      // so you're not nagged to chase perfection.
+      if (rv > 0.15 && worst >= 0 && !settled) {
         const f = FINGER_OF[worst];
         ctx.globalAlpha = rv;
 

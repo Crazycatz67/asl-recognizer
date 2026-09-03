@@ -207,6 +207,21 @@ function mkHand() {
       })());
     ok("reference: tolerance('N') is a small positive number",
       (() => { const t = ref.tolerance("N"); return t > 0 && t < 0.3; })(), String(ref.tolerance("N")));
+    ok("reference: a readable-but-imperfect hand scores 'correct' (~1.4x tol)",
+      (() => {
+        const c = ref.centroid("C"), tol = ref.tolerance("C"), v = c.slice();
+        for (let j = 0; j < 21; j++) {
+          v[j * 3] += (j % 2 ? 1 : -1) * tol * 1.0;
+          v[j * 3 + 1] += (j % 3 ? 1 : -1) * tol * 1.0; // ~1.4x tol per joint
+        }
+        return ref.score(v, "C").bucket === "correct";
+      })());
+    ok("reference: a clearly-wrong finger still fails (several x tol)",
+      (() => {
+        const c = ref.centroid("C"), tol = ref.tolerance("C"), v = c.slice();
+        v[8 * 3] += tol * 4; v[8 * 3 + 1] += tol * 4; // index tip way off
+        return ref.score(v, "C").bucket !== "correct";
+      })());
     ok("reference: alignDeg detects a small tilt and stays clamped",
       (() => {
         const tilted = ref.centroid("B").slice();

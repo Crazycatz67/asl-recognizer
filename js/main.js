@@ -81,8 +81,8 @@ const bg = createBackground();
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
-const HOLD_MS = 1600; // hold a COMPLETE sign (meter full + skeleton all green) this long
-const HOLD_GRACE_MS = 220; // tolerate this much tracking flicker without losing the hold
+const HOLD_MS = 1150; // hold a readable sign this long before the reward
+const HOLD_GRACE_MS = 260; // tolerate this much tracking flicker without losing the hold
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
 const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "hold it…" };
 let lastHintAt = 0;
@@ -542,11 +542,28 @@ function loop() {
     });
   }
 
-  // score the shape once, up front — the guide's reveal ramp and the practice
-  // block below both need it
+  // classify up front too (badge is drawn later) so the practice meter can
+  // accept a sign the recogniser reads even if the shape isn't textbook
+  if (classifier) {
+    lastPred = hasHand && vec ? classifier.classify(vec) : null;
+    stabilizer.push(hasHand ? lastPred : null);
+  }
+
+  // score the shape once — the guide's reveal ramp and the practice block need it
   const m = hasHand && vec && reference && targetLetter
     ? reference.score(vec, targetLetter)
     : null;
+  // a "close" shape the recogniser confidently reads AS the target counts as
+  // correct — a functioning, readable sign, not a perfect one
+  if (
+    m &&
+    m.bucket === "close" &&
+    lastPred &&
+    lastPred.label === targetLetter &&
+    lastPred.confidence >= 0.6
+  ) {
+    m.bucket = "correct";
+  }
 
   // progressive disclosure: the correction guide only fades in once you're
   // actually attempting the shape (score climbing out of "way off"), so the
@@ -563,6 +580,7 @@ function loop() {
         tol: reference.tolerance(targetLetter),
         align: vec ? reference.alignDeg(vec, targetLetter) : 0,
         reveal: guideAmt,
+        settled: m?.bucket === "correct", // don't nag once it already counts
       });
     } else {
       overlay.drawHands([hand]);
@@ -576,8 +594,6 @@ function loop() {
 
   // recognition -> corner badge (hidden during the challenge — no peeking)
   if (classifier) {
-    lastPred = hasHand ? classifier.classify(vec) : null;
-    stabilizer.push(hasHand ? lastPred : null);
     const shown = mode === "practice" ? stabilizer.current : null;
     letterBadge.hidden = !shown;
     if (shown) letterBadge.textContent = shown;
@@ -597,10 +613,9 @@ function loop() {
       // the problem (fingers off -> top; thumb side off -> that side)
       bg.setMatch(m.score, m.bucket, reference.regionErrors(vec, targetLetter));
 
-      // reward only when the sign is genuinely COMPLETE (m.bucket === "correct"
-      // already means meter full AND every joint green) and has been held for
-      // HOLD_MS — a brief accidental pose won't count. Small tracking dropouts
-      // inside HOLD_GRACE_MS don't reset the timer.
+      // reward when the sign is readable (m.bucket === "correct" — a decent
+      // shape OR one the recogniser reads as the target) and held for HOLD_MS.
+      // Small tracking dropouts inside HOLD_GRACE_MS don't reset the timer.
       const complete = m.bucket === "correct";
       if (complete) {
         if (!holdStart) holdStart = now;
