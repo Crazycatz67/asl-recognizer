@@ -12,6 +12,25 @@
 // them", which is what the old fixed threshold demanded (and why it never hit).
 
 import { drawSkeleton, vectorToPixels } from "./skeleton.js";
+import { rotateVector } from "./normalize.js";
+
+// A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
+// to a letter we let it rotate up to this much to sit at the letter's own tilt.
+// Kept small: a real mis-orientation (G/H point sideways, P points down) is tens
+// of degrees off and still reads as wrong.
+const ALIGN_MAX_DEG = 22;
+
+// in-plane angle of the palm axis: wrist(0) -> mean of the four finger MCPs
+// (5,9,13,17). Averaging the knuckles is far steadier than a single bone, so a
+// little landmark noise doesn't swing the estimate.
+const axisAngle = (v) => {
+  let mx = 0, my = 0;
+  for (const j of [5, 9, 13, 17]) {
+    mx += v[j * 3];
+    my += v[j * 3 + 1];
+  }
+  return Math.atan2(my / 4 - v[1], mx / 4 - v[0]);
+};
 
 // engineered-feature indices (see normalize.js handFeatures)
 const F_CURL = 63;   // 63..67  thumb,index,middle,ring,pinky : tip->own-MCP distance
@@ -146,6 +165,25 @@ export function buildReference(samples, letters) {
     return w;
   };
 
+  // Degrees to rotate a live vector so its tilt matches the letter's — clamped,
+  // with a dead zone for sub-noise tilt, and ONLY if it actually reduces the
+  // distance to the centroid (so alignment can never invent error, e.g. from a
+  // noisy axis estimate on an already-matched hand).
+  const alignDegFor = (liveVec, label) => {
+    const c = centroids.get(label);
+    if (!c || !liveVec) return 0;
+    let d = axisAngle(c) - axisAngle(liveVec);
+    d = Math.atan2(Math.sin(d), Math.cos(d)) * (180 / Math.PI);
+    if (Math.abs(d) < 3) return 0;
+    d = Math.max(-ALIGN_MAX_DEG, Math.min(ALIGN_MAX_DEG, d));
+    return coordDist(rotateVector(liveVec, d), c) < coordDist(liveVec, c) ? d : 0;
+  };
+  // liveVec brought into the letter's orientation (small tilt forgiveness)
+  const aligned = (liveVec, label) => {
+    const deg = alignDegFor(liveVec, label);
+    return deg ? rotateVector(liveVec, deg) : liveVec;
+  };
+
   return {
     letters: [...centroids.keys()].sort(),
 
@@ -160,17 +198,24 @@ export function buildReference(samples, letters) {
       return tolFor(bands.get(label));
     },
 
+    // degrees the on-camera guide should rotate the target by, so it and the
+    // meter judge the same (tilt-forgiven) shape
+    alignDeg(liveVec, label) {
+      return alignDegFor(liveVec, label);
+    },
+
     score(liveVec, label) {
       const c = centroids.get(label);
       const b = bands.get(label);
       if (!c || !b || !liveVec)
         return { dist: Infinity, score: 0, bucket: "off", matched: false, worst: Infinity };
-      const d = coordDist(liveVec, c);
+      const v = aligned(liveVec, label); // forgive a small wrist tilt
+      const d = coordDist(v, c);
       const s = scoreFor(d, b);
       // "correct" needs BOTH: the aggregate is good AND no single joint is still
       // off (i.e. the skeleton is fully green, not "close on average while a
       // finger's out"). Otherwise the reward can fire on a near-miss.
-      const worst = worstJoint(liveVec, c);
+      const worst = worstJoint(v, c);
       const matched = worst <= tolFor(b);
       let bucket = s >= 0.85 ? "correct" : s >= 0.6 ? "close" : "off";
       if (bucket === "correct" && !matched) bucket = "close";
@@ -183,10 +228,11 @@ export function buildReference(samples, letters) {
     regionErrors(liveVec, label) {
       const c = centroids.get(label);
       if (!c || !liveVec) return { top: 0, left: 0, right: 0 };
+      const v = aligned(liveVec, label);
       const zones = { top: [0, 0], left: [0, 0], right: [0, 0] };
       for (let j = 0; j < 21; j++) {
-        const dx = liveVec[j * 3] - c[j * 3];
-        const dy = liveVec[j * 3 + 1] - c[j * 3 + 1];
+        const dx = v[j * 3] - c[j * 3];
+        const dy = v[j * 3 + 1] - c[j * 3 + 1];
         const e = Math.hypot(dx, dy); // x/y only — matches coordDist / the guide
         const ty = c[j * 3 + 1]; // target y (fingers point up = negative)
         const sx = -c[j * 3]; // mirrored screen x

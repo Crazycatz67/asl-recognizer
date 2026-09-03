@@ -100,16 +100,22 @@ function mkHand() {
     overlay.resizeToVideo({ videoWidth: 320, videoHeight: 240 });
     ok("overlay: resizeToVideo sizes the canvas", cnv.width === 320 && cnv.height === 240);
     let threw = false;
+    let guideRet;
     try {
       const liveHand = mkHand();
       overlay.clear();
       overlay.drawHands([liveHand]);
       overlay.drawHands([]);
-      overlay.drawGuide(liveHand, new Array(74).fill(0.1), { aspect: 4 / 3, mirror: false });
+      guideRet = overlay.drawGuide(liveHand, new Array(74).fill(0.1), {
+        aspect: 4 / 3, mirror: false, align: 12,
+      });
       overlay.drawGuide(liveHand, null); // null target -> no-op
       overlay.drawGuide([], new Array(74).fill(0.1)); // no hand -> no-op
     } catch (e) { threw = e.message; }
     ok("overlay: draw methods (drawHands + drawGuide) no throw", threw === false, threw || "");
+    ok("overlay: drawGuide returns null or a worst-joint {part}",
+      guideRet === null || (typeof guideRet === "object" && typeof guideRet.part === "string"),
+      JSON.stringify(guideRet));
 
     const dsm = await import("../js/dataset.js");
     const ds = await dsm.loadDataset("../data/dataset.json?" + Date.now());
@@ -201,6 +207,29 @@ function mkHand() {
       })());
     ok("reference: tolerance('N') is a small positive number",
       (() => { const t = ref.tolerance("N"); return t > 0 && t < 0.3; })(), String(ref.tolerance("N")));
+    ok("reference: alignDeg detects a small tilt and stays clamped",
+      (() => {
+        const tilted = ref.centroid("B").slice();
+        const a = (15 * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
+        for (let j = 0; j < 21; j++) {
+          const x = tilted[j * 3], y = tilted[j * 3 + 1];
+          tilted[j * 3] = x * cs - y * sn;
+          tilted[j * 3 + 1] = x * sn + y * cs;
+        }
+        const deg = ref.alignDeg(tilted, "B");
+        return Math.abs(deg) <= 22 && Math.abs(deg) > 5;
+      })(), String(ref.alignDeg(cN, "N")));
+    ok("reference: a mildly tilted centroid still scores 'correct' (tilt forgiven)",
+      (() => {
+        const tilted = ref.centroid("B").slice();
+        const a = (14 * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
+        for (let j = 0; j < 21; j++) {
+          const x = tilted[j * 3], y = tilted[j * 3 + 1];
+          tilted[j * 3] = x * cs - y * sn;
+          tilted[j * 3 + 1] = x * sn + y * cs;
+        }
+        return ref.score(tilted, "B").bucket === "correct";
+      })());
     ok("reference: hint() on the centroid says it's right",
       /hold it steady/i.test(ref.hint(cN, "N")), JSON.stringify(ref.hint(cN, "N")));
     ok("reference: hint() on a wrong hand gives an instruction",

@@ -392,14 +392,26 @@ function loop() {
   // it doesn't lerp across a re-acquire.
   const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null);
 
+  // normalize once; reused by the classifier, the practice meter, and the guide
+  let vec = null;
+  if (hasHand && (classifier || reference)) {
+    vec = normalizeLandmarks(hand, {
+      aspect: aspectOf(video),
+      mirrorX: MIRROR_LEFT_HAND && left,
+      extended: USE_EXTENDED_FEATURES, // must match how the dataset was built
+    });
+  }
+
+  let guideInfo = null; // { part } for the worst-off joint — named in the hint
   if (hasHand) {
     // when learning with the guide on, draw the correction guide instead of
-    // the plain skeleton (it IS the skeleton, coloured + with arrows)
+    // the plain skeleton (coloured skeleton + ghost target + correction leads)
     if (guiding) {
-      overlay.drawGuide(hand, reference.centroid(targetLetter), {
+      guideInfo = overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
         mirror: MIRROR_LEFT_HAND && left,
         tol: reference.tolerance(targetLetter),
+        align: vec ? reference.alignDeg(vec, targetLetter) : 0,
       });
     } else {
       overlay.drawHands([hand]);
@@ -409,16 +421,6 @@ function loop() {
   } else {
     missStreak++;
     if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
-  }
-
-  // normalize once; reused by the classifier and the practice meter
-  let vec = null;
-  if (hasHand && (classifier || reference)) {
-    vec = normalizeLandmarks(hand, {
-      aspect: aspectOf(video),
-      mirrorX: MIRROR_LEFT_HAND && left,
-      extended: USE_EXTENDED_FEATURES, // must match how the dataset was built
-    });
   }
 
   // recognition -> corner badge
@@ -468,9 +470,15 @@ function loop() {
           lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8;
         let tip = reference.hint(vec, targetLetter);
         // hint() can say "looks right" from the coarse feature check while the
-        // meter is still short — don't claim it's right unless the meter agrees
+        // meter is still short — fall back to the precise joint the on-camera
+        // guide is pointing at, so the endgame ("near perfect, can't see what")
+        // still has something to act on.
         if (!complete && /looks right/i.test(tip)) {
-          tip = m.bucket === "close" ? "So close — tiny adjustments" : "Keep shaping it";
+          tip = guideInfo?.part
+            ? `Nudge your ${guideInfo.part} onto the marker`
+            : m.bucket === "close"
+            ? "So close — tiny adjustments"
+            : "Keep shaping it";
         }
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         refHint.textContent = rewarded
