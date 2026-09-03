@@ -116,6 +116,17 @@ function mkHand() {
     ok("overlay: drawGuide returns null or a worst-joint {part}",
       guideRet === null || (typeof guideRet === "object" && typeof guideRet.part === "string"),
       JSON.stringify(guideRet));
+    ok("overlay: drawMotionGuide (J/Z swoosh) doesn't throw",
+      (() => {
+        try {
+          const lh = mkHand();
+          overlay.drawMotionGuide(lh, "J", { mirror: true });
+          overlay.drawMotionGuide(lh, "Z", { mirror: false });
+          overlay.drawMotionGuide([], "J");
+          overlay.drawMotionGuide(lh, "B"); // non-motion -> skeleton only
+          return true;
+        } catch { return false; }
+      })());
 
     const dsm = await import("../js/dataset.js");
     const ds = await dsm.loadDataset("../data/dataset.json?" + Date.now());

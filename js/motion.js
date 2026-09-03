@@ -10,9 +10,9 @@
 //
 // The stroke templates below (STROKE) are also used to animate the demo.
 
-const WINDOW_MS = 1400;
+const WINDOW_MS = 1600;
 const COOLDOWN_MS = 900; // after a hit, don't re-fire until the hand resets
-const MIN_FRAMES = 8;
+const MIN_FRAMES = 6;
 
 // Ideal fingertip path for the panel demo — normalised (wrist ~origin, +y down,
 // units ≈ hand span). Selfie-mirrored view: +x is toward the pinky side here.
@@ -47,7 +47,7 @@ function spanOf(lm) {
 // finger roughly extended: tip is far from its MCP relative to hand span
 function extended(lm, finger, span) {
   const t = lm[TIP[finger]], m = lm[MCP[finger]];
-  return Math.hypot(t.x - m.x, t.y - m.y) / span > 0.9;
+  return Math.hypot(t.x - m.x, t.y - m.y) / span > 0.72;
 }
 
 export function createMotionMatcher() {
@@ -101,41 +101,44 @@ export function createMotionMatcher() {
       while (buf.length && now - buf[0].t > WINDOW_MS) buf.shift();
     },
 
-    // returns "J" | "Z" | null
+    // returns "J" | "Z" | null. Generous on purpose — a rough stroke should
+    // still count; the shape at the start disambiguates J from Z.
     match(now) {
       if (now < coolUntil || buf.length < MIN_FRAMES) return null;
-      const span = now - buf[0].t;
-      if (span < 350) return null; // too quick to be a stroke
+      if (now - buf[0].t < 300) return null;
 
-      // --- J: "I" hand, pinky tip goes DOWN then HOOKS to the side ---
-      const pinkyMostly = buf.filter((f) => f.pinkyUp).length / buf.length > 0.6;
+      // --- J: "I"-ish hand, pinky tip drops, then curls to the side ---
+      const pinkyMostly = buf.filter((f) => f.pinkyUp).length / buf.length >= 0.4;
       if (pinkyMostly) {
         const p = buf.map((f) => f.pinky);
         const y0 = p[0][1];
         let lowIdx = 0;
         for (let i = 1; i < p.length; i++) if (p[i][1] > p[lowIdx][1]) lowIdx = i;
         const drop = p[lowIdx][1] - y0; // + = moved down
-        const hook = Math.abs(p.at(-1)[0] - p[lowIdx][0]); // sideways travel after the low point
-        if (drop > 0.5 && lowIdx > 1 && hook > 0.28) {
+        // sideways travel any time after it started dropping
+        let hook = 0;
+        for (let i = Math.max(1, Math.floor(lowIdx * 0.6)); i < p.length; i++)
+          hook = Math.max(hook, Math.abs(p[i][0] - p[Math.floor(lowIdx * 0.6)][0]));
+        if (drop > 0.32 && lowIdx >= 1 && hook > 0.16) {
           coolUntil = now + COOLDOWN_MS;
           return "J";
         }
       }
 
-      // --- Z: index up, index tip zigzags (>=2 x-direction reversals) ---
-      const indexMostly = buf.filter((f) => f.indexUp).length / buf.length > 0.6;
+      // --- Z: index-ish up, index tip zigzags (>=2 direction changes in x) ---
+      const indexMostly = buf.filter((f) => f.indexUp).length / buf.length >= 0.4;
       if (indexMostly) {
-        const path = resample(buf.map((f) => f.index), 16);
+        const path = resample(buf.map((f) => f.index), 20);
         let reversals = 0, travel = 0, lastDir = 0;
         for (let i = 1; i < path.length; i++) {
           const dx = path[i][0] - path[i - 1][0];
           travel += Math.abs(dx);
-          const dir = dx > 0.02 ? 1 : dx < -0.02 ? -1 : 0;
+          const dir = dx > 0.015 ? 1 : dx < -0.015 ? -1 : 0;
           if (dir && lastDir && dir !== lastDir) reversals++;
           if (dir) lastDir = dir;
         }
         const yTravel = Math.abs(path.at(-1)[1] - path[0][1]);
-        if (reversals >= 2 && travel > 1.4 && travel > yTravel) {
+        if (reversals >= 2 && travel > 1.0 && travel > yTravel * 0.8) {
           coolUntil = now + COOLDOWN_MS;
           return "Z";
         }

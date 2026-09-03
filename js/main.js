@@ -882,7 +882,10 @@ function loop() {
 
   let guideInfo = null; // { part } for the worst-off joint — named in the hint
   if (hasHand) {
-    if (guiding) {
+    if (mode === "practice" && motionTarget && ghostToggle.checked) {
+      // J / Z: show the swoosh to trace on the live hand
+      overlay.drawMotionGuide(hand, targetLetter, { mirror: facingMode === "user" });
+    } else if (guiding) {
       // the meter picks the best tilt + mirror fit; the guide must draw the
       // target in that same orientation or the arrows point where the wrist
       // can't go

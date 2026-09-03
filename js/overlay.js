@@ -6,7 +6,34 @@
 //                  drawn on the user's own hand, not a separate ghost.
 // Skeleton rendering is shared with the reference panel via js/skeleton.js.
 
-import { drawSkeleton, HAND_CONNECTIONS } from "./skeleton.js";
+import { drawSkeleton, HAND_CONNECTIONS, handSpan } from "./skeleton.js";
+import { STROKE } from "./motion.js";
+
+const MOTION_TIP = { J: 20, Z: 8 }; // pinky tip / index tip
+
+// arc-length sample of a canvas-space polyline at fraction f (0..1)
+function pathAt(pts, f) {
+  const seg = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    seg.push(d);
+    total += d;
+  }
+  let acc = 0;
+  const goal = Math.max(0, Math.min(1, f)) * total;
+  for (let i = 1; i < pts.length; i++) {
+    if (acc + seg[i - 1] >= goal) {
+      const t = seg[i - 1] ? (goal - acc) / seg[i - 1] : 0;
+      return [
+        pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]),
+        pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1]),
+      ];
+    }
+    acc += seg[i - 1];
+  }
+  return pts.at(-1).slice();
+}
 
 const PART = [
   "wrist",
@@ -75,6 +102,56 @@ export function createOverlay(canvas) {
         // sizes auto-derive from the hand's on-screen span (see skeleton.js)
         drawSkeleton(ctx, px, { stroke: "#38bdf8", joint: "#e0f2fe", glow: 0.5 });
       }
+    },
+
+    // J / Z: the plain skeleton plus a purple "swoosh" — the stroke path scaled
+    // to the hand and anchored at the finger you trace with, an arrowhead at the
+    // end, and a dot animating along it to show the direction.
+    drawMotionGuide(live, letter, { mirror = true } = {}) {
+      if (!live?.length) return;
+      const w = canvas.width, h = canvas.height;
+      const lp = live.map((p) => [p.x * w, p.y * h]);
+      drawSkeleton(ctx, lp, { stroke: "#38bdf8", joint: "#e0f2fe", glow: 0.5 });
+
+      const path = STROKE[letter];
+      const tipIdx = MOTION_TIP[letter];
+      if (!path || tipIdx == null) return;
+      const span = handSpan(lp);
+      const anchor = lp[tipIdx];
+      const sx = mirror ? -1 : 1; // the stage is selfie-flipped for the front cam
+      const P = path.map(([x, y]) => [
+        anchor[0] + (x - path[0][0]) * span * 0.95 * sx,
+        anchor[1] + (y - path[0][1]) * span * 0.95,
+      ]);
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(167, 139, 250, 0.55)";
+      ctx.lineWidth = Math.max(4, span * 0.06);
+      ctx.setLineDash([span * 0.1, span * 0.07]);
+      ctx.beginPath();
+      P.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const a = P.at(-1), b = P.at(-2);
+      const ang = Math.atan2(a[1] - b[1], a[0] - b[0]);
+      const s = span * 0.16;
+      ctx.fillStyle = "#a78bfa";
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(a[0] - s * Math.cos(ang - 0.42), a[1] - s * Math.sin(ang - 0.42));
+      ctx.lineTo(a[0] - s * Math.cos(ang + 0.42), a[1] - s * Math.sin(ang + 0.42));
+      ctx.closePath();
+      ctx.fill();
+
+      const dot = pathAt(P, (performance.now() % 1300) / 1300);
+      ctx.fillStyle = "#ede9fe";
+      ctx.beginPath();
+      ctx.arc(dot[0], dot[1], Math.max(4, span * 0.05), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     },
 
     // live: 21 raw landmarks {x,y in 0..1}. target: the letter's centroid vector

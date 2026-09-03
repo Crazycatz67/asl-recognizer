@@ -339,6 +339,26 @@ const NEUTRAL_HAND = [
   [0.25, -0.36], [0.29, -0.52], [0.31, -0.63], [0.33, -0.73],
 ];
 
+// start handshapes for the motion letters (wrist ~origin, +y down, span units)
+// I = fist + pinky extended up;  POINT = fist + index extended up
+const I_HAND = [
+  [0.0, 0.0],
+  [-0.17, -0.05], [-0.25, -0.13], [-0.22, -0.21], [-0.15, -0.25],
+  [-0.10, -0.30], [-0.10, -0.15], [-0.08, -0.05], [-0.06, 0.02],
+  [0.02, -0.32], [0.02, -0.15], [0.02, -0.04], [0.02, 0.03],
+  [0.13, -0.30], [0.13, -0.13], [0.12, -0.03], [0.11, 0.03],
+  [0.22, -0.34], [0.24, -0.60], [0.25, -0.80], [0.26, -0.98],
+];
+const POINT_HAND = [
+  [0.0, 0.0],
+  [0.16, -0.05], [0.25, -0.13], [0.22, -0.21], [0.15, -0.25],
+  [-0.08, -0.34], [-0.08, -0.60], [-0.08, -0.80], [-0.08, -0.98],
+  [0.03, -0.32], [0.03, -0.15], [0.03, -0.04], [0.03, 0.03],
+  [0.14, -0.30], [0.14, -0.13], [0.13, -0.03], [0.12, 0.03],
+  [0.23, -0.28], [0.23, -0.12], [0.22, -0.03], [0.21, 0.03],
+];
+const MOTION_POSE = { J: { hand: I_HAND, tip: 20 }, Z: { hand: POINT_HAND, tip: 8 } };
+
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 // Plays a short looping animation in a panel canvas: the hand eases from a
@@ -350,7 +370,7 @@ export function createCanonicalPlayer(canvasEl) {
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ctx = canvasEl.getContext("2d");
   let target = null; // 21 [x,y] from the centroid
-  let stroke = null; // for J/Z: an arc-length-resampled path to trace
+  let stroke = null; // for J/Z: { path:[[x,y]...], pose:[21 x,y], tip:idx }
   let raf = 0;
   let t0 = 0;
 
@@ -381,49 +401,93 @@ export function createCanonicalPlayer(canvasEl) {
     return out;
   }
 
-  // fit a list of [x,y] (normalised, wrist ~origin) to the canvas
-  function fitPath(pts) {
+  // a transform mapping normalised [x,y] (wrist ~origin) into canvas px so that
+  // `bounds` (a superset of everything we'll draw) fills the canvas with padding
+  function fitFor(bounds) {
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-    for (const [x, y] of pts) {
+    for (const [x, y] of bounds) {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
-    const w = canvasEl.width, h = canvasEl.height, pad = 0.18;
-    const sx = (w * (1 - 2 * pad)) / (maxX - minX || 1);
-    const sy = (h * (1 - 2 * pad)) / (maxY - minY || 1);
-    const s = Math.min(sx, sy);
+    const w = canvasEl.width, h = canvasEl.height, pad = 0.16;
+    const s = Math.min(
+      (w * (1 - 2 * pad)) / (maxX - minX || 1),
+      (h * (1 - 2 * pad)) / (maxY - minY || 1)
+    );
     const ox = (w - (maxX - minX) * s) / 2 - minX * s;
     const oy = (h - (maxY - minY) * s) / 2 - minY * s;
-    return pts.map(([x, y]) => [x * s + ox, y * s + oy]);
+    return ([x, y]) => [x * s + ox, y * s + oy];
   }
 
-  // J/Z: trace the stroke — full path faint, a bright head + fading trail
+  // sample a polyline at fraction f (0..1) of its arc length
+  function along(pts, f) {
+    let total = 0;
+    const seg = [];
+    for (let i = 1; i < pts.length; i++) {
+      const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      seg.push(d);
+      total += d;
+    }
+    const targetLen = Math.max(0, Math.min(1, f)) * total;
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (acc + seg[i - 1] >= targetLen || i === pts.length - 1) {
+        const t = seg[i - 1] ? (targetLen - acc) / seg[i - 1] : 0;
+        return [
+          pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]),
+          pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1]),
+        ];
+      }
+      acc += seg[i - 1];
+    }
+    return pts.at(-1).slice();
+  }
+
+  // J/Z: the START handshape traced along the stroke — faint dashed full path,
+  // a bright fingertip trail, and the hand skeleton doing the movement.
   function paintStroke(prog) {
-    const w = canvasEl.width, h = canvasEl.height;
-    ctx.clearRect(0, 0, w, h);
-    const px = fitPath(stroke);
+    const w = canvasEl.width;
+    ctx.clearRect(0, 0, w, canvasEl.height);
+    const { path, pose, tip } = stroke;
+    // the hand's fingertip should land on path[0] at the start, so the bounds
+    // we must fit = the path + the pose shifted so pose[tip] == path[0]
+    const off = [path[0][0] - pose[tip][0], path[0][1] - pose[tip][1]];
+    const poseAt0 = pose.map(([x, y]) => [x + off[0], y + off[1]]);
+    const fit = fitFor(path.concat(poseAt0));
+
+    const px = path.map(fit);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     // faint full path
-    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+    ctx.lineWidth = Math.max(2.5, w * 0.022);
+    ctx.setLineDash([w * 0.045, w * 0.045]);
+    ctx.beginPath();
+    px.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // fingertip trail up to prog
+    ctx.strokeStyle = "#38bdf8";
     ctx.lineWidth = Math.max(3, w * 0.03);
     ctx.beginPath();
-    ctx.moveTo(px[0][0], px[0][1]);
-    for (const p of px) ctx.lineTo(p[0], p[1]);
+    for (let s = 0; s <= 24; s++) {
+      const p = along(px, (s / 24) * prog);
+      s ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
     ctx.stroke();
-    // drawn-so-far, bright
-    const upto = Math.max(1, Math.round(prog * (px.length - 1)));
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = Math.max(4, w * 0.04);
-    ctx.beginPath();
-    ctx.moveTo(px[0][0], px[0][1]);
-    for (let i = 1; i <= upto; i++) ctx.lineTo(px[i][0], px[i][1]);
-    ctx.stroke();
-    // moving head
-    const head = px[Math.min(px.length - 1, upto)];
+
+    // the hand skeleton, shifted so its fingertip is at the current point
+    const tipNow = along(px, prog);
+    const poseFit = poseAt0.map(fit);
+    const dx = tipNow[0] - poseFit[tip][0];
+    const dy = tipNow[1] - poseFit[tip][1];
+    drawSkeleton(ctx, poseFit.map(([x, y]) => [x + dx, y + dy]), {
+      stroke: "#e2e8f0", joint: "#38bdf8", glow: 0.35,
+    });
     ctx.fillStyle = "#e2e8f0";
     ctx.beginPath();
-    ctx.arc(head[0], head[1], Math.max(5, w * 0.05), 0, Math.PI * 2);
+    ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -480,10 +544,11 @@ export function createCanonicalPlayer(canvasEl) {
         raf = requestAnimationFrame(loop);
       }
     },
-    // J / Z: loop a fingertip tracing the letter's stroke
+    // J / Z: loop the start handshape tracing the letter's stroke
     setMotion(letter) {
       target = null;
-      stroke = STROKE[letter] || null;
+      const p = STROKE[letter], pose = MOTION_POSE[letter];
+      stroke = p && pose ? { path: p, pose: pose.hand, tip: pose.tip } : null;
       if (!stroke) {
         cancelAnimationFrame(raf);
         raf = 0;
