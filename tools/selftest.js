@@ -221,6 +221,23 @@ function mkHand() {
     ok("fx: burst + flash don't throw",
       (() => { try { fx.burst(100, 100); fx.flash("#22c55e"); return true; } catch { return false; } })());
 
+    const bg = (await import("../js/bg.js")).createBackground();
+    ok("bg: createBackground returns setMatch + stop",
+      typeof bg.setMatch === "function" && typeof bg.stop === "function");
+    ok("bg: setMatch tolerates all inputs (incl. regions)",
+      (() => { try { bg.setMatch(0.3, "off", { top: 0.8, left: 0.1, right: 0.4 }); bg.setMatch(0.7, "close"); bg.setMatch(1, "correct", {}); bg.setMatch(null, null); return true; } catch { return false; } })());
+    ok("reference: regionErrors -> {top,left,right} in 0..1",
+      (() => {
+        const r = ref.regionErrors(ref.centroid("A"), "N"); // wrong shape
+        const on = ref.regionErrors(cN, "N"); // on target
+        const ok0 = ["top", "left", "right"].every((k) => r[k] >= 0 && r[k] <= 1 && on[k] >= 0 && on[k] <= 1);
+        const onTarget = on.top + on.left + on.right < r.top + r.left + r.right; // wrong hand should score higher
+        return ok0 && onTarget;
+      })());
+    ok("bg: mounts a canvas behind content (z-index -1)",
+      (() => { const c = [...document.querySelectorAll("canvas")].find((x) => x.style.zIndex === "-1"); return !!c; })());
+    bg.stop();
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

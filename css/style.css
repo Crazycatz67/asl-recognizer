@@ -19,15 +19,14 @@
 
 * { box-sizing: border-box; }
 
+html { background: var(--bg); }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--fg);
   -webkit-text-size-adjust: 100%;
-  background:
-    radial-gradient(900px 600px at 78% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
-    radial-gradient(800px 700px at 8% 110%, rgba(34, 197, 94, 0.08), transparent 55%),
-    var(--bg);
+  background: transparent; /* the animated <canvas> from js/bg.js shows through */
   min-height: 100vh;
 }
 

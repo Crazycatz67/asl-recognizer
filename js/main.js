@@ -20,6 +20,7 @@ import { createStabilizer } from "./stabilizer.js";
 import { buildReference, drawCanonical } from "./reference.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
+import { createBackground } from "./bg.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -62,6 +63,7 @@ const toast = $("toast");
 
 const sound = createSound();
 const fx = createFx();
+const bg = createBackground();
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
@@ -164,6 +166,7 @@ function setTarget(letter) {
     sound.select();
   } else {
     updateMeter(0, null);
+    bg.setMatch(null);
   }
   refHint.textContent = "";
 }
@@ -242,6 +245,7 @@ function setState(next, detail) {
     viewport.dataset.match = "none";
     correctHold = 0;
     rewarded = false;
+    bg.setMatch(null);
   }
 }
 
@@ -386,6 +390,9 @@ function loop() {
     if (hasHand && vec) {
       const m = reference.score(vec, targetLetter);
       updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
+      // ambient background warms toward green, and reacts in the direction of
+      // the problem (fingers off -> top; thumb side off -> that side)
+      bg.setMatch(m.score, m.bucket, reference.regionErrors(vec, targetLetter));
 
       if (m.bucket === "correct") {
         correctHold++;
@@ -412,10 +419,13 @@ function loop() {
       }
     } else {
       updateMeter(0, null);
+      bg.setMatch(null);
       refHint.textContent = "";
       correctHold = 0;
       rewarded = false;
     }
+  } else {
+    bg.setMatch(null);
   }
 
   // stats badge (~2x/sec)

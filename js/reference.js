@@ -118,6 +118,30 @@ export function buildReference(samples, letters) {
       return { dist: d, score: s, bucket };
     },
 
+    // Where on the (mirrored) view the shape is wrong: 0..1 per screen zone.
+    // Lets the ambient background react in the direction of the problem —
+    // fingers off -> the top warms; thumb side off -> that side warms.
+    regionErrors(liveVec, label) {
+      const c = centroids.get(label);
+      if (!c || !liveVec) return { top: 0, left: 0, right: 0 };
+      const zones = { top: [0, 0], left: [0, 0], right: [0, 0] };
+      for (let j = 0; j < 21; j++) {
+        const dx = liveVec[j * 3] - c[j * 3];
+        const dy = liveVec[j * 3 + 1] - c[j * 3 + 1];
+        const dz = liveVec[j * 3 + 2] - c[j * 3 + 2];
+        const e = Math.hypot(dx, dy, dz);
+        const ty = c[j * 3 + 1]; // target y (fingers point up = negative)
+        const sx = -c[j * 3]; // mirrored screen x
+        if (ty < -0.12) { zones.top[0] += e; zones.top[1]++; }
+        if (sx < -0.12) { zones.left[0] += e; zones.left[1]++; }
+        if (sx > 0.12) { zones.right[0] += e; zones.right[1]++; }
+      }
+      const b = bands.get(label);
+      const tol = b ? Math.max(0.04, Math.min(0.12, b.p50 / Math.sqrt(21))) : 0.06;
+      const norm = (z) => (z[1] ? Math.min(1, z[0] / z[1] / (tol * 2.2)) : 0);
+      return { top: norm(zones.top), left: norm(zones.left), right: norm(zones.right) };
+    },
+
     // Which one thing to fix, in plain words. Uses the engineered features
     // (curl / gaps / thumb) — rotation-independent, so the advice is stable.
     hint(liveVec, label) {
