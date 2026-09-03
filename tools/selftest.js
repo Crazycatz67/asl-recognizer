@@ -161,6 +161,31 @@ function mkHand() {
         return out.label === "O" && out.refinedBy;
       })());
 
+    // ---- heads.js (learned M/N + D/O/C refinement) ----
+    const headsMod = await import("../js/heads.js");
+    const head = await headsMod.loadRefiner("../js/heads.json?" + Date.now());
+    ok("heads: loadRefiner returns a refiner covering M/N/D/O/C",
+      head && head.covers.includes("M") && head.covers.includes("N") &&
+      head.covers.includes("D") && head.covers.includes("O"),
+      head ? head.covers.join("") : "null");
+    ok("heads: passes a non-covered label straight through",
+      head.refine(train[0].v, "A") === "A");
+    ok("heads: fixes an M/N mix — real N samples the head calls N when kNN said M",
+      (() => {
+        const ns = ds.samples.filter((s) => s.label === "N" && !s.rot).slice(0, 40);
+        let asN = 0;
+        for (const s of ns) if (head.refine(s.v, "M") === "N") asN++;
+        return asN / ns.length >= 0.75; // head recovers the N-ness of most Ns
+      })());
+    ok("heads: a real D the head keeps as D even when kNN guessed O",
+      (() => {
+        const dss = ds.samples.filter((s) => s.label === "D" && !s.rot).slice(0, 30);
+        let asD = 0;
+        for (const s of dss) if (head.refine(s.v, "O") === "D") asD++;
+        return asD / dss.length >= 0.7;
+      })());
+    ok("heads: createRefiner tolerates junk", headsMod.createRefiner({}) === null);
+
     const st = await import("../js/stabilizer.js");
     const stab = st.createStabilizer({ stableFrames: cfg.STABLE_FRAMES, minConfidence: cfg.MIN_CONFIDENCE });
     let confAt = -1;

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Train refinement heads</title>
+  <style>
+    body { margin: 1rem; background: #0f172a; color: #e2e8f0;
+      font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 { font: 600 1rem system-ui; }
+    pre { white-space: pre-wrap; background: #0b1220; padding: 1rem; border-radius: 8px; }
+    textarea { width: 100%; height: 8rem; background: #0b1220; color: #94a3b8;
+      border: 1px solid #334155; border-radius: 8px; font: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Train M/N and D/O/C refinement heads → js/heads.json</h1>
+  <pre id="log"></pre>
+  <textarea id="out" placeholder="exported JSON appears here"></textarea>
+  <script type="module" src="train-heads.js"></script>
+</body>
+</html>

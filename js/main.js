@@ -16,6 +16,7 @@ import { createOverlay } from "./overlay.js";
 import { normalizeLandmarks, aspectOf } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
 import { createClassifier } from "./knn.js";
+import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, createCanonicalPlayer } from "./reference.js";
 import { createSound } from "./sound.js";
@@ -197,7 +198,16 @@ let stuckShown = false;
 let mode = "practice"; // "practice" | "challenge"
 let pendingChallengeStart = false; // start the game as soon as the camera is up
 let lastPred = null;
+let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
+
+// load the refinement heads in the background — the app works without them
+loadRefiner(new URL("heads.json", import.meta.url).href)
+  .then((r) => {
+    refiner = r;
+    if (r) console.info(`refinement heads on (covers ${r.covers.join("")})`);
+  })
+  .catch(() => {});
 
 // Load once, build the classifier + reference here, then let the raw sample
 // array be garbage-collected (each keeps its own compact copy). Resolves to a
@@ -820,6 +830,11 @@ function loop() {
   // accept a sign the recogniser reads even if the shape isn't textbook
   if (classifier) {
     lastPred = hasHand && vec ? classifier.classify(vec) : null;
+    // learned heads clean up kNN's M↔N / D↔O↔C mixups (no-op if unavailable)
+    if (lastPred && refiner) {
+      const refined = refiner.refine(vec, lastPred.label);
+      if (refined !== lastPred.label) { lastPred.label = refined; lastPred.refined = true; }
+    }
     stabilizer.push(hasHand ? lastPred : null);
   }
 
