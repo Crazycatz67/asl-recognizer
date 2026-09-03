@@ -17,13 +17,25 @@ const PART = [
   "pinky base", "pinky joint", "pinky knuckle", "pinky tip",
 ];
 
-// red -> amber -> green as t goes 1 -> 0 (t = normalized joint error)
-function errColor(t) {
+const PLAIN_RGB = [56, 189, 248]; // the calm default skeleton blue
+
+// green -> amber -> red as t goes 0 -> 1 (t = normalized joint error). rgb array.
+function errRGB(t) {
   const x = Math.max(0, Math.min(1, t));
-  const r = x < 0.5 ? 34 + (245 - 34) * (x / 0.5) : 245 + (248 - 245) * ((x - 0.5) / 0.5);
-  const g = x < 0.5 ? 197 + (159 - 197) * (x / 0.5) : 159 + (113 - 159) * ((x - 0.5) / 0.5);
-  const b = x < 0.5 ? 94 + (11 - 94) * (x / 0.5) : 11 + (113 - 11) * ((x - 0.5) / 0.5);
-  return `rgb(${r | 0}, ${g | 0}, ${b | 0})`;
+  return [
+    x < 0.5 ? 34 + (245 - 34) * (x / 0.5) : 245 + (248 - 245) * ((x - 0.5) / 0.5),
+    x < 0.5 ? 197 + (159 - 197) * (x / 0.5) : 159 + (113 - 159) * ((x - 0.5) / 0.5),
+    x < 0.5 ? 94 + (11 - 94) * (x / 0.5) : 11 + (113 - 11) * ((x - 0.5) / 0.5),
+  ];
+}
+const rgb = (a) => `rgb(${a[0] | 0}, ${a[1] | 0}, ${a[2] | 0})`;
+const mix = (a, b, t) => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+function errColor(t) {
+  return rgb(errRGB(t));
 }
 
 export function createOverlay(canvas) {
@@ -57,20 +69,26 @@ export function createOverlay(canvas) {
     // live: 21 raw landmarks {x,y in 0..1}. target: the letter's centroid vector
     // (wrist-centred, ~unit radius; right-hand canonical). mirror=true for a
     // left hand. tol = per-joint "on target" error. align = degrees to rotate
-    // the target so it sits at the live hand's tilt (a small casual tilt isn't
-    // a mistake — reference.js clamps this).
+    // the target so it sits at the live hand's tilt.
     //
-    // Draws: the live skeleton coloured per-segment by error; a faint dashed
-    // GHOST of the exact shape to hit, anchored to the wrist; and for every
-    // joint that's still off, a line from where it is to where it should be
-    // with a ring at the destination — "move this dot onto that dot". The worst
-    // joint gets a pulsing marker. Returns { part, err } for the worst joint so
-    // the caller can name it in words.
-    drawGuide(live, target, { aspect = 1, mirror = false, tol = 0.06, align = 0 } = {}) {
+    // `reveal` (0..1) is progressive disclosure: at 0 this is just the plain
+    // blue skeleton (nothing to distract from your hand); as it rises the
+    // skeleton takes on error colour and — only past ~0.15 — a faint target
+    // ghost and correction markers for the WORST 3 joints fade in. The caller
+    // ramps `reveal` up once you're actually attempting the shape.
+    //
+    // Returns { part, err } for the worst-off joint (always, even at reveal 0)
+    // so the text hint can name it.
+    drawGuide(
+      live,
+      target,
+      { aspect = 1, mirror = false, tol = 0.06, align = 0, reveal = 1 } = {}
+    ) {
       if (!live?.length || !target) return null;
       const w = canvas.width;
       const h = canvas.height;
       const sx = mirror ? -1 : 1;
+      const rv = Math.max(0, Math.min(1, reveal));
 
       // live in the target's normalized frame (wrist-centred, aspect-corrected,
       // scaled by max wrist->point distance)
@@ -124,23 +142,38 @@ export function createOverlay(canvas) {
       const baseW = Math.max(3, Math.min(10, span * 0.055));
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
 
+      // rank the off joints; worst first
+      const offJoints = [];
+      for (let i = 0; i < 21; i++) if (err[i] > tol) offJoints.push(i);
+      offJoints.sort((a, b) => err[b] - err[a]);
+      const worst = offJoints[0] ?? -1;
+      // segment/joint colour: plain blue at reveal 0, error-graded as reveal rises
+      const segColor = (e) => {
+        if (e <= tol) return rv < 0.15 ? rgb(PLAIN_RGB) : "#22c55e";
+        return rgb(mix(PLAIN_RGB, errRGB(band(e)), rv));
+      };
+
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      // (1) faint dashed ghost of the shape to hit
-      ctx.setLineDash([baseW * 1.6, baseW * 1.6]);
-      ctx.strokeStyle = "rgba(226, 232, 240, 0.4)";
-      ctx.lineWidth = Math.max(2, baseW * 0.6);
-      ctx.beginPath();
-      for (const [a, b] of HAND_CONNECTIONS) {
-        ctx.moveTo(tp[a][0], tp[a][1]);
-        ctx.lineTo(tp[b][0], tp[b][1]);
+      // (1) faint target ghost — only once you're engaged
+      if (rv > 0.15) {
+        ctx.globalAlpha = 0.32 * rv;
+        ctx.setLineDash([baseW * 1.6, baseW * 1.6]);
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = Math.max(2, baseW * 0.55);
+        ctx.beginPath();
+        for (const [a, b] of HAND_CONNECTIONS) {
+          ctx.moveTo(tp[a][0], tp[a][1]);
+          ctx.lineTo(tp[b][0], tp[b][1]);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
 
-      // (2) live skeleton, dark halo then per-segment error colour
+      // (2) the live skeleton — dark halo, then colour
       ctx.strokeStyle = "rgba(2, 6, 23, 0.5)";
       ctx.lineWidth = baseW + 3;
       ctx.beginPath();
@@ -151,65 +184,59 @@ export function createOverlay(canvas) {
       ctx.stroke();
       for (const [a, b] of HAND_CONNECTIONS) {
         const e = (err[a] + err[b]) / 2;
-        const locked = e <= tol;
-        ctx.strokeStyle = locked ? "#22c55e" : errColor(band(e));
-        ctx.lineWidth = locked ? baseW * 1.35 : baseW;
+        ctx.strokeStyle = segColor(e);
+        ctx.lineWidth = e <= tol && rv >= 0.15 ? baseW * 1.3 : baseW;
         ctx.beginPath();
         ctx.moveTo(lp[a][0], lp[a][1]);
         ctx.lineTo(lp[b][0], lp[b][1]);
         ctx.stroke();
       }
       for (let i = 0; i < 21; i++) {
-        const locked = err[i] <= tol;
-        const r = locked ? baseW * 0.8 : baseW * 0.62;
+        const r = baseW * 0.7;
         ctx.fillStyle = "rgba(2, 6, 23, 0.5)";
         dot(lp[i], r + 1.5);
-        ctx.fillStyle = locked ? "#22c55e" : errColor(band(err[i]));
+        ctx.fillStyle = segColor(err[i]);
         dot(lp[i], r);
       }
 
-      // (3) correction leads: for every joint past tol, a line to where it
-      // should be + a ring at the destination. worst joint tracked for text.
-      let worst = -1;
-      let worstErr = tol;
-      for (let i = 0; i < 21; i++) {
-        if (err[i] <= tol) continue;
-        if (err[i] > worstErr) { worstErr = err[i]; worst = i; }
-        const col = errColor(band(err[i]));
-        ctx.strokeStyle = col;
-        ctx.lineWidth = Math.max(2, baseW * 0.5);
-        ctx.setLineDash([baseW, baseW]);
-        ctx.beginPath();
-        ctx.moveTo(lp[i][0], lp[i][1]);
-        ctx.lineTo(tp[i][0], tp[i][1]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // destination ring
-        ctx.strokeStyle = col;
-        ctx.lineWidth = Math.max(2, baseW * 0.5);
-        ctx.beginPath();
-        ctx.arc(tp[i][0], tp[i][1], baseW * 0.9, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // (4) the single worst joint: a pulsing target + arrowhead so the eye
-      // goes straight to "fix this first"
-      if (worst >= 0) {
-        const p0 = lp[worst], p1 = tp[worst];
-        ctx.strokeStyle = "#f8fafc";
-        ctx.fillStyle = "#f8fafc";
-        ctx.lineWidth = Math.max(2.5, baseW * 0.6);
-        ctx.beginPath();
-        ctx.arc(p1[0], p1[1], baseW * (1.1 + 0.5 * pulse), 0, Math.PI * 2);
-        ctx.stroke();
-        const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
-        const s = baseW * 1.6;
-        ctx.beginPath();
-        ctx.moveTo(p1[0], p1[1]);
-        ctx.lineTo(p1[0] - s * Math.cos(ang - 0.42), p1[1] - s * Math.sin(ang - 0.42));
-        ctx.lineTo(p1[0] - s * Math.cos(ang + 0.42), p1[1] - s * Math.sin(ang + 0.42));
-        ctx.closePath();
-        ctx.fill();
+      // (3) correction markers for the WORST 3 joints only — fade in with reveal
+      if (rv > 0.15) {
+        const lead = offJoints.slice(0, 3);
+        ctx.globalAlpha = rv;
+        for (let k = 0; k < lead.length; k++) {
+          const i = lead[k];
+          const col = errColor(band(err[i]));
+          ctx.strokeStyle = col;
+          ctx.lineWidth = Math.max(2, baseW * 0.45);
+          ctx.setLineDash([baseW, baseW]);
+          ctx.beginPath();
+          ctx.moveTo(lp[i][0], lp[i][1]);
+          ctx.lineTo(tp[i][0], tp[i][1]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(tp[i][0], tp[i][1], baseW * 0.85, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        // the single worst: white pulsing marker + arrowhead
+        if (worst >= 0) {
+          const p0 = lp[worst], p1 = tp[worst];
+          ctx.strokeStyle = "#f8fafc";
+          ctx.fillStyle = "#f8fafc";
+          ctx.lineWidth = Math.max(2.5, baseW * 0.55);
+          ctx.beginPath();
+          ctx.arc(p1[0], p1[1], baseW * (1 + 0.45 * pulse), 0, Math.PI * 2);
+          ctx.stroke();
+          const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
+          const s = baseW * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(p1[0], p1[1]);
+          ctx.lineTo(p1[0] - s * Math.cos(ang - 0.42), p1[1] - s * Math.sin(ang - 0.42));
+          ctx.lineTo(p1[0] - s * Math.cos(ang + 0.42), p1[1] - s * Math.sin(ang + 0.42));
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
       ctx.restore();
 
@@ -218,7 +245,7 @@ export function createOverlay(canvas) {
         ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
         ctx.fill();
       }
-      return worst >= 0 ? { part: PART[worst], joint: worst, err: worstErr } : null;
+      return worst >= 0 ? { part: PART[worst], joint: worst, err: err[worst] } : null;
     },
   };
 }

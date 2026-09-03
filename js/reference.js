@@ -325,10 +325,10 @@ export function createCanonicalPlayer(canvasEl) {
   let raf = 0;
   let t0 = 0;
 
-  const FORM = 950; // ease in
-  const HOLD = 1250; // sit at the target
-  const BACK = 450; // ease back to neutral
-  const REST = 350; // pause before looping
+  const FORM = 800; // ease in (snappier)
+  const HOLD = 1400; // sit at the target
+  const BACK = 400; // ease back to neutral
+  const REST = 300; // pause before looping
   const CYCLE = FORM + HOLD + BACK + REST;
 
   function phaseFrac(elapsed) {
@@ -339,33 +339,41 @@ export function createCanonicalPlayer(canvasEl) {
     return 0;
   }
 
-  function paint(frac) {
-    const w = canvasEl.width;
-    const h = canvasEl.height;
-    ctx.clearRect(0, 0, w, h);
-    if (!target) return;
-    // faint target underneath so you can see where the motion is heading
-    const ghost = [];
-    for (let i = 0; i < 21; i++) ghost.push([target[i][0], target[i][1], 0]);
-    drawSkeleton(ctx, vectorToPixels(ghost.flat(), w, h, { pad: 0.16 }), {
-      stroke: "#334155",
-      joint: "#334155",
-      alpha: 0.5,
-      halo: null,
-    });
-    // the moving hand
-    const now = [];
+  // interpolated pose (flat x,y,z) at a given progress 0..1
+  function poseAt(frac) {
+    const out = [];
     for (let i = 0; i < 21; i++) {
-      now.push(
+      out.push(
         NEUTRAL_HAND[i][0] + (target[i][0] - NEUTRAL_HAND[i][0]) * frac,
         NEUTRAL_HAND[i][1] + (target[i][1] - NEUTRAL_HAND[i][1]) * frac,
         0
       );
     }
-    drawSkeleton(ctx, vectorToPixels(now, w, h, { pad: 0.16 }), {
+    return out;
+  }
+
+  function paint(frac) {
+    const w = canvasEl.width;
+    const h = canvasEl.height;
+    ctx.clearRect(0, 0, w, h); // full clear every frame — no after-image
+    if (!target) return;
+    // short motion trail: a few recent poses at low alpha so you read the
+    // path of the movement, then the crisp current pose on top
+    if (!reduce) {
+      for (let k = 3; k >= 1; k--) {
+        const f = Math.max(0, frac - k * 0.06);
+        drawSkeleton(ctx, vectorToPixels(poseAt(f), w, h, { pad: 0.16 }), {
+          stroke: "#38bdf8",
+          joint: "#38bdf8",
+          alpha: 0.1 + 0.05 * (3 - k),
+          halo: null,
+        });
+      }
+    }
+    drawSkeleton(ctx, vectorToPixels(poseAt(frac), w, h, { pad: 0.16 }), {
       stroke: "#e2e8f0",
       joint: "#38bdf8",
-      glow: 0.35,
+      glow: 0.4,
     });
   }
 

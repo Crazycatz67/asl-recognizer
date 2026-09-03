@@ -345,6 +345,10 @@ body {
 }
 .ref-head  { grid-area: head;  font-size: 0.82rem; color: var(--muted); }
 .ref-head b { color: var(--fg); font-size: 1.05rem; }
+.ref-hand { margin-left: 0.4rem; font-size: 0.72rem; opacity: 0.8; text-transform: capitalize; }
+/* lefty on camera -> show the reference as a left hand */
+.reference.mirror .ref-photo,
+.reference.mirror .ref-canvas { transform: scaleX(-1); }
 .ref-desc {
   grid-area: desc;
   margin: 0;

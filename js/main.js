@@ -54,6 +54,7 @@ const refLetter = $("refLetter");
 const refImg = $("refImg");
 const refCanvas = $("refCanvas");
 const refDesc = $("refDesc");
+const refHand = $("refHand");
 const meterFill = $("meterFill");
 const meterLabel = $("meterLabel");
 const refHint = $("refHint");
@@ -76,6 +77,9 @@ let lastHintAt = 0;
 let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
+let guideAmt = 0; // 0..1 eased "how much correction guide to show"
+let handVote = 0; // signed, +left / -right, hysteresis for which hand is tracked
+let trackedHand = null; // "left" | "right" | null — flips the reference to match
 let toastTimer = 0;
 
 const PILL = {
@@ -261,6 +265,7 @@ function setState(next, detail) {
     holdStart = 0;
     rewarded = false;
     smoothPts = null;
+    guideAmt = 0;
     viewport.style.setProperty("--hold", "0");
     sound.charge(0);
     bg.setMatch(null);
@@ -387,6 +392,19 @@ function loop() {
   const left = hasHand && result.handedness?.[0]?.[0]?.categoryName === "Left";
   const guiding = reference && targetLetter && ghostToggle.checked;
 
+  // which hand is on camera — sticky with hysteresis so a flicker doesn't
+  // thrash it. The reference photo + diagram flip to match, and the guide's
+  // mirror handling already canonicalises either hand for scoring.
+  if (hasHand) {
+    handVote = Math.max(-8, Math.min(8, handVote + (left ? 1 : -1)));
+    const h = handVote > 3 ? "left" : handVote < -3 ? "right" : trackedHand;
+    if (h !== trackedHand) {
+      trackedHand = h;
+      refPanel.classList.toggle("mirror", trackedHand === "left");
+      if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
+    }
+  }
+
   // smooth the raw landmarks (EMA) — kills the frame-to-frame jitter that makes
   // the skeleton look stringy, and steadies the meter. Reset on a lost hand so
   // it doesn't lerp across a re-acquire.
@@ -402,16 +420,27 @@ function loop() {
     });
   }
 
+  // score the shape once, up front — the guide's reveal ramp and the practice
+  // block below both need it
+  const m = hasHand && vec && reference && targetLetter
+    ? reference.score(vec, targetLetter)
+    : null;
+
+  // progressive disclosure: the correction guide only fades in once you're
+  // actually attempting the shape (score climbing out of "way off"), so the
+  // default view stays a clean plain skeleton.
+  const revealTarget = m ? Math.max(0, Math.min(1, (m.score - 0.35) / 0.3)) : 0;
+  guideAmt += (revealTarget - guideAmt) * 0.12;
+
   let guideInfo = null; // { part } for the worst-off joint — named in the hint
   if (hasHand) {
-    // when learning with the guide on, draw the correction guide instead of
-    // the plain skeleton (coloured skeleton + ghost target + correction leads)
     if (guiding) {
       guideInfo = overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
         mirror: MIRROR_LEFT_HAND && left,
         tol: reference.tolerance(targetLetter),
         align: vec ? reference.alignDeg(vec, targetLetter) : 0,
+        reveal: guideAmt,
       });
     } else {
       overlay.drawHands([hand]);
@@ -434,8 +463,7 @@ function loop() {
 
   // practice: camera-frame glow + meter + a plain-words hint + the reward
   if (reference && targetLetter) {
-    if (hasHand && vec) {
-      const m = reference.score(vec, targetLetter);
+    if (hasHand && m) {
       updateMeter(m.score, m.bucket); // shape match only — not gated on the classifier
       // ambient background warms toward green, and reacts in the direction of
       // the problem (fingers off -> top; thumb side off -> that side)
