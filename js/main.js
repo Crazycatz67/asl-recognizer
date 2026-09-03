@@ -67,11 +67,13 @@ const bg = createBackground();
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
-const CONFIRM_FRAMES = 6; // hold "correct" this long before the reward fires
+const HOLD_MS = 1600; // hold a COMPLETE sign (meter full + skeleton all green) this long
+const HOLD_GRACE_MS = 220; // tolerate this much tracking flicker without losing the hold
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
 const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "hold it…" };
 let lastHintAt = 0;
-let correctHold = 0;
+let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
+let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
 let toastTimer = 0;
 
@@ -157,8 +159,9 @@ function setTarget(letter) {
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
 
-  correctHold = 0;
+  holdStart = 0;
   rewarded = false;
+  viewport.style.setProperty("--hold", "0");
   if (letter) {
     refLetter.textContent = letter;
     refImg.src = REFERENCE_IMG(letter); // photo always on when learning
@@ -246,8 +249,9 @@ function setState(next, detail) {
     statsEl.hidden = true;
     letterBadge.hidden = true;
     viewport.dataset.match = "none";
-    correctHold = 0;
+    holdStart = 0;
     rewarded = false;
+    viewport.style.setProperty("--hold", "0");
     bg.setMatch(null);
   }
 }
@@ -397,15 +401,24 @@ function loop() {
       // the problem (fingers off -> top; thumb side off -> that side)
       bg.setMatch(m.score, m.bucket, reference.regionErrors(vec, targetLetter));
 
-      if (m.bucket === "correct") {
-        correctHold++;
-        if (correctHold >= CONFIRM_FRAMES && !rewarded) {
-          rewarded = true;
-          reward(result.landmarks[0][0]);
-        }
-      } else {
-        correctHold = 0;
+      // reward only when the sign is genuinely COMPLETE (m.bucket === "correct"
+      // already means meter full AND every joint green) and has been held for
+      // HOLD_MS — a brief accidental pose won't count. Small tracking dropouts
+      // inside HOLD_GRACE_MS don't reset the timer.
+      const complete = m.bucket === "correct";
+      if (complete) {
+        if (!holdStart) holdStart = now;
+        lastGoodAt = now;
+      } else if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
+        holdStart = 0;
         rewarded = false;
+      }
+      const heldMs = holdStart ? now - holdStart : 0;
+      const heldFrac = Math.min(1, heldMs / HOLD_MS);
+      viewport.style.setProperty("--hold", heldFrac.toFixed(3));
+      if (holdStart && heldMs >= HOLD_MS && !rewarded) {
+        rewarded = true;
+        reward(result.landmarks[0][0]);
       }
 
       if (now - lastHintAt >= HINT_INTERVAL) {
@@ -415,13 +428,14 @@ function loop() {
         let tip = reference.hint(vec, targetLetter);
         // hint() can say "looks right" from the coarse feature check while the
         // meter is still short — don't claim it's right unless the meter agrees
-        if (m.bucket !== "correct" && /looks right/i.test(tip)) {
+        if (!complete && /looks right/i.test(tip)) {
           tip = m.bucket === "close" ? "So close — tiny adjustments" : "Keep shaping it";
         }
+        const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         refHint.textContent = rewarded
           ? `Nailed it — that's ${targetLetter} ✓`
-          : m.bucket === "correct"
-          ? "Hold it steady…"
+          : complete
+          ? `Hold it…  ${dots}`
           : misread
           ? `${tip}  ·  (reading as ${lastPred.label})`
           : tip;
@@ -430,8 +444,12 @@ function loop() {
       updateMeter(0, null);
       bg.setMatch(null);
       refHint.textContent = "";
-      correctHold = 0;
-      rewarded = false;
+      // hand lost mid-hold: keep the timer alive briefly (grace), else drop it
+      if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
+        holdStart = 0;
+        rewarded = false;
+        viewport.style.setProperty("--hold", "0");
+      }
     }
   } else {
     bg.setMatch(null);

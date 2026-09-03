@@ -145,6 +145,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  --hold: 0;
   background: #020617;
   border-radius: 18px;
   overflow: hidden;
@@ -153,6 +154,21 @@ body {
     0 20px 50px -24px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(148, 163, 184, 0.08);
   transition: box-shadow 0.22s ease, transform 0.22s ease;
+}
+/* "charge" bar along the bottom while you hold a completed sign — fills over
+   HOLD_MS, then the reward fires. Invisible at --hold: 0. */
+.viewport::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: calc(var(--hold) * 100%);
+  background: linear-gradient(90deg, #22c55e, #86efac);
+  box-shadow: 0 0 12px 2px rgba(34, 197, 94, 0.7);
+  z-index: 40;
+  pointer-events: none;
+  transition: width 0.1s linear;
 }
 /* gentle life before the camera is even on */
 .viewport[data-state="idle"] {

@@ -101,6 +101,21 @@ export function buildReference(samples, letters) {
     return Math.max(0, 0.6 * (1 - (d - b.p85) / (2 * (b.p85 || 1e-6))));
   };
 
+  // the per-joint "locked on" tolerance — same value the guide overlay uses to
+  // turn a segment green. shared so score() and the guide never disagree.
+  const tolFor = (b) =>
+    Math.max(0.04, Math.min(0.12, (b ? b.p50 : 0.06 * Math.sqrt(21)) / Math.sqrt(21)));
+
+  // worst single-joint x/y error vs the centroid, in the normalized frame
+  const worstJoint = (liveVec, c) => {
+    let w = 0;
+    for (let j = 0; j < 21; j++) {
+      const e = Math.hypot(liveVec[j * 3] - c[j * 3], liveVec[j * 3 + 1] - c[j * 3 + 1]);
+      if (e > w) w = e;
+    }
+    return w;
+  };
+
   return {
     letters: [...centroids.keys()].sort(),
 
@@ -112,19 +127,24 @@ export function buildReference(samples, letters) {
     // colours. Derived from the letter's spread but clamped to a visually
     // meaningful range (a fingertip within ~4-12% of hand radius = on target).
     tolerance(label) {
-      const b = bands.get(label);
-      const raw = b ? b.p50 / Math.sqrt(21) : 0.06;
-      return Math.max(0.04, Math.min(0.12, raw));
+      return tolFor(bands.get(label));
     },
 
     score(liveVec, label) {
       const c = centroids.get(label);
       const b = bands.get(label);
-      if (!c || !b || !liveVec) return { dist: Infinity, score: 0, bucket: "off" };
+      if (!c || !b || !liveVec)
+        return { dist: Infinity, score: 0, bucket: "off", matched: false, worst: Infinity };
       const d = coordDist(liveVec, c);
       const s = scoreFor(d, b);
-      const bucket = s >= 0.85 ? "correct" : s >= 0.6 ? "close" : "off";
-      return { dist: d, score: s, bucket };
+      // "correct" needs BOTH: the aggregate is good AND no single joint is still
+      // off (i.e. the skeleton is fully green, not "close on average while a
+      // finger's out"). Otherwise the reward can fire on a near-miss.
+      const worst = worstJoint(liveVec, c);
+      const matched = worst <= tolFor(b);
+      let bucket = s >= 0.85 ? "correct" : s >= 0.6 ? "close" : "off";
+      if (bucket === "correct" && !matched) bucket = "close";
+      return { dist: d, score: s, bucket, matched, worst };
     },
 
     // Where on the (mirrored) view the shape is wrong: 0..1 per screen zone.
@@ -144,8 +164,7 @@ export function buildReference(samples, letters) {
         if (sx < -0.12) { zones.left[0] += e; zones.left[1]++; }
         if (sx > 0.12) { zones.right[0] += e; zones.right[1]++; }
       }
-      const b = bands.get(label);
-      const tol = b ? Math.max(0.04, Math.min(0.12, b.p50 / Math.sqrt(21))) : 0.06;
+      const tol = tolFor(bands.get(label));
       const norm = (z) => (z[1] ? Math.min(1, z[0] / z[1] / (tol * 2.2)) : 0);
       return { top: norm(zones.top), left: norm(zones.left), right: norm(zones.right) };
     },
