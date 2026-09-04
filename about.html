@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About — ASL Fingerspelling Recognizer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9C%8B%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --fg: #f8fafc;
+      --muted: #94a3b8;
+      --line: #334155;
+      --accent: #38bdf8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --stop: #f87171;
+      --maxw: 46rem;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    html {
+      background:
+        radial-gradient(1200px 760px at 50% -12%, #1b2b47, rgba(15, 23, 42, 0) 62%),
+        radial-gradient(900px 600px at 100% 110%, #17233c, rgba(15, 23, 42, 0) 55%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--fg);
+      background: transparent;
+      line-height: 1.6;
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      max-width: var(--maxw);
+      margin: 0 auto;
+      padding: 2rem 1.15rem 4rem;
+    }
+
+    a { color: #7dd3fc; }
+    a:hover { color: #bae6fd; }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font: 700 0.8rem system-ui, sans-serif;
+      text-decoration: none;
+      color: var(--muted);
+      margin-bottom: 1.6rem;
+    }
+    .back:hover { color: var(--fg); }
+
+    header.page {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    header.page h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      text-wrap: balance;
+    }
+    header.page p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    section { margin: 2.1rem 0; }
+    h2 {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin: 0 0 0.85rem;
+    }
+    h2 + p:first-of-type, section > p:first-child { margin-top: 0; }
+    p { margin: 0.7rem 0; }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(22, 32, 47, 0.9));
+      padding: 1.1rem 1.25rem;
+    }
+    .card.good  { border-left: 3px solid var(--good); }
+    .card.warn  { border-left: 3px solid var(--warn); }
+
+    ul.ticks { list-style: none; margin: 0; padding: 0; }
+    ul.ticks li {
+      position: relative;
+      padding-left: 1.6rem;
+      margin: 0.6rem 0;
+    }
+    ul.ticks li::before {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-weight: 700;
+    }
+    .good li::before { content: "✓"; color: var(--good); }
+    .warn li::before { content: "—"; color: var(--warn); }
+    ul.ticks li b { color: var(--fg); }
+    ul.ticks li span { color: var(--muted); }
+
+    .steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+    .steps li {
+      position: relative;
+      padding-left: 2.2rem;
+      margin: 0.8rem 0;
+      color: var(--muted);
+    }
+    .steps li b { color: var(--fg); }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0.05rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #0b1220;
+      border: 1px solid var(--line);
+      color: var(--accent);
+      font: 700 0.78rem ui-monospace, monospace;
+    }
+
+    .meta {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .meta a { color: #7dd3fc; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9em;
+      background: #0b1220;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 0.05rem 0.35rem;
+    }
+    :focus-visible {
+      outline: 3px solid #fde047;
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      html { scroll-behavior: smooth; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="index.html">&larr; Back to the app</a>
+
+    <header class="page">
+      <h1>ASL Fingerspelling Recognizer</h1>
+      <p>A browser tool that watches your webcam, reads the American Sign Language
+        fingerspelling alphabet (A&ndash;Z), and helps you practise it. It runs
+        entirely on your device. This page is an honest account of what it can and
+        can&rsquo;t do.</p>
+    </header>
+
+    <section>
+      <h2>What it is</h2>
+      <p>An undergraduate student project: a single web page, no install, no
+        account, no server. Point a camera at your hand and it names the letter
+        you&rsquo;re forming. On top of that sits a small set of practice modes &mdash;
+        a productive one (you sign, it checks) and a receptive one (it shows you a
+        sign, you read it).</p>
+      <p>It was built to learn how these systems work, and to be genuinely useful
+        to people learning fingerspelling. It is <b>not</b> a commercial product or
+        an interpreter.</p>
+    </section>
+
+    <section>
+      <h2>What it does</h2>
+      <div class="card good">
+        <ul class="ticks good">
+          <li><b>Recognises the A&ndash;Z alphabet</b> <span>&mdash; from a live webcam, in about half a second per letter, on desktop or phone.</span></li>
+          <li><b>J and Z</b> <span>&mdash; the two moving letters, traced as a stroke rather than a held shape.</span></li>
+          <li><b>Practice mode</b> <span>&mdash; pick a letter, get a live &ldquo;readable / not yet&rdquo; meter and a correction guide drawn on your hand.</span></li>
+          <li><b>Challenge mode</b> <span>&mdash; a timed game: a random letter, a shrinking clock, a streak.</span></li>
+          <li><b>Read mode</b> <span>&mdash; an animated hand spells a word, you type what you saw. Includes a <b>Course</b> that unlocks letters in a teaching order (easy, distinct shapes first) with progress gating.</span></li>
+          <li><b>Spell mode</b> <span>&mdash; fingerspell continuously into a running transcript, with a &ldquo;spell this word&rdquo; drill you can point at your current lesson.</span></li>
+          <li><b>Fluid&nbsp;+&nbsp;speak (beta)</b> <span>&mdash; spell a sentence, and the app tries to segment it into words and read it aloud.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>What it does <em>not</em> do</h2>
+      <div class="card warn">
+        <ul class="ticks warn">
+          <li><b>It is not ASL.</b> <span>Fingerspelling is a small part of the language &mdash; used for names, brands, and words with no sign. This app does no word-signs, no grammar, no facial expression, no body movement. A fluent signer does not spell out sentences.</span></li>
+          <li><b>It is not native speed.</b> <span>It works on careful, deliberate spelling with a brief hold on each letter. Real conversational fingerspelling is a blur of transitions that a frame-by-frame classifier like this one cannot follow. That needs a different kind of model (see below).</span></li>
+          <li><b>Digits 0&ndash;9 are not supported yet.</b> <span>Which means phone numbers and addresses &mdash; a huge share of real fingerspelling &mdash; don&rsquo;t work.</span></li>
+          <li><b>Names and rare words won&rsquo;t auto-correct.</b> <span>The sentence feature leans on a dictionary; anything outside it stays as raw letters.</span></li>
+          <li><b>It has mostly been tested by one person.</b> <span>Accuracy figures are from held-out data, not from many signers, hand sizes, lighting conditions, or a range of skin tones. The hand <em>detector</em> is Google&rsquo;s pretrained model, not something this project can vouch for across all users.</span></li>
+          <li><b>&ldquo;Fluid + speak&rdquo; is unproven.</b> <span>The pieces are built and unit-tested, but the live webcam &rarr; sentence &rarr; speech path has not been validated on varied setups. It is labelled beta for that reason.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><b>Hand tracking</b> &mdash; Google&rsquo;s MediaPipe <code>HandLandmarker</code> finds 21 points on your hand in each video frame.</li>
+        <li><b>Normalise</b> &mdash; the points are recentred on the wrist and scaled to hand size, so distance from the camera and which hand you use don&rsquo;t matter.</li>
+        <li><b>Classify</b> &mdash; a k-nearest-neighbours classifier compares that shape to a labelled reference set. Small learned &ldquo;refinement heads&rdquo; break the ties that k-NN gets wrong (M/N, D/O/C).</li>
+        <li><b>Stabilise</b> &mdash; a letter is only shown once the same guess holds for a few frames, so it doesn&rsquo;t flicker.</li>
+      </ol>
+      <p>On held-out test data it lands the right letter about <b>97%</b> of the time,
+        with every letter at 92% or better. That number describes clean, careful
+        signing on data drawn from the same source as the training set &mdash; treat it
+        as a ceiling, not a promise. It is plain JavaScript: no machine-learning
+        framework at runtime, no build step, no network calls once the page loads.</p>
+    </section>
+
+    <section>
+      <h2>Privacy</h2>
+      <p>The camera feed is processed in your browser and never leaves your device.
+        Nothing is uploaded, recorded, or sent anywhere. There is no analytics, no
+        tracking, and no account. Your progress (letters practised, lesson unlocks)
+        is stored only in this browser&rsquo;s local storage; clearing site data resets it.</p>
+    </section>
+
+    <section>
+      <h2>Where it&rsquo;s headed</h2>
+      <p>The honest limits above point at one direction: to read fingerspelling at
+        real speed, the app would need a <b>sequence model</b> &mdash; one that looks at a
+        window of motion and learns the transitions between letters, rather than
+        classifying single frames. That has been done on-device before (the Google
+        ASL Fingerspelling Kaggle competition, whose data comes from 100+ Deaf
+        signers), and it is the natural next stage for this project.</p>
+      <p>Alongside that: digit signs, and context-aware word lists for names,
+        addresses, and numbers so the sentence feature stops guessing.</p>
+      <p>The bigger open question is whether fingerspelling-to-speech is even the
+        right problem to solve, and that is not a question code can answer. The
+        goal of showing this project to ASL educators and the Deaf community &mdash;
+        RIT/NTID in particular &mdash; is to find out, and ideally to do the next part
+        <em>with</em> people who sign, rather than for them.</p>
+    </section>
+
+    <section>
+      <h2>Credits &amp; data</h2>
+      <ul class="ticks warn" style="--warn: var(--muted);">
+        <li><b>Hand tracking</b> <span>&mdash; <a href="https://ai.google.dev/edge/mediapipe" rel="noopener">MediaPipe Tasks</a> (Google), loaded from a CDN.</span></li>
+        <li><b>Training data</b> <span>&mdash; the <a href="https://www.kaggle.com/datasets/grassknoted/asl-alphabet" rel="noopener">ASL Alphabet dataset</a> (grassknoted, on Kaggle), converted to hand-landmark vectors.</span></li>
+        <li><b>Word list</b> <span>&mdash; an English word-frequency list derived from Peter Norvig&rsquo;s <a href="https://norvig.com/ngrams/" rel="noopener">n-gram data</a>.</span></li>
+        <li><b>Inspiration</b> <span>&mdash; <a href="https://www.popsign.org/" rel="noopener">PopSign</a>, a Georgia Tech &times; RIT/NTID project, showed that a student-scale sign-language tool built <em>with</em> the Deaf community is possible.</span></li>
+      </ul>
+    </section>
+
+    <div class="meta">
+      <p><b>Open source.</b> The full code is at
+        <a href="https://github.com/Crazycatz67/asl-recognizer" rel="noopener">github.com/Crazycatz67/asl-recognizer</a>.
+        Built as an undergraduate AI project.
+        <!-- Add your name / a contact address here if you'd like it public. -->
+      </p>
+      <p>Last updated September 2026.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -61,6 +61,17 @@ body {
   margin: 0 auto;
 }
 .topbar h1 { margin: 0; font-size: 1rem; font-weight: 700; flex: none; }
+.topbar-link {
+  margin-left: auto;
+  flex: none;
+  font: 700 0.8rem system-ui, sans-serif;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+}
+.topbar-link:hover { color: var(--fg); background: #0b1220; }
+@media (max-width: 520px) { .topbar-link { margin-left: 0; } }
 
 /* segmented toggles — Practice/Challenge (header) and Free pick/A→Z (learn bar) */
 .mode,
