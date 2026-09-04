@@ -1,0 +1,29 @@
+{
+  "_note": "Receptive-practice + Spell-mode word bank. Lowercase a-z only. Also usable as decoder practice content (backlog B4).",
+  "short": [
+    "cat", "dog", "sun", "run", "big", "red", "box", "cup", "hat", "bed",
+    "car", "map", "pen", "key", "cup", "fox", "owl", "bee", "ice", "toy",
+    "milk", "book", "fish", "bird", "tree", "star", "rain", "snow", "gold", "hand",
+    "food", "door", "shoe", "lamp", "ring", "cake", "boat", "kite", "corn", "leaf"
+  ],
+  "common": [
+    "house", "water", "happy", "green", "table", "phone", "bread", "seven", "music", "light",
+    "smile", "chair", "cloud", "river", "money", "paper", "party", "night", "dream", "heart",
+    "orange", "purple", "yellow", "flower", "coffee", "school", "friend", "family", "summer", "winter",
+    "please", "thanks", "hello", "sorry", "always", "never", "maybe", "again", "later", "today"
+  ],
+  "names": [
+    "sarah", "james", "maria", "kevin", "laura", "david", "emma", "chris", "julia", "peter",
+    "nadia", "omar", "grace", "leon", "priya", "diego", "aisha", "noah", "wendy", "hank",
+    "keisha", "tyler", "rosa", "quinn", "brandon", "yusuf", "megan", "carlos", "hannah", "isaac"
+  ],
+  "places": [
+    "paris", "texas", "italy", "ohio", "miami", "boston", "denver", "japan", "cairo", "lima",
+    "kenya", "spain", "maine", "tokyo", "berlin", "dublin", "oregon", "hawaii", "nevada", "quebec",
+    "brazil", "norway", "peru", "utah", "seattle", "atlanta", "phoenix", "portland", "chicago", "toronto"
+  ],
+  "numbers": [
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "twenty", "fifty", "hundred", "first", "second", "third", "half", "dozen", "zero", "million"
+  ]
+}

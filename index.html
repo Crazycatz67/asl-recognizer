@@ -14,6 +14,7 @@
       <button class="mode-btn on" type="button" data-mode="practice">Practice</button>
       <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
       <button class="mode-btn" type="button" data-mode="spell">Spell</button>
+      <button class="mode-btn" type="button" data-mode="read">Read</button>
     </div>
   </header>
   <div class="learn" id="learnRow" hidden data-run="off">
@@ -30,6 +31,35 @@
   </div>
 
   <main class="workspace" id="workspace" data-target="off">
+    <!-- read mode: no camera — watch the animated hand spell a word, type what you saw -->
+    <section class="reader" id="readPanel" hidden>
+      <div class="rd-top">
+        <div class="rd-cats" id="rdCats"></div>
+        <span class="rd-score" id="rdScore" aria-live="polite">0</span>
+      </div>
+      <div class="rd-stage">
+        <canvas id="rdCanvas" width="320" height="320" aria-label="animated fingerspelling"></canvas>
+      </div>
+      <div class="rd-playbar">
+        <button type="button" id="rdPlay">▶ Replay</button>
+        <label>speed
+          <select id="rdSpeed">
+            <option value="1250">slow</option>
+            <option value="900" selected>normal</option>
+            <option value="600">fast</option>
+          </select>
+        </label>
+        <span class="rd-len" id="rdLen"></span>
+      </div>
+      <form class="rd-answer" id="rdForm" autocomplete="off">
+        <input id="rdInput" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
+          placeholder="type the word you saw" aria-label="your answer" />
+        <button type="submit">Check</button>
+        <button type="button" id="rdReveal">Reveal</button>
+      </form>
+      <p class="rd-feedback" id="rdFeedback" role="status" aria-live="polite"></p>
+    </section>
+
     <!-- camera: the hero. .stage is selfie-mirrored; .hud sits on top and isn't -->
     <div class="viewport" id="viewport" data-state="idle" data-match="none">
       <div class="stage" id="stage">

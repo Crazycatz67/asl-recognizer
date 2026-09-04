@@ -29,6 +29,7 @@ import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
 import { createTransitionMatcher } from "./transition.js";
 import { buildLexicon, createDecoder, mergeConfusion } from "./decode.js";
+import { createReader } from "./reader.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -146,6 +147,17 @@ const spDecodedRow = $("spDecodedRow");
 const spDecodedText = $("spDecodedText");
 const spSpeak = $("spSpeak");
 const spAutoSpeak = $("spAutoSpeak");
+const readPanel = $("readPanel");
+const rdCats = $("rdCats");
+const rdScore = $("rdScore");
+const rdCanvas = $("rdCanvas");
+const rdPlay = $("rdPlay");
+const rdSpeed = $("rdSpeed");
+const rdLen = $("rdLen");
+const rdForm = $("rdForm");
+const rdInput = $("rdInput");
+const rdReveal = $("rdReveal");
+const rdFeedback = $("rdFeedback");
 
 const sound = createSound();
 const fx = createFx();
@@ -255,6 +267,9 @@ let spellSuppressUntil = 0; // block letter commits briefly after a gesture
 let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + decode + speak
 let fluidLastLetterAt = 0; // for auto-speak-on-pause
 let fluidSpoke = false; // already spoke this pause?
+let reader = null; // read mode: receptive practice
+let readPlayer = null; // animates the word being spelled
+let readTimers = []; // per-letter playback timeouts
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -264,6 +279,19 @@ loadRefiner(new URL("heads.json", import.meta.url).href)
   .then((r) => {
     refiner = r;
     if (r) console.info(`refinement heads on (covers ${r.covers.join("")})`);
+  })
+  .catch(() => {});
+
+// read mode's word bank (independent of the dataset)
+fetch(new URL("../data/practice-words.json", import.meta.url))
+  .then((r) => (r.ok ? r.json() : null))
+  .then((bank) => {
+    if (bank) {
+      reader = createReader(bank);
+      if (rdSpeed) rdSpeed.value = loadPref("read-speed") || rdSpeed.value;
+      buildReadCats();
+      if (mode === "read") nextReadWord(); // restored straight into read mode
+    }
   })
   .catch(() => {});
 
@@ -287,6 +315,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     reference = buildReference(train, LETTERS); // self-calibrates per letter
     refPlayer = createCanonicalPlayer(refCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
+    readPlayer = createCanonicalPlayer(rdCanvas);
     challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
     speller = createSpeller();
     spellStab = createStabilizer({ stableFrames: 6, minConfidence: 0.6 });
@@ -305,6 +334,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     }
     if (loadPref("mode") === "challenge") setMode("challenge");
     else if (loadPref("mode") === "spell") setMode("spell");
+    else if (loadPref("mode") === "read") setMode("read");
     else {
       const savedLetter = loadPref("letter");
       if (savedLetter && ALL_LETTERS.includes(savedLetter)) setTarget(savedLetter);
@@ -496,6 +526,83 @@ function updateMeter(score, bucket) {
   viewport.dataset.match = bucket || "none";
 }
 
+// ---- read mode (receptive practice) -------------------------
+
+function buildReadCats() {
+  if (!reader || !rdCats) return;
+  rdCats.innerHTML = "";
+  for (const c of reader.categories) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "rd-cat" + (reader.activeCategories.includes(c) ? " on" : "");
+    b.textContent = c;
+    b.dataset.cat = c;
+    rdCats.appendChild(b);
+  }
+}
+
+function playWord(word) {
+  readTimers.forEach(clearTimeout);
+  readTimers = [];
+  if (!readPlayer || !word) return;
+  const speed = Number(rdSpeed.value) || 900;
+  const letters = word.toUpperCase().split("");
+  rdLen.textContent = "· ".repeat(letters.length).trim();
+  readPlayer.setTarget(null);
+  letters.forEach((L, i) => {
+    readTimers.push(
+      setTimeout(() => {
+        if (MOTION.has(L)) readPlayer.setMotion(L);
+        else readPlayer.setTarget(reference?.centroid(L) || null);
+      }, 250 + i * speed)
+    );
+  });
+  readTimers.push(
+    setTimeout(() => readPlayer.setTarget(null), 250 + letters.length * speed + 500)
+  );
+}
+
+function nextReadWord() {
+  if (!reader) return;
+  const w = reader.next();
+  rdInput.value = "";
+  rdInput.disabled = false;
+  rdFeedback.textContent = "";
+  rdFeedback.className = "rd-feedback";
+  rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
+  playWord(w);
+  rdInput.focus();
+}
+
+function enterRead() {
+  if (!reader) { rdFeedback.textContent = "loading word list…"; return; }
+  nextReadWord();
+}
+function leaveRead() {
+  readTimers.forEach(clearTimeout);
+  readTimers = [];
+  readPlayer?.setTarget(null);
+}
+
+function judgeRead(revealed) {
+  if (!reader || !reader.current) return;
+  const answer = reader.current;
+  const ok = !revealed && reader.check(rdInput.value);
+  rdInput.disabled = true;
+  rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
+  if (ok) {
+    rdFeedback.textContent = "✓ correct";
+    rdFeedback.className = "rd-feedback good";
+    buzz(20);
+    sound.success?.();
+  } else {
+    rdFeedback.textContent = revealed ? `it was “${answer}”` : `✗ that was “${answer}”`;
+    rdFeedback.className = "rd-feedback bad";
+    if (!revealed) { buzz(60); sound.fail?.(); }
+  }
+  setTimeout(nextReadWord, ok ? 850 : 1600);
+}
+
 // ---- challenge mode -------------------------------------------
 
 function setMode(next) {
@@ -511,6 +618,10 @@ function setMode(next) {
   learnRow.hidden = mode !== "practice";
   ghostToggleWrap.hidden = true;
   spellPanel.hidden = mode !== "spell";
+  readPanel.hidden = mode !== "read";
+  viewport.hidden = mode === "read"; // read mode has no camera
+  if (mode === "read") enterRead();
+  else leaveRead();
   if (mode === "spell") {
     spellStab?.reset(); // don't commit a letter left latched from before
     swipe.reset();
@@ -1466,6 +1577,26 @@ function speak(text) {
 spSpeak.addEventListener("click", () =>
   speak(spDecodedText.textContent !== "…" ? spDecodedText.textContent : speller?.display)
 );
+
+// read mode
+rdForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (rdInput.disabled) return;
+  judgeRead(false);
+});
+rdReveal.addEventListener("click", () => { if (!rdInput.disabled) judgeRead(true); });
+rdPlay.addEventListener("click", () => reader && playWord(reader.current));
+rdSpeed.addEventListener("change", () => {
+  savePref("read-speed", rdSpeed.value);
+  if (mode === "read" && reader) playWord(reader.current);
+});
+rdCats.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-cat]");
+  if (!b || !reader) return;
+  reader.toggleCategory(b.dataset.cat);
+  buildReadCats();
+  if (mode === "read") nextReadWord();
+});
 
 async function doSpellCopy() {
   const out = speller?.display?.trim();

@@ -849,6 +849,40 @@ function mkHand() {
       ok("fluid: no-double word round-trips (CAT)", r2.raw === "CAT" && r2.decoded === "cat");
     }
 
+    // ---- reader.js (receptive practice) ----
+    const rdMod = await import("../js/reader.js");
+    const bank = { short: ["cat", "dog"], names: ["sarah", "james"], _note: "x" };
+    ok("reader: next() returns a word from the pool", (() => {
+      const r = rdMod.createReader(bank);
+      const w = r.next();
+      return ["cat", "dog", "sarah", "james"].includes(w) && r.current === w;
+    })());
+    ok("reader: check() scores a correct guess + builds a streak", (() => {
+      const r = rdMod.createReader({ short: ["cat"] });
+      r.next(); // "cat"
+      const a = r.check("CAT ") === true && r.score >= 1;
+      r.next(); const b = r.check("cat") === true && r.streak === 2;
+      return a && b;
+    })());
+    ok("reader: a wrong guess resets the streak, reveal() breaks it too", (() => {
+      const r = rdMod.createReader({ short: ["cat"] });
+      r.next(); r.check("cat"); r.next(); r.check("cat"); // streak 2
+      r.next(); const wrong = r.check("dog") === false && r.streak === 0;
+      r.next(); r.check("cat"); const rev = (r.reveal() === "cat" && r.streak === 0);
+      return wrong && rev;
+    })());
+    ok("reader: toggleCategory never empties the pool", (() => {
+      const r = rdMod.createReader(bank);
+      r.toggleCategory("short"); r.toggleCategory("names");
+      return r.activeCategories.length >= 1 && r.poolSize >= 1;
+    })());
+    ok("reader: next() avoids repeats until the pool is exhausted", (() => {
+      const r = rdMod.createReader({ short: ["a", "b", "c"] });
+      const seen = new Set();
+      for (let i = 0; i < 3; i++) seen.add(r.next());
+      return seen.size === 3;
+    })());
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
