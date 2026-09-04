@@ -106,17 +106,36 @@
 
     <!-- spell mode: continuous fingerspelling -> text -->
     <section class="speller" id="spellPanel" hidden>
-      <div class="sp-live">
-        <span class="sp-ring" id="spRing" style="--p:0"><b id="spPending">–</b></span>
-        <span class="sp-hint" id="spHint">Spell a word — hold each letter, pause between words</span>
+      <div class="sp-top">
+        <div class="sp-live">
+          <span class="sp-ring" id="spRing" style="--p:0"><b id="spPending">–</b></span>
+          <span class="sp-hint" id="spHint">Hold each letter until the ring fills · pause to add a space</span>
+        </div>
+        <output class="sp-text" id="spText" aria-live="polite"></output>
+        <div class="sp-controls">
+          <button type="button" id="spSpace">Space</button>
+          <button type="button" id="spBack" aria-label="delete last character">⌫ Delete</button>
+          <button type="button" id="spClear">Clear</button>
+          <button type="button" id="spCopy">Copy</button>
+        </div>
       </div>
-      <output class="sp-text" id="spText" aria-live="polite"></output>
-      <div class="sp-controls">
-        <button type="button" id="spSpace">Space</button>
-        <button type="button" id="spBack" aria-label="backspace">⌫</button>
-        <button type="button" id="spClear">Clear</button>
-        <button type="button" id="spCopy">Copy</button>
-      </div>
+
+      <details class="sp-fold" id="spHelp" open>
+        <summary>How to spell</summary>
+        <ul class="sp-steps">
+          <li><b>Add a letter</b> — make the handshape and hold it still until the ring around the letter fills (about half a second).</li>
+          <li><b>Next letter</b> — just change to the next handshape; no need to pause.</li>
+          <li><b>Same letter twice</b> (the two L's in HELLO) — lower your hand or give it a clear bounce, then make it again.</li>
+          <li><b>Space between words</b> — lower your hand and pause about a second, or tap <b>Space</b>. There is no hand sign for a space here.</li>
+          <li><b>J and Z</b> — draw the stroke in the air, the same as in Practice.</li>
+          <li><b>Fixing mistakes</b> — <b>⌫ Delete</b> removes the last character, <b>Clear</b> wipes the line, <b>Copy</b> puts it on your clipboard. These are buttons only (on a keyboard, Backspace and Space work too).</li>
+        </ul>
+      </details>
+
+      <details class="sp-fold" id="spChart">
+        <summary>Alphabet chart — tap a letter to enlarge</summary>
+        <div class="sp-grid" id="spGrid"></div>
+      </details>
     </section>
   </main>
 

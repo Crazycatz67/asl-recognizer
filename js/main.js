@@ -113,6 +113,7 @@ const spSpace = $("spSpace");
 const spBack = $("spBack");
 const spClear = $("spClear");
 const spCopy = $("spCopy");
+const spGrid = $("spGrid");
 
 const sound = createSound();
 const fx = createFx();
@@ -1281,6 +1282,26 @@ spCopy.addEventListener("click", async () => {
     setTimeout(() => (spCopy.textContent = "Copy"), 1200);
   }
 });
+
+// spell mode: an A–Z reference chart in the panel; tap a letter to enlarge it
+if (spGrid) {
+  for (const L of ALL_LETTERS) {
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "sp-cell";
+    cell.dataset.letter = L;
+    cell.innerHTML = `<img alt="" src="${REFERENCE_IMG(L)}" /><b>${L}</b>`;
+    spGrid.appendChild(cell);
+  }
+  spGrid.addEventListener("click", (e) => {
+    const cell = e.target.closest(".sp-cell");
+    if (!cell || !reference) return;
+    const L = cell.dataset.letter;
+    if (MOTION.has(L)) demoZoomPlayer?.setMotion?.(L);
+    else demoZoomPlayer?.setTarget(reference.centroid(L));
+    demoZoom.hidden = false;
+  });
+}
 
 // enlarge the demo (tap the panel canvas)
 demoZoomBtn.addEventListener("click", () => {

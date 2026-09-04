@@ -35,22 +35,32 @@ $mime = @{
 try {
   while ($listener.IsListening) {
     $ctx = $listener.GetContext()
-    $rel = [System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart('/'))
-    if ([string]::IsNullOrEmpty($rel)) { $rel = 'index.html' }
-    $path = Join-Path $root $rel
+    # one bad request (client disconnect, HEAD, odd headers) must never kill the
+    # loop — handle each request in its own try/catch and keep serving
+    try {
+      $rel = [System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart('/'))
+      if ([string]::IsNullOrEmpty($rel)) { $rel = 'index.html' }
+      $path = Join-Path $root $rel
+      $isHead = $ctx.Request.HttpMethod -eq 'HEAD'
 
-    if (Test-Path $path -PathType Leaf) {
-      $bytes = [System.IO.File]::ReadAllBytes($path)
-      $ext = [System.IO.Path]::GetExtension($path).ToLower()
-      if ($mime.ContainsKey($ext)) { $ctx.Response.ContentType = $mime[$ext] }
-      $ctx.Response.StatusCode = 200
-      $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
-    } else {
-      $ctx.Response.StatusCode = 404
-      $msg = [System.Text.Encoding]::UTF8.GetBytes(("404: " + $rel))
-      $ctx.Response.OutputStream.Write($msg, 0, $msg.Length)
+      if (Test-Path $path -PathType Leaf) {
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        $ext = [System.IO.Path]::GetExtension($path).ToLower()
+        if ($mime.ContainsKey($ext)) { $ctx.Response.ContentType = $mime[$ext] }
+        $ctx.Response.StatusCode = 200
+        $ctx.Response.ContentLength64 = $bytes.Length
+        if (-not $isHead) { $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length) }
+      } else {
+        $msg = [System.Text.Encoding]::UTF8.GetBytes(("404: " + $rel))
+        $ctx.Response.StatusCode = 404
+        $ctx.Response.ContentLength64 = $msg.Length
+        if (-not $isHead) { $ctx.Response.OutputStream.Write($msg, 0, $msg.Length) }
+      }
+    } catch {
+      Write-Host "  ! request error: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    } finally {
+      try { $ctx.Response.OutputStream.Close() } catch {}
     }
-    $ctx.Response.OutputStream.Close()
   }
 } finally {
   $listener.Stop()
