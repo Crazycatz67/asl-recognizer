@@ -1312,4 +1312,48 @@ button:disabled { opacity: 0.5; cursor: default; }
   .viewport[data-state="idle"] { animation: none; }
   .chip.on { transform: none; }
   .toast.show { transform: translate(-50%, 0); }
+  /* new (Spell/Read) surfaces */
+  .sp-ring, .g-anim .h, .g-ring, .g-gap, .meter-fill { animation: none !important; transition: none !important; }
+}
+
+/* ---- accessibility --------------------------------------- */
+
+/* one consistent, high-visibility keyboard focus ring everywhere */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible,
+.chip:focus-visible,
+.mode-btn:focus-visible,
+.rd-cat:focus-visible,
+.sp-cell:focus-visible {
+  outline: 3px solid #fde047;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.mode-btn:focus-visible { outline-offset: -1px; }
+
+/* stronger palette when the OS asks for more contrast */
+@media (prefers-contrast: more) {
+  :root {
+    --line: #64748b;
+    --muted: #cbd5e1;
+  }
+  .chip, .mode-btn, .rd-cat, .sp-controls button, .sp-fold, .sp-decoded,
+  #stopBtn, #flipBtn, .controls, .reference, .speller, .reader {
+    border-color: #94a3b8;
+  }
+  .sp-pending { color: #cbd5e1; border-bottom-color: #94a3b8; }
+  .rd-len { color: #94a3b8; }
+  .dim, .g-note, .sp-fluid-hint, .sp-decoded-label { color: #cbd5e1 !important; }
+}
+
+/* a visually-hidden helper for screen-reader-only text */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }

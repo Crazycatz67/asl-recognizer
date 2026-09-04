@@ -10,15 +10,15 @@
 <body>
   <header class="topbar">
     <h1>ASL Fingerspelling</h1>
-    <div class="mode" id="modeToggle" role="tablist" hidden>
-      <button class="mode-btn on" type="button" data-mode="practice">Practice</button>
-      <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
-      <button class="mode-btn" type="button" data-mode="spell">Spell</button>
-      <button class="mode-btn" type="button" data-mode="read">Read</button>
+    <div class="mode" id="modeToggle" role="group" aria-label="Mode" hidden>
+      <button class="mode-btn on" type="button" data-mode="practice" aria-pressed="true">Practice</button>
+      <button class="mode-btn" type="button" data-mode="challenge" aria-pressed="false">Challenge</button>
+      <button class="mode-btn" type="button" data-mode="spell" aria-pressed="false">Spell</button>
+      <button class="mode-btn" type="button" data-mode="read" aria-pressed="false">Read</button>
     </div>
   </header>
   <div class="learn" id="learnRow" hidden data-run="off">
-    <div class="submode" id="subMode" role="tablist">
+    <div class="submode" id="subMode" role="group" aria-label="Practice mode">
       <button type="button" data-sub="free" class="on">Free pick</button>
       <button type="button" data-sub="az">A→Z run</button>
     </div>
@@ -41,7 +41,7 @@
         <canvas id="rdCanvas" width="320" height="320" aria-label="animated fingerspelling"></canvas>
       </div>
       <div class="rd-playbar">
-        <button type="button" id="rdPlay">▶ Replay</button>
+        <button type="button" id="rdPlay"><span aria-hidden="true">▶</span> Replay</button>
         <label>speed
           <select id="rdSpeed">
             <option value="1250">slow</option>

@@ -530,13 +530,17 @@ function updateMeter(score, bucket) {
 
 function buildReadCats() {
   if (!reader || !rdCats) return;
+  rdCats.setAttribute("role", "group");
+  rdCats.setAttribute("aria-label", "Word categories");
   rdCats.innerHTML = "";
   for (const c of reader.categories) {
+    const on = reader.activeCategories.includes(c);
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "rd-cat" + (reader.activeCategories.includes(c) ? " on" : "");
+    b.className = "rd-cat" + (on ? " on" : "");
     b.textContent = c;
     b.dataset.cat = c;
+    b.setAttribute("aria-pressed", String(on));
     rdCats.appendChild(b);
   }
 }
@@ -610,7 +614,11 @@ function setMode(next) {
   mode = next;
   savePref("mode", mode);
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
-  for (const b of modeToggle.children) b.classList.toggle("on", b.dataset.mode === mode);
+  for (const b of modeToggle.children) {
+    const on = b.dataset.mode === mode;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
   if (azRun) setAzRun(false); // exit an A->Z run when leaving practice
   setTarget(null); // drop any practice target
   challenge.stop();
@@ -806,6 +814,10 @@ function showToast(msg) {
 function syncMuteBtn() {
   muteBtn.textContent = sound.muted ? "🔇" : "🔊";
   muteBtn.classList.toggle("muted", sound.muted);
+  const lbl = sound.muted ? "Unmute sound" : "Mute sound";
+  muteBtn.setAttribute("aria-label", lbl);
+  muteBtn.setAttribute("aria-pressed", String(sound.muted));
+  muteBtn.title = lbl;
 }
 syncMuteBtn();
 
@@ -1623,12 +1635,15 @@ spPaste.addEventListener("click", async () => {
 
 // spell mode: an A–Z reference chart in the panel; tap a letter to enlarge it
 if (spGrid) {
+  spGrid.setAttribute("role", "group");
+  spGrid.setAttribute("aria-label", "Alphabet reference — activate a letter to enlarge it");
   for (const L of ALL_LETTERS) {
     const cell = document.createElement("button");
     cell.type = "button";
     cell.className = "sp-cell";
     cell.dataset.letter = L;
-    cell.innerHTML = `<img alt="" src="${REFERENCE_IMG(L)}" /><b>${L}</b>`;
+    cell.setAttribute("aria-label", `${L} — enlarge`);
+    cell.innerHTML = `<img alt="" src="${REFERENCE_IMG(L)}" /><b aria-hidden="true">${L}</b>`;
     spGrid.appendChild(cell);
   }
   spGrid.addEventListener("click", (e) => {
@@ -1655,6 +1670,12 @@ demoZoom.addEventListener("click", () => {
 // keyboard: arrows step letters, space starts/skips the challenge, a-z jump
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // Escape closes whatever overlay is open
+  if (e.key === "Escape") {
+    if (!demoZoom.hidden) { demoZoom.hidden = true; demoZoomPlayer?.setTarget(null); return; }
+    if (!intro.hidden) { introClose.click(); return; }
+    if (!runCard.hidden) { runCardClose.click(); return; }
+  }
   const tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
   if (!intro.hidden && e.key === "Enter") { introClose.click(); return; }
