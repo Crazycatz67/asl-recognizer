@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>replay-lab — real Kaggle sequences</title>
+<style>
+  body { margin: 0; padding: 1.5rem; max-width: 900px; margin-inline: auto;
+    font: 14px/1.6 system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 1.05rem; } h2 { font-size: 0.9rem; color: #93c5fd; margin-top: 1.4rem; }
+  code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  button { background: #38bdf8; color: #0f172a; border: 0; border-radius: 8px;
+    padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; }
+  label { font-size: 0.85rem; color: #cbd5e1; }
+  .out { margin-top: 0.8rem; padding: 0.8rem; background: #020617; border: 1px solid #1e293b;
+    border-radius: 8px; white-space: pre-wrap; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.6rem; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.4rem 0.7rem; border-bottom: 1px solid #1e293b; }
+  th { color: #94a3b8; } td.mono { font-variant-numeric: tabular-nums; }
+  .good { color: #4ade80; } .dim { color: #64748b; } .bad { color: #f87171; }
+</style>
+</head>
+<body>
+<h1>replay-lab — full pipeline on 300 real Deaf-signer sequences</h1>
+<p class="dim">Each sequence: frames → normalize → kNN + heads → <code>transition.js</code> →
+<code>decode.js</code>. Compares the decoded text to the true phrase.</p>
+
+<p>
+  <label><input type="checkbox" id="mirror" /> mirror X (try both — handedness in the Kaggle set varies)</label>
+  &nbsp;&nbsp;
+  <label>limit <input id="lim" type="number" value="120" style="width:4rem;background:#1e293b;color:inherit;border:1px solid #334155;border-radius:6px;padding:2px 4px" /></label>
+</p>
+<button id="run">run</button>
+<div class="out" id="status">loading modules + data…</div>
+<div class="out" id="result"></div>
+
+<script type="module">
+import { normalizeLandmarks } from "../js/normalize.js";
+import { loadDataset } from "../js/dataset.js";
+import { createClassifier } from "../js/knn.js";
+import { loadRefiner } from "../js/heads.js";
+import { createTransitionMatcher } from "../js/transition.js";
+import { buildLexicon, createDecoder, mergeConfusion } from "../js/decode.js";
+import { LETTERS, USE_EXTENDED_FEATURES, KNN_K, MIN_CONFIDENCE } from "../js/config.js";
+
+const $ = (id) => document.getElementById(id);
+let clf, refiner, decoder, seqs;
+
+const cat = (p) =>
+  /^[+0-9][-0-9 ]*$/.test(p) ? "phone/number"
+  : /^\d/.test(p) ? "address"
+  : /_/.test(p) || p.split(" ").length <= 2 ? "name"
+  : "words";
+
+// greedy word-accuracy + exact
+function wordAcc(pred, truth) {
+  const p = pred.slice(); let hit = 0;
+  for (const w of truth) { const k = p.indexOf(w); if (k >= 0) { hit++; p.splice(k, 1); } }
+  return hit / Math.max(truth.length, 1);
+}
+
+async function boot() {
+  const [ds, ref, wl, cf, sq] = await Promise.all([
+    loadDataset("../data/dataset.json"),
+    loadRefiner("../js/heads.json").catch(() => null),
+    fetch("../data/words25k.txt").then((r) => r.text()),
+    fetch("../data/confusion.json").then((r) => r.json()).catch(() => null),
+    fetch("../data/fs_sequences.json").then((r) => r.json()),
+  ]);
+  const keep = new Set(LETTERS);
+  clf = createClassifier(ds.samples.filter((s) => keep.has(s.label)).map((s) => ({ label: s.label, v: s.v })), { k: KNN_K });
+  refiner = ref;
+  decoder = createDecoder(buildLexicon(wl), { confusion: cf ? mergeConfusion(cf) : undefined });
+  seqs = sq.sequences;
+  $("status").textContent =
+    `ready — ${seqs.length} sequences, classifier ${clf.size} vectors, refiner ${refiner ? "on" : "off"}. Click run.`;
+}
+
+$("run").addEventListener("click", () => {
+  const mirrorX = $("mirror").checked;
+  const lim = Math.min(Number($("lim").value) || 120, seqs.length);
+  $("result").textContent = "running…";
+  setTimeout(() => {
+    const t0 = performance.now();
+    const byCat = {};
+    let dSum = 0, bSum = 0, exact = 0, n = 0;
+    const examples = [];
+    for (let i = 0; i < lim; i++) {
+      const s = seqs[i];
+      const tr = createTransitionMatcher();
+      const letters = [];
+      let t = 0;
+      for (const fr of s.frames) {
+        const pts = fr.map(([x, y, z]) => ({ x, y, z }));
+        const vec = normalizeLandmarks(pts, { aspect: 1, mirrorX, extended: USE_EXTENDED_FEATURES });
+        let pred = clf.classify(vec);
+        if (pred && refiner) {
+          const rl = refiner.refine(vec, pred.label);
+          if (rl !== pred.label) pred = { ...pred, label: rl };
+        }
+        t += 33;
+        tr.push(pts, pred ? { label: pred.label, confidence: pred.confidence } : null, t);
+        const e = tr.read();
+        if (e) letters.push({ letter: e.letter, conf: e.conf });
+      }
+      const decoded = decoder.decode(letters).text;
+      const rawStr = letters.map((l) => l.letter).join("").toLowerCase();
+      const truth = s.phrase.toLowerCase().replace(/[/_]/g, " ").split(/\s+/).filter(Boolean);
+      const dW = wordAcc(decoded.split(/\s+/).filter(Boolean), truth);
+      const bW = wordAcc(decoder.segment(rawStr), truth);
+      const ex = decoded === truth.join(" ");
+      dSum += dW; bSum += bW; exact += ex ? 1 : 0; n++;
+      const c = cat(s.phrase);
+      (byCat[c] = byCat[c] || { d: 0, n: 0 }).d += dW; byCat[c].n++;
+      if (examples.length < 10) examples.push({ truth: s.phrase, raw: rawStr, decoded });
+    }
+    const ms = Math.round(performance.now() - t0);
+    let html = `<b>mirrorX=${mirrorX}</b> · ${n} sequences · ${ms} ms (${Math.round(ms / n)} ms/seq)\n\n`;
+    html += `decoder word accuracy   <span class="good">${(100 * dSum / n).toFixed(1)}%</span>\n`;
+    html += `baseline (no correction) <span class="dim">${(100 * bSum / n).toFixed(1)}%</span>\n`;
+    html += `exact phrase             <span class="good">${(100 * exact / n).toFixed(0)}%</span>\n\n`;
+    html += `by category:\n`;
+    for (const k in byCat) html += `  ${k.padEnd(14)} ${(100 * byCat[k].d / byCat[k].n).toFixed(1)}%  (n=${byCat[k].n})\n`;
+    html += `\nexamples:\n`;
+    for (const e of examples)
+      html += `  want   ${e.truth}\n  raw    <span class="dim">${e.raw}</span>\n  decode <span class="${e.decoded === e.truth.toLowerCase().replace(/[/_]/g,' ') ? 'good' : 'bad'}">${e.decoded}</span>\n\n`;
+    $("result").innerHTML = html;
+  }, 20);
+});
+
+boot();
+</script>
+</body>
+</html>
