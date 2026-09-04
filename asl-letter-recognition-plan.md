@@ -11,6 +11,7 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 - **Working agreement:** explain choices plainly as you go; keep this doc current with a dated Revision-history entry per change; flag deviations and wait for confirmation; ask before adding any dependency beyond MediaPipe. User is an AI major building this to learn.
 
 ## Revision history
+- **2026-09-04:** **Stage 8 build-simulation added** — phased plan (Ph 0 Kaggle test-set → Ph 1 `decode.js` → Ph 2 `transition.js` → Ph 3 wire behind a beta toggle → Ph 4 harvest+retrain → Ph 5 UI+speech), each with an effort estimate (≈14–22 focused sessions total, 3–6 weeks part-time), a risk column, an explicit failure-modes list with fallbacks, and an efficiency section (everything offline-testable against the replayed Kaggle sequences; `decode-lab.html` for keyboard-speed iteration; one word list two uses; ship behind a toggle).
 - **2026-09-04:** **Folded prior-art tactics into the plan** (after checking Stage 8 isn't a novel idea — Sign2Text, the Google Kaggle comp, and continuous-fingerspelling papers all do variants). Three concrete borrows: (1) **B3 rewritten around the [Google Kaggle ASL Fingerspelling dataset](https://www.kaggle.com/competitions/asl-fingerspelling)** — public MediaPipe landmark sequences from 100+ Deaf signers, drops into our pipeline, fixes M/N/D *and* gives Stage 8 its continuous test set (task: `tools/import-kaggle.html`). (2) **`js/transition.js`** added to Stage 6 follow-up — segment letters by the settle→move→settle rhythm instead of a still hold; the real fix for "Spell mode isn't fluid." (3) **Stage 8 pipeline rewritten** from "segment then correct" to **trie + CTC-collapse + beam search through a lexicon**, with per-letter emission costs weighted by the measured confusion matrix — the lightweight form of what the Kaggle winners do. Prior-art + honest-accuracy notes added to Stage 8.
 - **2026-09-03:** **Plan redirect toward "word ASL via fingerspelling" + a competitive-gap backlog.** Two changes, from the *Signing to a Webcam* competitive read (`scratchpad/fingerspelling-landscape.html`): (1) new **"Backlog — catching up with the field"** section — every capability competitors ship that we don't (receptive practice, a real curriculum, Deaf-signer data, curated word content, app accessibility, number signs, accounts/sync, PWA), priority-ranked. (2) new **Stage 8 — fingerspelling → sentence → speech**: lean into what Spell mode already does — capture the raw recognised letter stream, then a plain-JS pipeline (dictionary + DP word-segmentation à la Norvig, confusion-aware fuzzy correction, sentence assembly) turns "whatareyoudoing" into "What are you doing?", shown live and spoken via the browser's `speechSynthesis`. Not real ASL word-sign recognition — a slow-spelling approximation that needs no word-sign data. Scope note updated.
 - **2026-09-03:** **Spell mode — pending-word buffer (the real "not fluid" fix).** Per-letter auto-commit was structurally wrong: every stray frame while the hand moved landed a permanent letter and swipe could only undo one. New model: recognised letters build a **pending word** (rendered dashed, `<span class="sp-pending">`) — a draft that drops into the transcript only on a ~1 s pause (word break) or a Space tap. `js/speller.js` rewritten: `text` + `pending`, `feed() → {text, pending, event:"letter"|"word"}`, `display`/`pending` getters, `clearPending()`, reworked `space`/`backspace`/`insert`/`clear`. **Swipe now = scrap the whole pending word** (not "delete one char") — the junk a moving hand adds gets wiped by the same motion; ⌫/backspace hits pending first, transcript only when the draft is empty; copy grabs `display`, paste commits the current word then inserts. Help + hint rewritten. Self-test 119/119.
@@ -241,9 +242,42 @@ The existing dashed pending-word already covers "letters not yet confirmed"; Sta
 - Accuracy compounds: a sentence is only as good as its worst letter. In-the-wild continuous fingerspelling is ~74% letter accuracy even in research (ChicagoFSWild+); the lexicon decode lifts *word* accuracy above that but won't save a badly-recognised run. Keep the **raw** line visible so the user can see and fix what it heard.
 - Names, jargon and non-dictionary words won't decode — the per-word "keep as spelled" toggle is the escape hatch.
 
-### Build order
+### Build simulation — phases, effort, risk
 
-Trie + word list + CTC-collapse + beam decode (`js/decode.js`, testable offline on synthetic posterior streams) → confusion matrix from `tools/test-knn.html` → wire the per-frame posterior capture into `speller.js` (depends on B3's continuous sequences for a real test set) → raw/split/sentence UI → `speechSynthesis` playback + captions → selftest coverage (decode on known noisy inputs, "keep as spelled", speak-no-throw).
+Effort in **focused sessions** (~2–4 h each) for a solo builder learning as they go. "Live-check" = confirm on the deployed site with a webcam.
+
+| Ph | Work | Deliverable | Effort | Main risk |
+|----|------|-------------|--------|-----------|
+| 0 | **Kaggle import, test-set only.** One offline script (`tools/import_kaggle.py`): read `train.csv`, keep sequences with one hand mostly present, extract per-frame 21-hand landmarks + phrase → `data/fs_sequences.json` (~300 seq). Subsample hard — ignore the 190 GB, pull a slice. | `fs_sequences.json` + a loader | 1–2 | download size/logistics; Holistic-vs-Hands landmark quality (spot-check visually) |
+| 1 | **`js/decode.js`** — trie(word list) + CTC-collapse + beam search + Norvig-DP fallback. Build `tools/decode-lab.html` first: type a noisy string, see the decode. Iterate there, *then* against `fs_sequences.json` (run kNN over each → posteriors → decode → word-accuracy vs. true phrase). | `decode.js`, `decode-lab.html`, a word-accuracy number | 3–5 | **beam/word-penalty tuning is open-ended** — fix the metric + timebox; double letters & numbers are blind spots |
+| 2 | **`js/transition.js`** — settle→move→settle state machine, velocity normalised by hand span, emits a letter + its averaged posterior on each settle. Prototype by *replaying* `fs_sequences.json` offline; no webcam needed to tune. | `transition.js` + replay harness | 2–3 | threshold is device/framerate/signer-speed dependent (same trap as the swipe matcher) |
+| 3 | **Wire both into `speller.js`** behind a "fluid mode (beta)" toggle: transition.js becomes the letter source for Spell mode, decode.js runs on the collapsed stream. Practice/Challenge keep the stabilizer. | Spell mode using the new path | 2 | the seam between transition.js output and the existing pending-word buffer |
+| 4 | **Harvest training data + retrain.** DTW-align kNN predictions to known phrases, keep per-letter frames at ≥0.8 conf → append to `dataset.json` (group key = participant_id). Retrain heads, refresh the confusion matrix (feeds Ph 1 — loop back once). | bigger dataset, new `heads.json`, `confusion.json` | 2–4 | **domain shift** (Holistic+posed mix may regress); measure per-source, keep the mix only if it wins live |
+| 5 | **UI + speech.** raw / split / sentence three-line view; `speechSynthesis` (async `getVoices`, gesture-gated first utterance, iOS `resume()` watchdog); per-word "keep as spelled" chips; caption every spoken line. | shipped Stage 8 | 2–3 | **iOS `speechSynthesis` is flaky** (cuts out ~15 s) — button-first, captions always |
+| — | **selftest** coverage runs alongside every phase (decode on fixed noisy inputs, transition state machine, keep-as-spelled, speak-no-throw). | green suite | folded in | — |
+
+**Total: ~14–22 sessions (≈ 3–6 weeks part-time).** Ph 0→1 is the critical path; Ph 2 parallels Ph 1 and makes it easier; Ph 4 loops back into Ph 1 once.
+
+### Failure modes to expect (and the fallback for each)
+
+- **Decoder splits into tiny common words** ("i am" ← "iam" is fine, but "it he re" ← "there") → raise the word-count/length penalty; lean on `P(word)` frequency.
+- **Decoder refuses to split** (one long garbage token) → penalty too high, or the confidence floor dropped too many frames.
+- **Doubled letters vanish** (HELLO→HELO) → CTC-collapse ate them; transition.js's move-between-letters requirement is the fix, plus the trie can sometimes re-insert.
+- **Numbers/addresses mangled** (a big share of real fingerspelling) → digit-run passthrough; longer term needs B6 (digit signs).
+- **Confusion matrix from posed data ≠ live confusions** → hand-tune the M/N and D/O cells after a live-check.
+- **Mixed-dataset classifier regresses** → keep grassknoted-only if the Kaggle mix loses on a live per-letter check.
+- **`speechSynthesis` silent on iOS / no voices** → always show the caption; "Speak" is best-effort, never the only output.
+- **transition.js misses on a fast signer** → keep the old stabilizer path selectable; "fluid mode" stays a toggle until it's proven.
+
+### Ways to build it efficiently
+
+- **Everything is offline-testable against `fs_sequences.json`.** You barely touch the webcam until Ph 5 — replay real Deaf-signer sequences and iterate at keyboard speed.
+- **`decode-lab.html` with typed input** = sub-second iteration on the hardest part; add a "corrupt with the confusion matrix" button to auto-generate test cases.
+- **One word list, two uses** — decoder dictionary *and* backlog B4's practice content.
+- **The confusion matrix already exists** — `tools/test-knn.html` produces it; just add a JSON export.
+- **Build `transition.js` before leaning on `decode.js`** — clean letter boundaries make the decode job much smaller.
+- **Keep `decode.js` / `transition.js` DOM-free in the reusable core** so any future page or tool consumes them directly.
+- **Ship behind a beta toggle** — no big-bang cutover; Spell mode keeps working the whole time.
 
 ## 5. Out of scope for this plan
 
