@@ -158,6 +158,7 @@ let lastHintAt = 0;
 let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
+let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you can repeat it
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
 let handVote = 0; // frames the on-camera hand has disagreed with trackedHand
 let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
@@ -303,6 +304,7 @@ function setTarget(letter) {
 
   holdStart = 0;
   rewarded = false;
+  motionRewardAt = 0;
   firstHandAt = 0;
   stuckSince = 0;
   stuckShown = false;
@@ -310,6 +312,7 @@ function setTarget(letter) {
   refPanel.classList.remove("nudge");
   viewport.classList.toggle("is-motion", MOTION.has(letter));
   viewport.style.setProperty("--hold", "0");
+  applyHand(); // motion letters never mirror the panel — keep the Z demo readable
   reco.hidden = true;
   if (letter) {
     refLetter.textContent = letter;
@@ -405,10 +408,13 @@ runCardClose.addEventListener("click", () => {
 
 // Selfie (front) view: it's a mirror of the reference photo, so a RIGHT hand
 // needs the reference flipped to match. Back camera: the view is un-mirrored,
-// so it's the LEFT hand that needs the flip.
+// so it's the LEFT hand that needs the flip. J/Z are the exception — the panel
+// plays a *motion* demo, and a mirrored Z reads as a backwards Z, so those
+// always show the plain canonical stroke regardless of which hand is tracked.
 function applyHand() {
   const flipForHand = facingMode === "user" ? "right" : "left";
-  refPanel.classList.toggle("mirror", trackedHand === flipForHand);
+  const motionLetter = MOTION.has(targetLetter);
+  refPanel.classList.toggle("mirror", trackedHand === flipForHand && !motionLetter);
   if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
 }
 
@@ -929,22 +935,38 @@ function loop() {
 
   // practice: camera-frame glow + meter + a plain-words hint + the reward
   if (mode === "practice" && motionTarget) {
-    // J / Z — no shape meter; you complete it by tracing the stroke
-    updateMeter(0, null);
+    // J / Z — no shape meter; you complete it by tracing the stroke in the air,
+    // and you can repeat it as many times as you like (the reward re-arms).
     bg.setMatch(null);
     reco.hidden = true;
     if (hasHand && !firstHandAt) firstHandAt = now;
+
+    // live "you're getting there" progress from the stroke metrics, shown on the
+    // same fill bar + rising tone the held letters use, snapping to full on a hit
+    const mt = motion.metrics();
+    let prog = 0;
+    if (hasHand && mt) {
+      prog =
+        targetLetter === "J"
+          ? Math.min(mt.pinkyMove / 1.2, mt.pinkyDrop / 0.7)
+          : Math.min(mt.indexMove / 1.2, mt.indexX / 1.6, mt.rev / 1);
+      prog = Math.max(0, Math.min(1, prog));
+    }
+    const shownProg = rewarded ? 1 : prog;
+    updateMeter(shownProg, rewarded ? "correct" : prog > 0.55 ? "close" : null);
+    viewport.style.setProperty("--hold", shownProg.toFixed(3));
+    if (!rewarded) sound.charge(prog > 0.15 ? 0.05 + 0.95 * prog : 0);
+
     if (now - lastHintAt >= HINT_INTERVAL) {
       lastHintAt = now;
       refHint.textContent = rewarded
-        ? `Nailed it — that's ${targetLetter} ✓`
+        ? `Nailed ${targetLetter}! ✓  — do it again whenever you're ready`
         : hasHand
         ? targetLetter === "J"
-          ? "Pinky up, then swing it down and hook"
-          : "Index up, then draw the Z — across, down, across"
-        : "Show your hand, then trace it in the air";
+          ? "Little finger up in a fist — then hook it down and back toward you"
+          : "Index finger out — draw a big Z in the air: across, down-slash, across"
+        : "Show your hand, then trace the letter in the air";
       // live tuning readout
-      const mt = motion.metrics();
       letterStat.textContent =
         hasHand && mt
           ? targetLetter === "J"
@@ -952,9 +974,18 @@ function loop() {
             : `move ${mt.indexMove}/1.2 · ↔ ${mt.indexX}/1.6 · turns ${mt.rev}/1`
           : "";
     }
+
     if (stroke === targetLetter && !rewarded) {
       rewarded = true;
+      motionRewardAt = now;
       reward(hand?.[targetLetter === "J" ? 20 : 8]);
+    }
+    // re-arm after the celebration so the next swoosh counts too
+    if (rewarded && motionRewardAt && now - motionRewardAt > 1500) {
+      rewarded = false;
+      motionRewardAt = 0;
+      firstHandAt = 0; // fresh "time to complete" clock for the next rep
+      motion.reset(); // clear the buffer so the same swoosh can't double-count
     }
   } else if (mode === "practice" && reference && targetLetter) {
     if (hasHand && m) {

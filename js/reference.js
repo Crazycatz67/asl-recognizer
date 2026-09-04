@@ -73,8 +73,8 @@ export const LETTER_GUIDE = {
   W: "Index, middle and ring fingers spread and straight up; thumb pins the pinky down — three prongs.",
   X: "Hold your index finger up but bend it into a hook at the top knuckle; curl the rest — a beckoning finger.",
   Y: "Stretch your thumb and pinky out as far apart as they go; fold the three middle fingers down — 'hang loose'.",
-  J: "Make the letter I (pinky up, rest in a fist), then trace a J in the air — swing the pinky down and hook it back toward you.",
-  Z: "Point your index finger, then draw a Z in the air — across, diagonally down-left, then across again.",
+  J: "Start in the letter I — a fist with just the little finger pointing up. Then drop that finger straight down and curl it back toward you, drawing a hook (a fish-hook) in the air.",
+  Z: "Point your index finger straight out; the rest stay in a fist. Draw a big Z in the air exactly how you'd write one: straight across the top, a slash down to the left, then straight across the bottom.",
 };
 
 // Render a letter's canonical hand shape (its class-mean vector) as a clean,
