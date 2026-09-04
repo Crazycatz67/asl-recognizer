@@ -628,69 +628,85 @@ function mkHand() {
       while (t < end) sp.feed({ holding: false, letter: null, handPresent: true, moved: false, now: t += 40 });
       return t;
     };
-    ok("speller: distinct letters spell a word (CAT)", (() => {
+    const bigGap = (sp, t0) => gap(sp, t0, 1300); // > acceptMs -> commit the word
+    ok("speller: letters go to the pending word, a pause commits it (CAT)", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "C", 0);
       t = gap(sp, t, 120); ({ t } = hold(sp, "A", t));
       t = gap(sp, t, 120); ({ t } = hold(sp, "T", t));
-      return sp.text === "CAT";
+      const inBuffer = sp.pending === "CAT" && sp.text === "";
+      t = bigGap(sp, t);
+      return inBuffer && sp.text === "CAT" && sp.pending === "";
     })());
-    ok("speller: a held letter commits once, not every frame", (() => {
+    ok("speller: a held letter is added once, not every frame", (() => {
       const sp = spMod.createSpeller();
       hold(sp, "E", 0, 30);
-      return sp.text === "E";
+      return sp.pending === "E";
     })());
     ok("speller: a doubled letter needs a real gap (BOOK)", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "B", 0);
       t = gap(sp, t, 120); ({ t } = hold(sp, "O", t));
-      // no real gap -> the second O must NOT register
-      ({ t } = hold(sp, "O", t));
-      const oneO = sp.text === "BO";
-      // now a clear gap, then O again -> BOO
-      t = gap(sp, t, 500); ({ t } = hold(sp, "O", t));
+      ({ t } = hold(sp, "O", t)); // no gap -> second O ignored
+      const oneO = sp.pending === "BO";
+      t = gap(sp, t, 450); ({ t } = hold(sp, "O", t)); // clear gap -> BOO
       t = gap(sp, t, 120); ({ t } = hold(sp, "K", t));
-      return oneO && sp.text === "BOOK";
+      return oneO && sp.pending === "BOOK";
     })());
-    ok("speller: a long pause inserts one space (not two)", (() => {
+    ok("speller: a pause commits the word once (not twice)", (() => {
       const sp = spMod.createSpeller();
       let u = hold(sp, "H", 0).t;
       u = gap(sp, u, 120); u = hold(sp, "I", u).t;
-      u = gap(sp, u, 1500); // long pause -> a space
-      u = gap(sp, u, 1500); // still just one space
+      u = bigGap(sp, u); // commit "HI"
+      u = bigGap(sp, u); // nothing pending -> no change, no extra space
       u = hold(sp, "U", u).t;
-      return sp.text === "HI U";
+      return sp.text === "HI" && sp.pending === "U" && sp.display === "HI U";
     })());
     ok("speller: J/Z strokes append and can repeat (JAZZ)", (() => {
       const sp = spMod.createSpeller();
       let t = 40;
-      sp.feed({ holding: false, letter: null, stroke: "J", handPresent: true, moved: false, now: t }); t += 200;
+      sp.feed({ holding: false, letter: null, stroke: "J", moved: false, now: t }); t += 200;
       ({ t } = hold(sp, "A", t)); t = gap(sp, t, 120);
-      sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t }); t += 200;
-      sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t });
-      return sp.text === "JAZZ";
+      sp.feed({ holding: false, letter: null, stroke: "Z", moved: false, now: t }); t += 200;
+      sp.feed({ holding: false, letter: null, stroke: "Z", moved: false, now: t });
+      return sp.pending === "JAZZ";
     })());
-    ok("speller: insert() pastes a chunk back in", (() => {
+    ok("speller: swipe (clearPending) throws away the half-formed word", (() => {
+      const sp = spMod.createSpeller();
+      let u = hold(sp, "H", 0).t;
+      u = gap(sp, u, 120); u = hold(sp, "I", u).t;
+      u = bigGap(sp, u); // "HI" committed
+      u = hold(sp, "X", u).t; u = gap(sp, u, 120); u = hold(sp, "Q", u).t; // junk pending "XQ"
+      const wiped = sp.clearPending();
+      return wiped && sp.text === "HI" && sp.pending === "" && sp.display === "HI";
+    })());
+    ok("speller: insert() pastes after committing the current word", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "H", 0);
-      t = gap(sp, t, 120); ({ t } = hold(sp, "I", t));
-      const grabbed = sp.text; // "HI"
-      sp.clear();
-      sp.insert(grabbed);
-      // a fresh letter after a paste still registers
-      t = gap(sp, t, 120); ({ t } = hold(sp, "A", t));
-      return sp.text === "HIA";
+      t = gap(sp, t, 120); ({ t } = hold(sp, "I", t)); // pending "HI"
+      sp.insert(" THERE");
+      return sp.text === "HI THERE" && sp.pending === "";
     })());
-    ok("speller: backspace / clear / manual space", (() => {
+    ok("speller: backspace hits the pending word first, then the transcript", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "A", 0);
-      t = gap(sp, t, 120); ({ t } = hold(sp, "B", t));
-      sp.backspace();
-      const afterBack = sp.text === "A";
+      t = bigGap(sp, t); // "A" committed
+      ({ t } = hold(sp, "B", t)); // pending "B"
+      sp.backspace(); const afterB1 = sp.pending === "" && sp.text === "A";
+      sp.backspace(); const afterB2 = sp.text === "";
+      return afterB1 && afterB2;
+    })());
+    ok("speller: manual space commits the word + a separator", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "H", 0); t = gap(sp, t, 120); ({ t } = hold(sp, "I", t));
       sp.space();
-      const afterSpace = sp.text === "A ";
+      return sp.text === "HI " && sp.pending === "";
+    })());
+    ok("speller: clear() wipes both the word and the transcript", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "A", 0); t = bigGap(sp, t); ({ t } = hold(sp, "B", t));
       sp.clear();
-      return afterBack && afterSpace && sp.text === "";
+      return sp.text === "" && sp.pending === "" && sp.display === "";
     })());
 
     const fx = (await import("../js/fx.js")).createFx();

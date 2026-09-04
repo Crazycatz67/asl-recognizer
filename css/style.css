@@ -779,6 +779,12 @@ body {
   content: "…";
   color: #475569;
 }
+/* the word being spelled right now — not yet committed */
+.sp-pending {
+  color: #64748b;
+  border-bottom: 2px dashed #475569;
+  padding-bottom: 1px;
+}
 .sp-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .sp-controls button {
   flex: 1 1 auto;

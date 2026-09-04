@@ -224,6 +224,8 @@ let speller = null; // spell mode: continuous fingerspelling -> transcript
 let spellStab = null; // its own (faster) stabilizer so held letters commit sooner
 let spellAnchor = null; // wrist position at the last commit — for "moved" re-arm
 let spellClipboard = ""; // last text "grabbed" in spell mode (for the paste gesture)
+let spellWrist = []; // short wrist-position history — a "hand is still" gate
+let spellSuppressUntil = 0; // block letter commits briefly after a gesture
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -258,7 +260,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
     speller = createSpeller();
-    spellStab = createStabilizer({ stableFrames: 5, minConfidence: 0.5 });
+    spellStab = createStabilizer({ stableFrames: 6, minConfidence: 0.6 });
     buildLetterPicker(ALL_LETTERS);
     learnRow.hidden = false;
     modeToggle.hidden = false;
@@ -484,8 +486,9 @@ function setMode(next) {
     spellStab?.reset(); // don't commit a letter left latched from before
     swipe.reset();
     twohand.reset();
+    spellWrist = [];
     spellAnchor = null;
-    spText.textContent = speller.text;
+    syncSpellText();
   }
   if (mode === "challenge") {
     chCardTitle.textContent = "Challenge";
@@ -970,11 +973,13 @@ function loop() {
   if (mode === "spell" && speller && spellStab) {
     bg.setMatch(null);
 
-    // open-hand sideways wipe -> delete the last character
-    if (swipe.match(now) === "delete" && speller.backspace()) {
+    // open-hand sideways wipe -> throw away the half-formed word (or, if there
+    // isn't one, delete the last finished character)
+    if (swipe.match(now) === "delete" && (speller.clearPending() || speller.backspace())) {
       syncSpellText();
-      spellStab.reset(); // the flat hand mustn't then register as a letter
+      spellStab.reset(); // the moving hand mustn't then register as a letter
       spellAnchor = null;
+      spellSuppressUntil = now + 500;
       buzz([0, 25, 45, 25]);
       fx.flash("rgba(248, 113, 113, 0.4)");
     }
@@ -991,9 +996,24 @@ function loop() {
       fx.flash("rgba(56, 189, 248, 0.5)");
     }
 
+    // "hand is still" gate — a held letter barely moves; a hand mid-transition
+    // or mid-swipe moves a lot and used to register a string of junk letters
+    spellWrist.push({ t: now, x: hand?.[0]?.x ?? 0, y: hand?.[0]?.y ?? 0, has: hasHand });
+    while (spellWrist.length && now - spellWrist[0].t > 200) spellWrist.shift();
+    let handSpeed = 0;
+    if (hasHand && hand && spellWrist.length >= 3 && spellWrist.every((f) => f.has)) {
+      const a = spellWrist[0], b = spellWrist.at(-1);
+      const w = hand[0];
+      let mx = 0, my = 0;
+      for (const j of [5, 9, 13, 17]) { mx += hand[j].x; my += hand[j].y; }
+      const span = Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
+      handSpeed = Math.hypot(b.x - a.x, b.y - a.y) / span; // hand-spans moved in ~0.2 s
+    }
+    const still = handSpeed < 0.45 && now >= spellSuppressUntil;
+
     const cand = spellStab.candidate;
     const cur = spellStab.current;
-    const holding = spellStab.progress >= 1 && !!cand && cand === cur;
+    const holding = still && spellStab.progress >= 1 && !!cand && cand === cur;
 
     // a notable wrist shift since the last commit lets a deliberate bounce
     // re-arm a doubled letter (LL, SS) without waiting for the full pause
@@ -1015,14 +1035,14 @@ function loop() {
     if (res.event === "letter") {
       spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
       sound.lock?.();
-      buzz(12);
-      fx.flash("rgba(56, 189, 248, 0.5)");
-    } else if (res.event === "space") {
-      buzz([0, 15, 30, 15]);
+      buzz(10);
+    } else if (res.event === "word") {
+      sound.success?.();
+      buzz([0, 18, 30, 18]);
+      fx.flash("rgba(56, 189, 248, 0.4)");
     }
 
-    spText.textContent = res.text;
-    spText.scrollTop = spText.scrollHeight;
+    syncSpellText();
     const building = cand && /^[A-Z]$/.test(cand) ? cand : "";
     spPending.textContent = building || "–";
     spRing.style.setProperty(
@@ -1045,7 +1065,7 @@ function loop() {
         const sm = swipe.metrics();
         spMetrics.textContent =
           hasHand && sm
-            ? `swipe: sideways ${sm.dx}/1.1 · up-down ${sm.dy} · open ${sm.open}`
+            ? `${still ? "still ✓" : "moving — hold to lock"} · swipe sideways ${sm.dx}/1.1`
             : "";
       }
     }
@@ -1320,9 +1340,16 @@ chStart.addEventListener("click", () => {
 chSkip.addEventListener("click", () => challenge?.skip());
 
 // spell-mode transcript controls
+const escapeHtml = (s) =>
+  s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 const syncSpellText = () => {
   if (!speller) return;
-  spText.textContent = speller.text;
+  const t = speller.text;
+  const p = speller.pending;
+  const sep = t && p && !t.endsWith(" ") ? " " : "";
+  spText.innerHTML =
+    escapeHtml(t) + sep +
+    (p ? `<span class="sp-pending">${escapeHtml(p)}</span>` : "");
   spText.scrollTop = spText.scrollHeight;
 };
 spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
@@ -1330,11 +1357,12 @@ spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); 
 spClear.addEventListener("click", () => { speller?.clear(); syncSpellText(); });
 
 async function doSpellCopy() {
-  if (!speller?.text) return;
-  spellClipboard = speller.text; // remembered for the paste gesture
+  const out = speller?.display?.trim();
+  if (!out) return;
+  spellClipboard = out; // remembered for the paste gesture
   let okIcon = "Copied ✓";
   try {
-    await navigator.clipboard.writeText(speller.text);
+    await navigator.clipboard.writeText(out);
   } catch {
     okIcon = "Copied (local)"; // clipboard API blocked — the paste gesture still works
   }
