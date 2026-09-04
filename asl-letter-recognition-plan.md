@@ -1,16 +1,17 @@
 # ASL letter recognition — structured plan
 
 ## Session resume — read this first
-_Last updated 2026-09-03. This block is the fast catch-up after a context reset; the Revision history below is the full detail._
+_Last updated 2026-09-04. This block is the fast catch-up after a context reset; the Revision history below is the full detail._
 
-- **Where we are:** Stages 1–4 done + a large, live-tested practice/challenge experience on top, all **deployed** → https://crazycatz67.github.io/asl-recognizer/ . Update = `git push` (repo `Crazycatz67/asl-recognizer`, `main`, `/` root).
-- **Verified working:** `tools/selftest.html` **119/119**; all modules load clean; the user has run it live on Mac + phone across ~20 feedback iterations. Recognition is now **97.1%** held-out (kNN + learned M/N & D/O/C heads), every letter ≥92%.
-- **Can't verify in-session:** the live camera loop / reward / animations — automation-browser limits (synthetic camera + hidden-pane rAF throttle). The user confirms these on the deployed site; everything else is unit-tested + checked layer-by-layer.
-- **What's genuinely left (roadmap):** **Stage 8** (chosen 2026-09-03) — fingerspelling → sentence → speech: segment the raw letter stream into words, confusion-aware correction, assemble + speak via `speechSynthesis`; all plain JS + one bundled word-frequency file. Then the **Backlog** (B1 receptive practice, B2 curriculum, B3 Deaf-signer data are the high-priority catch-up items) and (5) formal **live evaluation** at the webcam. Stage 6 is fully built (Challenge, J/Z, Spell mode); its open follow-up is gesture-threshold tuning against real signing.
+- **Where we are:** Stages 1–7 done (recognizer + Practice + Challenge + J/Z + Spell mode), all **deployed** → https://crazycatz67.github.io/asl-recognizer/ . Update = `git push` (repo `Crazycatz67/asl-recognizer`, `main`, `/` root).
+- **Verified working:** `tools/selftest.html` **119/119**; all modules load clean; user has run it live on Mac + phone across ~25 feedback iterations. Recognition **97.1%** held-out (kNN + learned M/N & D/O/C heads), every letter ≥92%.
+- **The goal now:** the **North star** section — build Backlog B1–B8 + Stage 8 + a Stage 9 prototype to near-final, then **showcase to an RIT/NTID ASL professor or the Deaf community**. Work the milestones M1→M5 in order; **M1 first** (accessibility pass + `js/transition.js`). ~4–6 months part-time to showcase-ready; Stage 9 (native-speed sequence model) a further semester, ideally with RIT.
+- **Can't verify in-session:** the live camera loop / reward / animations — automation-browser limits. User confirms on the deployed site; everything else is unit-tested + layer-checked.
 - **Don't re-explore:** the *single-measurement* M↔N / D↔O tie-breaker (`js/refine.js`) — disproven, shelved. The M/N/D fix that *worked* is `js/heads.js` (learned heads); retrain via `tools/train-heads.html` if the dataset changes.
 - **Working agreement:** explain choices plainly as you go; keep this doc current with a dated Revision-history entry per change; flag deviations and wait for confirmation; ask before adding any dependency beyond MediaPipe. User is an AI major building this to learn.
 
 ## Revision history
+- **2026-09-04:** **Consolidated everything into a North-star roadmap toward an RIT showcase.** The user's goal is now explicit: build the whole thing (Backlog B1–B8 + Stage 8 + a Stage 9 prototype) to near-final, then demo to an **RIT / NTID ASL professor or the Deaf community**. New *North star* section: 5 milestones (M1 solid+honest foundation incl. a full accessibility pass + `transition.js`; M2 real learning tool — curriculum + receptive practice + word content; M3 data upgrade — Kaggle import + digit signs; M4 Stage 8; M5 showcase prep — PWA + about page + reach out to RIT) with effort estimates, a "showcase-ready" definition, a ~4–6-month part-time timeline (Stage 9 a further semester, best done *with* RIT), and a fast-path option. Backlog items re-slotted into milestones; B5 accessibility and B6 digits promoted to **High**; Goal section rewritten around the north star.
 - **2026-09-04:** **Stage 9 added — the ambitious arc for "actually useful to the community."** Leads with *talk to Deaf people first* (confirm the problem; a solo project's best impact may be an open component + a consented Deaf-led landmark dataset). Two hard limits, each with a real attack: (1) **native-speed fingerspelling** needs a *sequence model on landmark input* — proven & on-device by the Kaggle competition (Squeezeformer + transformer decoder → TF-Lite); path = train a small CTC model (GRU/1D-CNN, ~100k–2M params) in Colab, run in-browser via ONNX Runtime Web, keep the kNN for Practice. The "no ML framework" rule is the only blocker and it's self-imposed. (2) **names/numbers** is a vocabulary+UX problem — context lexicons (Census names, address grammar, digit grammar), promote **B6 digit signs to high priority**, spell-back confirmation, session dictionary, entity priors. Semester-scale; sequenced after Stage 8.
 - **2026-09-04:** **Stage 8 build-simulation added** — phased plan (Ph 0 Kaggle test-set → Ph 1 `decode.js` → Ph 2 `transition.js` → Ph 3 wire behind a beta toggle → Ph 4 harvest+retrain → Ph 5 UI+speech), each with an effort estimate (≈14–22 focused sessions total, 3–6 weeks part-time), a risk column, an explicit failure-modes list with fallbacks, and an efficiency section (everything offline-testable against the replayed Kaggle sequences; `decode-lab.html` for keyboard-speed iteration; one word list two uses; ship behind a toggle).
 - **2026-09-04:** **Folded prior-art tactics into the plan** (after checking Stage 8 isn't a novel idea — Sign2Text, the Google Kaggle comp, and continuous-fingerspelling papers all do variants). Three concrete borrows: (1) **B3 rewritten around the [Google Kaggle ASL Fingerspelling dataset](https://www.kaggle.com/competitions/asl-fingerspelling)** — public MediaPipe landmark sequences from 100+ Deaf signers, drops into our pipeline, fixes M/N/D *and* gives Stage 8 its continuous test set (task: `tools/import-kaggle.html`). (2) **`js/transition.js`** added to Stage 6 follow-up — segment letters by the settle→move→settle rhythm instead of a still hold; the real fix for "Spell mode isn't fluid." (3) **Stage 8 pipeline rewritten** from "segment then correct" to **trie + CTC-collapse + beam search through a lexicon**, with per-letter emission costs weighted by the measured confusion matrix — the lightweight form of what the Kaggle winners do. Prior-art + honest-accuracy notes added to Stage 8.
@@ -89,7 +90,7 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 | 8 Fingerspell → sentence → speech | **planned** | the "slow Google Translate" path — CTC-collapse the letter posteriors, decode through a dictionary **trie + beam search** with confusion-matrix emission costs, assemble + `speechSynthesis` playback + captions. Plain JS + one bundled word list. Needs B3's continuous sequences as a test set. See the Stage 8 section. |
 | Backlog (catch-up with the field) | **not started** | B1 receptive practice · B2 curriculum · B3 Deaf-signer data · B4 word content · B5 accessibility · B6 numbers/variants · B7 accounts · B8 PWA. See the Backlog section. |
 
-**Immediate next (pick one):** (a) **Stage 8** — the fingerspelling → sentence → speech pipeline (the "slow Google Translate" direction the user chose 2026-09-03); (b) Stage 5 live evaluation — log per-letter hit rate on the deployed app, ideally with a second person for the skin-tone check; (c) Backlog items below, in priority order (receptive practice + a real curriculum are the two that move us past the incumbent); (d) Spell-mode timing tuning against real signing.
+**Immediate next:** work the **North star roadmap** (above) in order. **M1 first** — its accessibility pass and `js/transition.js` are the two things that most change how the app *feels*, and `transition.js` also feeds Stage 8. If time is short, take the "fastest path to something worth showing" line at the end of the North star section.
 
 **Known weak letters:** ~~M 85%, N 84%, D 87%~~ **FIXED** — learned refinement heads (`js/heads.js`) lift M→92, N→96, D→97 (held-out), overall 95.9→97.1%. Every letter is now ≥92%. A *single-measurement* tie-breaker (`js/refine.js`) was disproven and stays shelved; the win was a *learned* combination over the full feature vector.
 
@@ -97,20 +98,54 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 
 ---
 
+## North star — showcase a near-final product to RIT / the Deaf community
+
+**Goal (user, 2026-09-04):** build out everything below to a polished, honest, near-final state, then demo it to an **RIT / NTID ASL professor or the Deaf community** — as both a usable tool *and* a credible research direction that could attract mentorship, data access, or collaboration. RIT/NTID is the right audience: PopSign is a Georgia Tech × RIT/NTID project, so there's precedent for exactly this kind of student engagement.
+
+### Milestones (rough order; M1–M3 overlap, M4 is the big one)
+
+| M | Theme | Contents | Effort (sessions) |
+|---|-------|----------|-------------------|
+| **M1** | **Solid + honest foundation** | Stage 5 structured **live per-letter eval** + skin-tone detection check (≥3 signers, varied skin tones — RIT could help source these). `js/transition.js` (rhythm-based letter segmentation — fixes "not fluid"). Spell-mode gesture-threshold tuning. **B5 accessibility pass** — captions on every audio cue, ARIA labels, full keyboard path, high-contrast theme, `prefers-reduced-motion` audit. *Non-negotiable before showing a Deaf audience.* | 6–10 |
+| **M2** | **A real learning tool, not just a recogniser** | **B2 curriculum** — letters grouped by shape/difficulty, unlocked in a teaching order, progress gating; fold Free-pick / A→Z / Challenge into one path. **B1 receptive practice** — "watch the animated hand spell a word → type what you saw" (reuse `reference.createCanonicalPlayer`, difficulty tiers). **B4 curated word content** — themed lists (names, places, everyday words), frequency-ranked; also *is* Stage 8's dictionary. | 10–16 |
+| **M3** | **Data upgrade** | **B3** — `tools/import-kaggle.*`: import the Google Kaggle Deaf-signer landmark sequences; keep `data/fs_sequences.json` as Stage 8's continuous test set; harvest per-letter frames via forced alignment; retrain heads; refresh the confusion matrix. **B6** — digit signs **0–9**: capture tool → data → train → wire in (high community value; needed for phone numbers/addresses). | 8–14 |
+| **M4** | **Stage 8 — fingerspell → sentence → speech** | The full phased build in the Stage 8 section (Ph 0–5): `decode.js` (trie + CTC-collapse + beam + Norvig fallback), `decode-lab.html`, confusion-matrix export, wire behind a "fluid mode (beta)" toggle, raw/split/sentence UI, `speechSynthesis` + captions, per-word "keep as spelled". | 14–22 |
+| **M5** | **Showcase prep** | **B8 PWA** (installs + works offline at the demo). An honest **about page** — what it does, what it doesn't, the Stage 9 direction, credits, "it's open". A demo script + a recorded fallback video. **Reach out to RIT/NTID** — this doubles as Stage 9's "talk to Deaf people first" step. | 4–6 |
+| **→** | **Showcase** | Demo. Then Stage 9 (sequence model for native-speed; context lexicons; **B7** accounts), pursued with whatever mentorship / data / collaboration the showcase generates. | — |
+
+### "Showcase-ready" means
+
+- A–Z **and** 0–9 recognised reliably on careful signing, **validated by a live per-letter eval across ≥3 signers** incl. varied skin tones (not just the builder).
+- A structured practice curriculum with **both productive and receptive** modes.
+- Spell mode → correct spoken sentences on careful spelling of common words, with the raw/split/sentence transparency and per-word override.
+- **Full accessibility**: captions, keyboard-only path, high-contrast, reduced-motion.
+- Installs as a **PWA**, works offline.
+- An **honest about-page**: what it does, what it doesn't (native speed, out-of-vocabulary), the research direction, that it's open source.
+
+### Timeline (part-time solo, learning as you go)
+
+M1+M2 ≈ 1.5–2 months · M3 ≈ 1 month · M4 ≈ 1.5–2 months · M5 ≈ 2 weeks → **roughly 4–6 months to showcase-ready** *without* Stage 9's sequence model. Stage 9 (native-speed continuous recognition) is a further semester and is best done *with* RIT involvement — the showcase is the catalyst for it, not a prerequisite.
+
+### Fastest path to "something worth showing" if time is short
+
+M1's accessibility pass + `transition.js` + `js/decode.js` on typed input (skip the model retrain) + `speechSynthesis` → a demonstrable "spell a sentence, hear it spoken" in ~3–4 weeks. Everything else deepens it.
+
+---
+
 ## Backlog — catching up with the field
 
-From the *Signing to a Webcam* competitive read (2026-09-03). These are things one or more shipping competitors do and we don't. Priority = how much it closes the gap with **Fingerspelling.xyz** (the direct incumbent), not just novelty.
+From the *Signing to a Webcam* competitive read (2026-09-03). Things shipping competitors do and we don't. Every item is now slotted into a **North star milestone (M1–M5)**; priority = how much it matters before the RIT showcase.
 
 | # | Item | Why | Priority |
 |---|------|-----|----------|
-| B1 | **Receptive practice** — a "watch a clip / animation of someone fingerspelling, then type what you saw" mode | Reading fingerspelling is the harder half of the skill and we train none of it (ASL Speed Spell is *entirely* this). Roughly doubles the app's usefulness. Can reuse `reference.createCanonicalPlayer` to animate a word letter-by-letter — no new video assets. | **High** |
-| B2 | **A real curriculum** — letters grouped by shape/difficulty and unlocked in a teaching order, with progress gating | We have modes (Free pick / A→Z / Challenge), not pedagogy. Fingerspelling.xyz opens with A,B,C,E,L,O,V,W,U,Y then widens; Lingvano has a full course spine. | **High** |
-| B3 | **Data from Deaf signers — take the Google Kaggle set** | Current data is grassknoted (Kaggle, mostly hearing) — the M/N/D weakness traces straight to it. **The [Google ASL Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling) competition data is public**: ~3M characters from **100+ Deaf signers**, already **MediaPipe landmark sequences** (not images), each labeled with a real phrase (addresses, phone numbers, names, URLs). Extract the 21 hand points, re-run `normalize.js`, and it drops into our pipeline: fixes M/N/D, and — because it's *continuous* sequences — becomes the test set for Stage 8's segmenter. Recruiting our own signers stays a later option; this is the fast path. **Task:** a `tools/import-kaggle.html` that parses the parquet/CSV → our `{label, v}` rows + a separate `sequences.json` for Stage 8. | **High** |
-| B4 | **Curated word content** — name lists, themed categories, frequency-ranked words, light spaced repetition | Spell mode is free-form with nothing to practise against; feeds B1 and Stage 8. A bundled word-frequency list also *is* Stage 8's dictionary — one asset, two uses. | Med |
-| B5 | **App-level accessibility** — captions on every sound cue, ARIA labels, a full keyboard path, a high-contrast theme, `prefers-reduced-motion` audit | Table stakes for a tool aimed at a Deaf / hard-of-hearing audience; currently partial. | Med |
-| B6 | **Number signs 0–9 + handshape variants** — digits, plus the regional/stylistic variants real signers use for some letters | Extends the alphabet to what people actually fingerspell (phone numbers, addresses). New data collection. | Med |
-| B7 | **Accounts & cross-device progress** | Progress is `localStorage` on one browser. Fine now, a ceiling later. Needs a backend — first real dependency. | Low |
-| B8 | **Installable / offline (PWA)** — service worker, manifest, cache the model + dataset | Already noted as a nice-to-have. Most competitors are installed apps. No new dependency. | Low |
+| B1 | **Receptive practice** — "watch an animated hand spell a word → type what you saw" | Reading fingerspelling is the harder half of the skill and we train none of it (ASL Speed Spell is *entirely* this). Roughly doubles the app's usefulness. Reuse `reference.createCanonicalPlayer` — no new video assets. **Milestone M2.** | **High** |
+| B2 | **A real curriculum** — letters grouped by shape/difficulty, unlocked in a teaching order, with progress gating | We have modes (Free pick / A→Z / Challenge), not pedagogy. Fingerspelling.xyz opens with A,B,C,E,L,O,V,W,U,Y then widens; Lingvano has a full course spine. **Milestone M2.** | **High** |
+| B3 | **Data from Deaf signers — take the Google Kaggle set** | Current data is grassknoted (Kaggle, mostly hearing) — the M/N/D weakness traces straight to it. The [Google ASL Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling) data is public: ~3M characters from **100+ Deaf signers**, already **MediaPipe landmark sequences**, each labeled with a real phrase. Extract the 21 hand points, re-run `normalize.js`: fixes M/N/D, and the *continuous* sequences become Stage 8's test set. **Task:** `tools/import-kaggle.*` → `{label, v}` rows (via forced alignment) + `data/fs_sequences.json`. **Milestone M3.** | **High** |
+| B4 | **Curated word content** — themed lists (names, places, everyday words), frequency-ranked, light spaced repetition | Spell mode is free-form with nothing to practise against; feeds B1 and Stage 8. A bundled word-frequency list also *is* Stage 8's decoder dictionary — one asset, two uses. **Milestone M2.** | Med |
+| B5 | **App-level accessibility** — captions on every sound cue, ARIA labels, a full keyboard path, a high-contrast theme, `prefers-reduced-motion` audit | Table stakes for a tool aimed at a Deaf / hard-of-hearing audience, and non-negotiable before the RIT showcase; currently partial. **Milestone M1.** | **High** |
+| B6 | **Number signs 0–9 + handshape variants** — digits first, then the regional/stylistic letter variants real signers use | Digits are the single most common real-world fingerspelling (phone numbers, addresses) and unlock Stage 8/9's number handling. Best benefit-to-effort item on the list. New data collection + train. **Milestone M3.** | **High** |
+| B7 | **Accounts & cross-device progress** | Progress is `localStorage` on one browser. Fine now, a ceiling later. Needs a backend — first real dependency. Deferred to *after* the showcase (Stage 9 era). | Low |
+| B8 | **Installable / offline (PWA)** — service worker, manifest, cache the model + dataset | Lets the app install and run offline at the demo. No new dependency. **Milestone M5.** | Med |
 
 ---
 
@@ -121,9 +156,9 @@ This plan covers **fingerspelling** (A–Z + J/Z motion letters) from a live web
 
 ## 1. Goal
 
-Given a live webcam feed, detect a hand, classify which letter (A–Z) it's forming, and display it as text overlaid on the video — running entirely in the browser, on desktop and mobile.
+**Original (Stages 1–7, met):** given a live webcam feed, detect a hand, classify which letter (A–Z) it's forming, and display it as text — entirely in the browser, on desktop and mobile. *Definition of done: correct letter within ~½ s for ≥90% of clearly-formed letters.* ✅
 
-**Definition of done:** a person can hold up a letter to their camera on a phone or laptop and see the correct letter appear on screen within roughly half a second, for at least 90% of clearly-formed letters.
+**Now (the North star, 2026-09-04):** grow it into a **near-final, polished, honest product** — a real fingerspelling learning tool (productive + receptive) plus a "spell a message → hear it spoken" bridge — and **showcase it to an RIT / NTID ASL professor or the Deaf community**, as a usable tool and a credible research direction. See the *North star* section above for the milestone roadmap.
 
 ---
 
