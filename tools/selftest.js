@@ -742,6 +742,45 @@ function mkHand() {
     ok("decode: empty / junk input is safe",
       dc.decode("").text === "" && dc.decode([]).text === "");
 
+    // ---- transition.js (rhythm-based letter segmentation) ----
+    const trMod = await import("../js/transition.js");
+    const trHand = (wx, wy) => {
+      const lm = [{ x: wx, y: wy, z: 0 }];
+      for (let f = 0; f < 5; f++) for (let j = 1; j <= 4; j++)
+        lm.push({ x: wx - 0.06 + f * 0.03, y: wy - 0.03 - j * 0.045, z: 0 });
+      return lm;
+    };
+    const trRun = (script) => {
+      const tr = trMod.createTransitionMatcher();
+      let t = 0, wx = 0.5; const emitted = [];
+      for (const seg of script) for (let i = 0; i < seg.frames; i++) {
+        wx += seg.move ? 0.032 : (Math.random() - 0.5) * 0.003;
+        t += 33;
+        tr.push(trHand(wx, 0.6), seg.letter ? { label: seg.letter, confidence: 0.8 } : null, t);
+        const e = tr.read(); if (e) emitted.push(e.letter);
+      }
+      return emitted;
+    };
+    ok("transition: C-A-T settles to three letters",
+      trRun([{ letter: "C", frames: 7 }, { frames: 4, move: true },
+             { letter: "A", frames: 7 }, { frames: 4, move: true },
+             { letter: "T", frames: 7 }]).join("") === "CAT");
+    ok("transition: a doubled letter survives (move between the two B's)",
+      trRun([{ letter: "B", frames: 8 }, { frames: 4, move: true },
+             { letter: "B", frames: 8 }]).join("") === "BB");
+    ok("transition: a long still hold commits once, not repeatedly",
+      trRun([{ letter: "B", frames: 30 }]).join("") === "B");
+    ok("transition: constant fast motion commits nothing",
+      trRun([{ letter: "B", frames: 30, move: true }]).length === 0);
+    ok("transition: low-confidence hold commits nothing", (() => {
+      const tr = trMod.createTransitionMatcher();
+      let t = 0; const e = [];
+      for (let i = 0; i < 20; i++) { t += 33; tr.push(trHand(0.5, 0.6), { label: "M", confidence: 0.3 }, t); if (tr.read()) e.push(1); }
+      return e.length === 0;
+    })());
+    ok("transition: push(null) / reset() don't throw",
+      (() => { try { const tr = trMod.createTransitionMatcher(); tr.push(null, null, 0); tr.reset(); return tr.read() === null; } catch { return false; } })());
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
