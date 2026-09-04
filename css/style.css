@@ -988,6 +988,8 @@ body {
   padding: 0.05rem 0.3rem;
 }
 .sp-fluid-hint { flex-basis: 100%; color: #475569; font-size: 0.74rem; }
+.sp-autospeak { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; color: var(--muted); cursor: pointer; }
+.sp-autospeak input { margin: 0; }
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));

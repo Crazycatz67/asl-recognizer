@@ -145,6 +145,7 @@ const spFluid = $("spFluid");
 const spDecodedRow = $("spDecodedRow");
 const spDecodedText = $("spDecodedText");
 const spSpeak = $("spSpeak");
+const spAutoSpeak = $("spAutoSpeak");
 
 const sound = createSound();
 const fx = createFx();
@@ -252,6 +253,8 @@ let spellClipboard = ""; // last text "grabbed" in spell mode (for the paste ges
 let spellWrist = []; // short wrist-position history — a "hand is still" gate
 let spellSuppressUntil = 0; // block letter commits briefly after a gesture
 let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + decode + speak
+let fluidLastLetterAt = 0; // for auto-speak-on-pause
+let fluidSpoke = false; // already spoke this pause?
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -1094,9 +1097,11 @@ function loop() {
       building ? spellStab.progress.toFixed(2) : "0"
     );
 
-    // fluid mode: decode the raw letter stream -> a clean, speakable sentence
+    // fluid mode: decode the raw letter stream -> a clean, speakable sentence,
+    // and auto-speak it once the signer clearly stops (a ~2.2 s pause)
     if (fluidMode) {
       spDecodedRow.hidden = false;
+      if (res.event === "letter") { fluidLastLetterAt = now; fluidSpoke = false; }
       if (decoder && speller.raw.length && now - lastDecodeAt > 350) {
         lastDecodeAt = now;
         const d = decoder.decode(speller.raw);
@@ -1104,6 +1109,14 @@ function loop() {
         spDecodedText.dataset.fallback = d.fallback ? "1" : "";
       } else if (!speller.raw.length) {
         spDecodedText.textContent = "…";
+      }
+      if (
+        spAutoSpeak?.checked && !fluidSpoke && fluidLastLetterAt &&
+        now - fluidLastLetterAt > 2200 &&
+        spDecodedText.textContent && spDecodedText.textContent !== "…"
+      ) {
+        fluidSpoke = true;
+        speak(spDecodedText.textContent);
       }
     } else {
       spDecodedRow.hidden = true;
