@@ -117,11 +117,14 @@ export function createOverlay(canvas) {
       const tipIdx = MOTION_TIP[letter];
       if (!path || tipIdx == null) return;
       const span = handSpan(lp);
-      const anchor = lp[tipIdx];
+      // STROKE is already wrist-relative (units ~span), so anchor the arc at the
+      // WRIST, not the moving fingertip — J/Z are a wrist rotation, so the wrist
+      // stays roughly put while the hand pivots, keeping the arc steady.
+      const wrist = lp[0];
       const sx = mirror ? -1 : 1; // the stage is selfie-flipped for the front cam
       const P = path.map(([x, y]) => [
-        anchor[0] + (x - path[0][0]) * span * 0.95 * sx,
-        anchor[1] + (y - path[0][1]) * span * 0.95,
+        wrist[0] + x * span * sx,
+        wrist[1] + y * span,
       ]);
 
       ctx.save();

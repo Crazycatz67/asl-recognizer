@@ -831,8 +831,9 @@ function loop() {
   // it doesn't lerp across a re-acquire.
   const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null);
 
-  // J/Z motion buffer — fed every frame (raw landmarks; it does its own scaling)
-  motion.push(hasHand ? result.landmarks[0] : null, now);
+  // J/Z motion buffer — fed the SMOOTHED landmarks so idle jitter doesn't
+  // accumulate into a fake "stroke"
+  motion.push(hand, now);
   const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
 
   // normalize once; reused by the classifier, the practice meter, and the guide
@@ -947,8 +948,8 @@ function loop() {
       letterStat.textContent =
         hasHand && mt
           ? targetLetter === "J"
-            ? `pinky up ${mt.pinkyUp} · path ${mt.pinkyLen} · drop ${mt.pinkyDrop}`
-            : `index up ${mt.indexUp} · path ${mt.indexLen} · ↔ ${mt.indexX} · turns ${mt.rev}`
+            ? `move ${mt.pinkyMove}/1.2 · drop ${mt.pinkyDrop}/0.7`
+            : `move ${mt.indexMove}/1.2 · ↔ ${mt.indexX}/1.6 · turns ${mt.rev}/1`
           : "";
     }
     if (stroke === targetLetter && !rewarded) {

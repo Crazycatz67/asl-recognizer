@@ -54,12 +54,11 @@ export function createMotionMatcher() {
   let buf = [];
   let coolUntil = 0;
 
-  const pathLen = (pts) => {
-    let L = 0;
-    for (let i = 1; i < pts.length; i++)
-      L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    return L;
-  };
+  // jitter-immune: farthest the tip ever got from where it started
+  const maxExcursion = (pts) =>
+    Math.max(...pts.map((q) => Math.hypot(q[0] - pts[0][0], q[1] - pts[0][1])));
+  const range = (pts, ax) =>
+    Math.max(...pts.map((q) => q[ax])) - Math.min(...pts.map((q) => q[ax]));
 
   const resample = (pts, n) => {
     // arc-length resample a polyline to n points
@@ -90,13 +89,13 @@ export function createMotionMatcher() {
     if (buf.length < 3) return null;
     const p = buf.map((f) => f.pinky);
     const ix = buf.map((f) => f.index);
-    const pDrop = Math.max(...p.map((q) => q[1])) - p[0][1];
-    const iPath = resample(ix, 18);
-    let iRev = 0, iX = 0, lastDir = 0;
+    const pDrop = Math.max(...p.map((q) => q[1])) - p[0][1]; // how far DOWN it got
+    // real back-and-forth on a resampled index path (big step -> ignore jitter)
+    const iPath = resample(ix, 12);
+    let iRev = 0, lastDir = 0;
     for (let i = 1; i < iPath.length; i++) {
       const dx = iPath[i][0] - iPath[i - 1][0];
-      iX += Math.abs(dx);
-      const d = dx > 0.015 ? 1 : dx < -0.015 ? -1 : 0;
+      const d = dx > 0.12 ? 1 : dx < -0.12 ? -1 : 0;
       if (d && lastDir && d !== lastDir) iRev++;
       if (d) lastDir = d;
     }
@@ -105,10 +104,10 @@ export function createMotionMatcher() {
       ms: Math.round(buf.at(-1).t - buf[0].t),
       pinkyUp: +(buf.filter((f) => f.pinkyUp).length / buf.length).toFixed(2),
       indexUp: +(buf.filter((f) => f.indexUp).length / buf.length).toFixed(2),
-      pinkyLen: +pathLen(p).toFixed(2),
+      pinkyMove: +maxExcursion(p).toFixed(2), // farthest the pinky tip travelled
       pinkyDrop: +pDrop.toFixed(2),
-      indexLen: +pathLen(ix).toFixed(2),
-      indexX: +iX.toFixed(2),
+      indexMove: +maxExcursion(ix).toFixed(2),
+      indexX: +range(ix, 0).toFixed(2), // horizontal extent of the index tip
       rev: iRev,
     };
   }
@@ -145,15 +144,27 @@ export function createMotionMatcher() {
       if (now - buf[0].t < 260) return null;
       const mtr = computeMetrics();
       if (!mtr) return null;
-      const pinkyMoved = mtr.pinkyLen > mtr.indexLen;
+      const pinkyMoved = mtr.pinkyMove > mtr.indexMove;
 
-      // --- J: pinky-ish, tip travels a fair bit and ends up lower ---
-      if ((mtr.pinkyUp >= 0.25 || pinkyMoved) && mtr.pinkyLen > 0.7 && mtr.pinkyDrop > 0.2) {
+      // --- J: the pinky tip travels a real distance AND ends up notably lower.
+      // A held I-hand has pinkyMove ~0.3 (jitter) and pinkyDrop ~0.2, so the
+      // 1.2 / 0.7 bars only clear on an actual swoosh.
+      if (
+        (mtr.pinkyUp >= 0.3 || pinkyMoved) &&
+        mtr.pinkyMove > 1.2 &&
+        mtr.pinkyDrop > 0.7
+      ) {
         coolUntil = now + COOLDOWN_MS;
         return "J";
       }
-      // --- Z: index-ish, tip travels horizontally with >=1 direction change ---
-      if ((mtr.indexUp >= 0.25 || !pinkyMoved) && mtr.indexLen > 0.7 && mtr.indexX > 0.6 && mtr.rev >= 1) {
+      // --- Z: the index tip sweeps a wide horizontal range with a real
+      // back-and-forth (>=1 reversal on the resampled path).
+      if (
+        (mtr.indexUp >= 0.3 || !pinkyMoved) &&
+        mtr.indexMove > 1.2 &&
+        mtr.indexX > 1.6 &&
+        mtr.rev >= 1
+      ) {
         coolUntil = now + COOLDOWN_MS;
         return "Z";
       }
