@@ -100,7 +100,7 @@ _Last updated 2026-09-04. This block is the fast catch-up after a context reset;
 | 8 Fingerspell → sentence → speech | **planned** | the "slow Google Translate" path — CTC-collapse the letter posteriors, decode through a dictionary **trie + beam search** with confusion-matrix emission costs, assemble + `speechSynthesis` playback + captions. Plain JS + one bundled word list. Needs B3's continuous sequences as a test set. See the Stage 8 section. |
 | Backlog (catch-up with the field) | **B1 ✓ · B2 ✓ · B5 v1 ✓** | **B1 receptive practice** (Read mode) and **B2 curriculum** (Read-mode Course: teaching-order tiers + progress gating) shipped; B5 accessibility v1 shipped. Remaining: B3 Deaf-signer data · B4 word content + Spell wiring · B6 numbers/variants · B7 accounts · B8 PWA. See the Backlog section. |
 
-**Immediate next:** work the **North star roadmap** (above) in order. **M1 first** — its accessibility pass and `js/transition.js` are the two things that most change how the app *feels*, and `transition.js` also feeds Stage 8. If time is short, take the "fastest path to something worth showing" line at the end of the North star section.
+**Immediate next:** see **North star → Progress check (2026-09-04)** for the thought-backwards analysis. Short version: (1) **user runs one webcam session** to verify fluid mode before M4 is built on it; (2) camera-free next item is **B4 — word content + Spell practice targets** (finishes M2); (3) then the cheap M5 items (about-page, PWA); (4) camera-bound work (productive-curriculum wiring, B6 digits) waits for the webcam session.
 
 **Known weak letters:** ~~M 85%, N 84%, D 87%~~ **FIXED** — learned refinement heads (`js/heads.js`) lift M→92, N→96, D→97 (held-out), overall 95.9→97.1%. Every letter is now ≥92%. A *single-measurement* tie-breaker (`js/refine.js`) was disproven and stays shelved; the win was a *learned* combination over the full feature vector.
 
@@ -127,12 +127,33 @@ So: **data + better architecture, not data alone.** The reorder that follows pul
 | M | Theme | Contents | Effort (sessions) |
 |---|-------|----------|-------------------|
 | **M0** | **Kaggle sequences (the cheap half of B3)** | One offline script: pull ~300 Kaggle sequences → `data/fs_sequences.json` (per-frame 21-hand landmarks + phrase). *No retrain, no harvest yet.* This is the replay test set that lets M1's `transition.js` and M4's `decode.js` be tuned at the keyboard instead of the webcam. | 1–2 |
-| **M1** | **Solid + honest foundation** | `js/transition.js` (rhythm-based letter segmentation — the real "not fluid" fix; tuned by replaying `fs_sequences.json`). Stage 5 structured **live per-letter eval** + skin-tone check (≥3 signers — RIT could help source). Spell-mode gesture tuning. **B5 accessibility pass** — captions on every audio cue, ARIA labels, full keyboard path, high-contrast theme, `prefers-reduced-motion` audit. *Non-negotiable before showing a Deaf audience.* | 6–10 |
-| **M2** | **A real learning tool, not just a recogniser** | **B2 curriculum** — letters grouped by shape/difficulty, unlocked in a teaching order, progress gating; fold Free-pick / A→Z / Challenge into one path. **B1 receptive practice** — "watch the animated hand spell a word → type what you saw" (reuse `reference.createCanonicalPlayer`, difficulty tiers). **B4 curated word content** — themed lists (names, places, everyday words), frequency-ranked; also *is* Stage 8's dictionary. | 10–16 |
+| **M1** | **Solid + honest foundation** | `js/transition.js` **✅ built** (rhythm-based segmentation; synthetic-tested) — ⚠️ **not tuned against real signing, never run on a live webcam**. Stage 5 structured **live per-letter eval** + skin-tone check (≥3 signers — RIT could help source) — **not started, needs people**. Spell-mode gesture tuning — **pending a webcam session**. **B5 accessibility pass ✅ v1** (focus ring, `prefers-contrast`, Escape, ARIA, reduced-motion); v2 owed: in-app high-contrast *toggle*, screen-reader walkthrough, transient-sound caption audit. | 6–10 |
+| **M2** | **A real learning tool, not just a recogniser** | **B2 curriculum ✅** — Read-mode Course: 5 handshape tiers, teaching order, 10-correct gate, per-tier progress. ⚠️ *receptive only* — the productive side (Practice mode following the same tier order + gating) is still owed and is camera-bound. **B1 receptive practice ✅** — Read mode. **B4 curated word content** — themed lists, frequency-ranked; also *is* Stage 8's dictionary — **next camera-free item**. | 10–16 |
 | **M3** | **Full data upgrade** | **B3 (rest)** — harvest per-letter frames from the Kaggle sequences via forced alignment; retrain heads; refresh the confusion matrix (feeds M4). **B6** — digit signs **0–9**: capture tool → data → train → wire in (high community value; needed for phone numbers/addresses). | 7–12 |
 | **M4** | **Stage 8 — fingerspell → sentence → speech** | The full phased build in the Stage 8 section (Ph 0–5): `decode.js` (trie + CTC-collapse + beam + Norvig fallback), `decode-lab.html`, confusion-matrix export, wire behind a "fluid mode (beta)" toggle, raw/split/sentence UI, `speechSynthesis` + captions, per-word "keep as spelled". | 14–22 |
 | **M5** | **Showcase prep** | **B8 PWA** (installs + works offline at the demo). An honest **about page** — what it does, what it doesn't, the Stage 9 direction, credits, "it's open". A demo script + a recorded fallback video. **Reach out to RIT/NTID** — this doubles as Stage 9's "talk to Deaf people first" step. | 4–6 |
 | **→** | **Showcase** | Demo. Then Stage 9 (sequence model for native-speed; context lexicons; **B7** accounts), pursued with whatever mentorship / data / collaboration the showcase generates. | — |
+
+### Progress check — thinking backwards from "showcase-ready" (2026-09-04)
+
+Working back from the 6 showcase-ready criteria to where we actually stand:
+
+| Showcase-ready criterion | State | The real gap |
+|---|---|---|
+| A–Z **and 0–9** reliable, validated across ≥3 signers, varied skin tones | **partial** | A–Z is solid on the *builder* (97.1% held-out, ~25 live sessions). **0–9 don't exist** (B6). **Multi-signer eval not started** — needs people, not code. |
+| Curriculum, productive **and** receptive | **~80%** | Receptive ✅ (Read mode). Course structure ✅ (B2). **Productive side not wired** — Practice mode doesn't follow the tier order / gating yet; camera-bound. |
+| Spell → correct spoken sentences, with transparency + per-word override | **built, unverified** | `decode.js` ✅, `transition.js` ✅, fluid mode wired ✅, back half integration-tested ✅. **The front half (webcam → HandLandmarker → classifier → transition) has never run live.** This is the biggest single risk in the whole plan. |
+| Full accessibility | **~70%** | B5 v1 ✅. Owed: in-app high-contrast toggle, SR walkthrough, transient-sound caption audit. ~1 focused session. |
+| Installs as PWA, offline | **not started** | B8. ~1 session, no dependency, low risk. |
+| Honest about-page | **not started** | ~1 session, pure content. Writing it also forces an honest what-works/what-doesn't inventory. |
+
+**Are we working efficiently?** Throughput is good — B1, B2, B5 v1, `decode.js`, `transition.js` all shipped in a short span, all camera-free per the working constraint. **The risk is a growing "built but unverified" pile sitting on one unproven assumption: that fluid mode works on a real webcam.** Everything in M4 (14–22 sessions) is stacked on that. The Kaggle replay couldn't test it (domain gap). So the highest-leverage action available is not more code — it's **one 30-minute webcam session by the user on the deployed site** to confirm or break fluid mode *before* M4 is built on it.
+
+**Recommended order from here:**
+1. **User action — webcam session.** Deployed site → Spell mode → turn on "Fluid + speak (beta)" → spell a short sentence slowly → report: do letters land? does the "reads as" line form words? does it speak? This de-risks M4 and tells us whether `transition.js` thresholds need real-signing tuning.
+2. **Camera-free, solo — B4: word content + Spell-mode practice targets.** Completes M2, upgrades `decode.js`'s lexicon, gives the curriculum its content layer. Low risk.
+3. **Camera-free, solo — M5 cheap items: about-page + B8 PWA.** No dependencies; the about-page doubles as an honest-inventory exercise and as Stage 9's "talk to Deaf people first" groundwork.
+4. **After the webcam session** — productive-curriculum wiring (Practice follows the Course tiers) and B6 digit capture, both camera-bound, both now de-risked.
 
 ### "Showcase-ready" means
 
