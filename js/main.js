@@ -119,6 +119,7 @@ const spClear = $("spClear");
 const spCopy = $("spCopy");
 const spPaste = $("spPaste");
 const spGrid = $("spGrid");
+const spMetrics = $("spMetrics");
 
 const sound = createSound();
 const fx = createFx();
@@ -874,8 +875,10 @@ function loop() {
   // accumulate into a fake "stroke"
   motion.push(hand, now);
   const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
-  swipe.push(hand, now); // spell mode: open-hand sideways sweep = delete
-  twohand.push(result.landmarks, now); // spell mode: two-hand copy / paste
+  // spell-mode gestures use RAW landmarks — EMA smoothing damps exactly the
+  // fast motion a swipe is made of
+  swipe.push(hasHand ? result.landmarks[0] : null, now); // open-hand sideways sweep = delete
+  twohand.push(result.landmarks, now); // two-hand copy / paste
 
   // normalize once; reused by the classifier, the practice meter, and the guide
   let vec = null;
@@ -1026,6 +1029,17 @@ function loop() {
       "--p",
       building ? spellStab.progress.toFixed(2) : "0"
     );
+
+    // live gesture readout — shows what the swipe detector is measuring so a
+    // swipe that won't register can be tuned ( needs sideways ≥ 1.1, > up/down )
+    if (spMetrics && now - lastHintAt >= HINT_INTERVAL) {
+      lastHintAt = now;
+      const sm = swipe.metrics();
+      spMetrics.textContent =
+        hasHand && sm
+          ? `swipe: sideways ${sm.dx}/1.1 · up-down ${sm.dy} · open ${sm.open}`
+          : "";
+    }
   }
 
   // challenge: you advance when the RECOGNISER reads your hand as the target

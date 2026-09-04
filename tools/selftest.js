@@ -441,6 +441,24 @@ function mkHand() {
       });
       return out === "delete";
     })());
+    ok("swipe: a moderately-open hand (not fully fanned) still fires", (() => {
+      // tips closer together than openHand — fingers apart but not maximally
+      const looseOpen = (wx, wy) => {
+        const lm = openHand(wx, wy);
+        lm[8] = { x: wx - 0.08, y: wy - 0.27, z: 0 };
+        lm[12] = { x: wx - 0.03, y: wy - 0.31, z: 0 };
+        lm[16] = { x: wx + 0.02, y: wy - 0.30, z: 0 };
+        lm[20] = { x: wx + 0.08, y: wy - 0.24, z: 0 };
+        return lm;
+      };
+      const sw = swMod.createSwipeMatcher();
+      let out = null;
+      [0.32, 0.40, 0.48, 0.56, 0.64, 0.70].forEach((wx, i) => {
+        sw.push(looseOpen(wx, 0.6), i * 40);
+        out = sw.match(i * 40) || out;
+      });
+      return out === "delete";
+    })());
     ok("swipe: a slow open drift does nothing", (() => {
       const sw = swMod.createSwipeMatcher();
       let out = null;

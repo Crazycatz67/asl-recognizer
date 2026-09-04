@@ -119,14 +119,23 @@
           <button type="button" id="spCopy">Copy</button>
           <button type="button" id="spPaste">Paste</button>
         </div>
+        <p class="sp-metrics" id="spMetrics"></p>
       </div>
 
       <details class="sp-fold" id="spGestures" open>
-        <summary>Hand gestures — how to do them</summary>
+        <summary>Hand gestures — how they work</summary>
         <div class="g-list">
           <div class="g-row">
+            <span class="g-anim g-hold" aria-hidden="true"><span class="g-ring"></span><span class="h">✋</span></span>
+            <span><b>Add a letter</b> — form the handshape and <b>hold it still</b> until the ring fills (about half a second).</span>
+          </div>
+          <div class="g-row">
+            <span class="g-anim g-space" aria-hidden="true"><span class="h">🖐️</span><span class="g-gap">_</span></span>
+            <span><b>Space</b> between words — <b>lower your hand and pause</b> about a second. Or tap <b>Space</b>. (There's no hand sign for a space.)</span>
+          </div>
+          <div class="g-row">
             <span class="g-anim g-delete" aria-hidden="true"><span class="g-track"></span><span class="h">🖐️</span></span>
-            <span><b>Delete</b> a letter — sweep <b>one</b> open, spread hand quickly sideways, like wiping a whiteboard.</span>
+            <span><b>Delete</b> a letter — sweep <b>one</b> open hand quickly sideways, like wiping a whiteboard.</span>
           </div>
           <div class="g-row">
             <span class="g-anim g-copy" aria-hidden="true"><span class="h h1">🖐️</span><span class="h h2">🖐️</span></span>
@@ -136,7 +145,7 @@
             <span class="g-anim g-paste" aria-hidden="true"><span class="h h1">🖐️</span><span class="h h2">🖐️</span></span>
             <span><b>Paste</b> — pull <b>both</b> open hands apart, like setting the text back down.</span>
           </div>
-          <p class="g-note">Every gesture needs the fingers <b>spread apart</b> — a letter shape won't trigger them.</p>
+          <p class="g-note">Delete, Copy and Paste need an <b>open</b> hand — a letter shape won't trigger them.</p>
         </div>
       </details>
 

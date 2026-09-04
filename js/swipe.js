@@ -1,17 +1,17 @@
-// A deliberate "wipe" gesture for Spell mode: an OPEN, SPREAD hand sweeping
-// quickly sideways deletes the last character — like wiping a whiteboard.
+// A deliberate "wipe" gesture for Spell mode: an open hand sweeping sideways
+// deletes the last character — like wiping a whiteboard.
 //
-// The open-and-spread requirement is what keeps it clear of normal
-// fingerspelling: letters are made with the fingers together or curled and the
-// hand moves slowly between them, so "all five fingers fanned out + a fast
-// horizontal sweep" is a signature nothing else in spelling produces.
+// "hand roughly open + a clear, fast, sideways travel" is the signature.
+// Fingerspelling keeps the fingers together or curled and moves the hand
+// slowly between shapes, so it doesn't produce this.
 //
 //   const sw = createSwipeMatcher();
-//   sw.push(landmarks, now);          // every frame; pass null on a lost hand
+//   sw.push(landmarks, now);          // every frame (RAW landmarks); null on a lost hand
 //   sw.match(now) -> "delete" | null  // fires once, then arms a cooldown
 
-const WINDOW_MS = 440; // only the last ~0.44 s of motion is considered
+const WINDOW_MS = 650; // consider the last ~0.65 s of motion
 const COOLDOWN_MS = 650; // one sweep = one delete
+const KEEP_ON_GAP_MS = 450; // a fast swipe that clips the frame edge still evaluates
 const MIN_FRAMES = 4;
 
 const TIPS = [8, 12, 16, 20];
@@ -24,18 +24,21 @@ function spanOf(lm) {
   return Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
 }
 
-// all four fingers extended AND fanned apart (a "5", not a flat "B")
-function isSpreadOpen(lm, span) {
+// roughly an open hand: at least 3 of the 4 fingers extended, with some spread
+// (loose — during a fast sweep MediaPipe's finger landmarks smear)
+function isOpenish(lm, span) {
+  let ext = 0;
   for (let i = 0; i < 4; i++) {
     const t = lm[TIPS[i]], m = lm[MCPS[i]];
-    if (Math.hypot(t.x - m.x, t.y - m.y) / span < 0.85) return false; // curled
+    if (Math.hypot(t.x - m.x, t.y - m.y) / span > 0.7) ext++;
   }
+  if (ext < 3) return false;
   let gaps = 0;
   for (let i = 0; i < 3; i++) {
     const a = lm[TIPS[i]], b = lm[TIPS[i + 1]];
     gaps += Math.hypot(a.x - b.x, a.y - b.y) / span;
   }
-  return gaps > 0.9; // together ~0.3, fanned ~1.2+
+  return gaps > 0.5;
 }
 
 export function createSwipeMatcher() {
@@ -60,7 +63,7 @@ export function createSwipeMatcher() {
 
     push(landmarks, now) {
       if (!landmarks || landmarks.length < 21) {
-        if (now - (buf.at(-1)?.t ?? 0) > 200) buf = [];
+        if (now - (buf.at(-1)?.t ?? 0) > KEEP_ON_GAP_MS) buf = [];
         return;
       }
       const span = spanOf(landmarks);
@@ -69,33 +72,34 @@ export function createSwipeMatcher() {
         x: landmarks[0].x,
         y: landmarks[0].y,
         span,
-        open: isSpreadOpen(landmarks, span),
+        open: isOpenish(landmarks, span),
       });
       while (buf.length && now - buf[0].t > WINDOW_MS) buf.shift();
     },
 
     match(now) {
       if (now < coolUntil || buf.length < MIN_FRAMES) return null;
-      if (now - buf[0].t < 140) return null;
+      if (now - buf[0].t < 120) return null;
       const openFrac = buf.filter((f) => f.open).length / buf.length;
-      if (openFrac < 0.7) return null;
+      if (openFrac < 0.5) return null;
       const span = avgSpan();
       const dx = extent("x") / span; // horizontal travel, in hand-spans
       const dy = extent("y") / span;
-      // wide, clearly horizontal, and fast (the whole thing fits the window)
-      if (dx > 1.6 && dx > dy * 2.2) {
+      // wide-ish and clearly more sideways than up/down
+      if (dx > 1.1 && dx > dy * 1.6) {
         coolUntil = now + COOLDOWN_MS;
         return "delete";
       }
       return null;
     },
 
-    // live numbers for an on-screen hint / tuning
+    // live numbers for an on-screen readout / tuning
     metrics() {
       if (buf.length < 2) return null;
       const span = avgSpan();
       return {
-        openFrac: +(buf.filter((f) => f.open).length / buf.length).toFixed(2),
+        frames: buf.length,
+        open: +(buf.filter((f) => f.open).length / buf.length).toFixed(2),
         dx: +(extent("x") / span).toFixed(2),
         dy: +(extent("y") / span).toFixed(2),
       };

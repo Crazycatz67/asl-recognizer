@@ -868,6 +868,36 @@ body {
   50%       { transform: translateX(-26px); opacity: 1; }
   62%, 100% { transform: translateX(-26px); opacity: 0; }
 }
+/* add a letter: hand still, a ring fills around it */
+.g-hold .g-ring {
+  --p: 0;
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, #0b1220 76%, transparent 78%),
+    conic-gradient(var(--accent) calc(var(--p) * 360deg), #33415577 0);
+  animation: g-fill 2s ease-in-out infinite;
+}
+@keyframes g-fill { 0% { --p: 0; } 65%, 100% { --p: 1; } }
+/* space: hand drops, a gap mark appears */
+.g-space .h { animation: g-drop 2s ease-in-out infinite; }
+@keyframes g-drop {
+  0%, 12%  { transform: translateY(-6px); opacity: 1; }
+  42%      { transform: translateY(13px); opacity: 1; }
+  56%      { transform: translateY(13px); opacity: 0; }
+  100%     { transform: translateY(-6px); opacity: 0; }
+}
+.g-space .g-gap {
+  position: absolute;
+  bottom: 7px;
+  font: 800 15px ui-monospace, monospace;
+  color: var(--accent);
+  opacity: 0;
+  animation: g-gap 2s ease-in-out infinite;
+}
+@keyframes g-gap { 0%, 44% { opacity: 0; } 58%, 88% { opacity: 1; } 100% { opacity: 0; } }
 .g-copy .h1  { animation: g-in-l 2.1s ease-in-out infinite; }
 .g-copy .h2  { animation: g-in-r 2.1s ease-in-out infinite; }
 .g-paste .h1 { animation: g-out-l 2.1s ease-in-out infinite; }
@@ -879,13 +909,23 @@ body {
 .g-note { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
 .g-note b { color: #cbd5e1; }
 @media (prefers-reduced-motion: reduce) {
-  .g-anim .h { animation: none !important; }
+  .g-anim .h, .g-ring, .g-gap { animation: none !important; }
   .g-delete .h { transform: translateX(-14px); opacity: 1; }
   .g-copy .h1  { transform: translateX(-3px); }
   .g-copy .h2  { transform: translateX(3px); }
   .g-paste .h1 { transform: translateX(-20px); }
   .g-paste .h2 { transform: translateX(20px); }
+  .g-hold .g-ring { --p: 0.6; }
+  .g-space .h { transform: translateY(6px); opacity: 1; }
+  .g-space .g-gap { opacity: 1; }
 }
+
+.sp-metrics {
+  margin: 0.1rem 0 0;
+  font: 500 0.72rem ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--muted);
+}
+.sp-metrics:empty { display: none; }
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
