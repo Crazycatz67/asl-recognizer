@@ -825,6 +825,67 @@ body {
   line-height: 1.4;
 }
 .sp-steps b { color: var(--fg); }
+
+/* animated gesture demos */
+.g-list {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.4rem 0.7rem 0.7rem;
+  color: #cbd5e1;
+  line-height: 1.35;
+}
+.g-row { display: flex; align-items: center; gap: 0.6rem; }
+.g-row b { color: var(--fg); }
+.g-anim {
+  position: relative;
+  flex: none;
+  width: 88px;
+  height: 52px;
+  border-radius: 8px;
+  background: #0b1220;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.g-anim .h {
+  position: absolute;
+  font-size: 24px;
+  line-height: 1;
+  filter: grayscale(0.15);
+}
+.g-track {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #33415580 0 4px, transparent 4px 8px);
+}
+.g-delete .h { animation: g-swipe 1.8s ease-in-out infinite; }
+@keyframes g-swipe {
+  0%        { transform: translateX(26px); opacity: 0; }
+  12%       { opacity: 1; }
+  50%       { transform: translateX(-26px); opacity: 1; }
+  62%, 100% { transform: translateX(-26px); opacity: 0; }
+}
+.g-copy .h1  { animation: g-in-l 2.1s ease-in-out infinite; }
+.g-copy .h2  { animation: g-in-r 2.1s ease-in-out infinite; }
+.g-paste .h1 { animation: g-out-l 2.1s ease-in-out infinite; }
+.g-paste .h2 { animation: g-out-r 2.1s ease-in-out infinite; }
+@keyframes g-in-l  { 0%, 100% { transform: translateX(-22px); } 45%, 68% { transform: translateX(-3px); } }
+@keyframes g-in-r  { 0%, 100% { transform: translateX(22px); }  45%, 68% { transform: translateX(3px); } }
+@keyframes g-out-l { 0%, 100% { transform: translateX(-3px); }  45%, 68% { transform: translateX(-22px); } }
+@keyframes g-out-r { 0%, 100% { transform: translateX(3px); }   45%, 68% { transform: translateX(22px); } }
+.g-note { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--muted); }
+.g-note b { color: #cbd5e1; }
+@media (prefers-reduced-motion: reduce) {
+  .g-anim .h { animation: none !important; }
+  .g-delete .h { transform: translateX(-14px); opacity: 1; }
+  .g-copy .h1  { transform: translateX(-3px); }
+  .g-copy .h2  { transform: translateX(3px); }
+  .g-paste .h1 { transform: translateX(-20px); }
+  .g-paste .h2 { transform: translateX(20px); }
+}
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));

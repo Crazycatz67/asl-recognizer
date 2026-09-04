@@ -34,7 +34,13 @@ $mime = @{
 
 try {
   while ($listener.IsListening) {
-    $ctx = $listener.GetContext()
+    # nothing inside the loop may kill it — GetContext included
+    try {
+      $ctx = $listener.GetContext()
+    } catch {
+      Write-Host "  ! accept error: $($_.Exception.Message)" -ForegroundColor DarkYellow
+      continue
+    }
     # one bad request (client disconnect, HEAD, odd headers) must never kill the
     # loop — handle each request in its own try/catch and keep serving
     try {
