@@ -1035,6 +1035,8 @@ function loop() {
       const e = transition.read();
       if (e && now >= spellSuppressUntil) {
         speller.addLetter(e.letter, e.conf);
+        fluidLastLetterAt = now; // for auto-speak-on-pause
+        fluidSpoke = false;
         sound.lock?.();
         buzz(8);
       }
@@ -1101,7 +1103,6 @@ function loop() {
     // and auto-speak it once the signer clearly stops (a ~2.2 s pause)
     if (fluidMode) {
       spDecodedRow.hidden = false;
-      if (res.event === "letter") { fluidLastLetterAt = now; fluidSpoke = false; }
       if (decoder && speller.raw.length && now - lastDecodeAt > 350) {
         lastDecodeAt = now;
         const d = decoder.decode(speller.raw);
@@ -1428,6 +1429,9 @@ spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
 spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); });
 spClear.addEventListener("click", () => {
   speller?.clear();
+  transition.reset();
+  fluidSpoke = false;
+  fluidLastLetterAt = 0;
   syncSpellText();
   spDecodedText.textContent = "…";
 });

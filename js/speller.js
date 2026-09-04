@@ -42,6 +42,7 @@ export function createSpeller({
     last = letter;
     armed = false;
     accepted = false;
+    offSince = 0; // a letter was just formed — restart the word-break clock
     return "letter";
   }
 

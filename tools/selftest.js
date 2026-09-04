@@ -811,6 +811,44 @@ function mkHand() {
     ok("transition: push(null) / reset() don't throw",
       (() => { try { const tr = trMod.createTransitionMatcher(); tr.push(null, null, 0); tr.reset(); return tr.read() === null; } catch { return false; } })());
 
+    // ---- fluid pipeline: transition -> speller.addLetter -> decode (the Spell
+    // mode "fluid + speak" wiring, end to end, with a clean prediction stream
+    // that simulates a good webcam) ----
+    {
+      const stillHand = (wx) => { const lm = [{ x: wx, y: 0.6, z: 0 }];
+        for (let f = 0; f < 5; f++) for (let j = 1; j <= 4; j++)
+          lm.push({ x: wx - 0.06 + f * 0.03, y: 0.57 - j * 0.045, z: 0 }); return lm; };
+      const runFluid = (word, lexWords) => {
+        const tr = trMod.createTransitionMatcher();
+        const sp = spMod.createSpeller();
+        const dec = dcMod.createDecoder(dcMod.buildLexicon(lexWords));
+        let t = 0, wx = 0.5;
+        const feed = (label, conf, n, move) => {
+          for (let i = 0; i < n; i++) {
+            wx += move ? 0.032 : (Math.random() - 0.5) * 0.003;
+            t += 33;
+            tr.push(stillHand(wx), label ? { label, confidence: conf } : null, t);
+            const e = tr.read();
+            if (e) sp.addLetter(e.letter, e.conf);
+            sp.feed({ holding: false, letter: null, handPresent: true, moved: false, now: t });
+          }
+        };
+        for (let k = 0; k < word.length; k++) {
+          if (k > 0) feed(null, 0.2, 4, true); // transition between letters
+          feed(word[k], 0.9, 8, false); // hold the letter
+        }
+        feed(null, 0.2, 40, false); // long pause -> commit the word
+        return { raw: sp.raw.map((r) => r.letter).join(""), text: sp.text.trim(), decoded: dec.decode(sp.raw).text };
+      };
+      const r1 = runFluid("HELLO", "hello 90\nworld 80\nhell 5\nhe 40");
+      ok("fluid: transition -> speller -> raw stream reconstructs the word",
+        r1.raw === "HELLO", JSON.stringify(r1));
+      ok("fluid: a pause commits the word to the transcript", r1.text === "HELLO");
+      ok("fluid: the decoder produces the word", r1.decoded === "hello");
+      const r2 = runFluid("CAT", "cat 90\ncar 40");
+      ok("fluid: no-double word round-trips (CAT)", r2.raw === "CAT" && r2.decoded === "cat");
+    }
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
