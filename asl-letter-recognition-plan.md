@@ -102,13 +102,24 @@ _Last updated 2026-09-04. This block is the fast catch-up after a context reset;
 
 **Goal (user, 2026-09-04):** build out everything below to a polished, honest, near-final state, then demo it to an **RIT / NTID ASL professor or the Deaf community** — as both a usable tool *and* a credible research direction that could attract mentorship, data access, or collaboration. RIT/NTID is the right audience: PopSign is a Georgia Tech × RIT/NTID project, so there's precedent for exactly this kind of student engagement.
 
-### Milestones (rough order; M1–M3 overlap, M4 is the big one)
+### What the Kaggle data upgrade fixes — and what it doesn't
+
+Pulling the Google Kaggle Deaf-signer data (B3) is high-value and should come **early** — but it is not a substitute for the architecture work:
+
+- **Better letters, yes.** Deaf-signer data + a harvest pass fixes M/N/D and improves generalisation. Each *frame's* guess gets better.
+- **Fluency ("not fluid"), no — that's architecture, not data.** The current pipeline is per-frame kNN → stabiliser (needs N agreeing held frames) → commit. At any real speed the hand never holds a shape for N frames, so more data doesn't help: the *trigger* is wrong. `js/transition.js` changes the trigger from "held still" to "settled after a move" — that's the fix, and it needs a heuristic, not the dataset. (It *does* benefit from the Kaggle sequences as an offline test set.)
+- **Native / conversational speed, only via a sequence model.** A model that ingests a window of frames and outputs a letter sequence (CTC) *learns the transitions*; a frame classifier can't, no matter the data. That's Stage 9, and *there* the Kaggle data is the fuel.
+
+So: **data + better architecture, not data alone.** The reorder that follows pulls the *cheap half* of B3 (just the sequence file) to the front because it's the test harness for `transition.js` and `decode.js`.
+
+### Milestones (rough order; M0–M3 overlap, M4 is the big one)
 
 | M | Theme | Contents | Effort (sessions) |
 |---|-------|----------|-------------------|
-| **M1** | **Solid + honest foundation** | Stage 5 structured **live per-letter eval** + skin-tone detection check (≥3 signers, varied skin tones — RIT could help source these). `js/transition.js` (rhythm-based letter segmentation — fixes "not fluid"). Spell-mode gesture-threshold tuning. **B5 accessibility pass** — captions on every audio cue, ARIA labels, full keyboard path, high-contrast theme, `prefers-reduced-motion` audit. *Non-negotiable before showing a Deaf audience.* | 6–10 |
+| **M0** | **Kaggle sequences (the cheap half of B3)** | One offline script: pull ~300 Kaggle sequences → `data/fs_sequences.json` (per-frame 21-hand landmarks + phrase). *No retrain, no harvest yet.* This is the replay test set that lets M1's `transition.js` and M4's `decode.js` be tuned at the keyboard instead of the webcam. | 1–2 |
+| **M1** | **Solid + honest foundation** | `js/transition.js` (rhythm-based letter segmentation — the real "not fluid" fix; tuned by replaying `fs_sequences.json`). Stage 5 structured **live per-letter eval** + skin-tone check (≥3 signers — RIT could help source). Spell-mode gesture tuning. **B5 accessibility pass** — captions on every audio cue, ARIA labels, full keyboard path, high-contrast theme, `prefers-reduced-motion` audit. *Non-negotiable before showing a Deaf audience.* | 6–10 |
 | **M2** | **A real learning tool, not just a recogniser** | **B2 curriculum** — letters grouped by shape/difficulty, unlocked in a teaching order, progress gating; fold Free-pick / A→Z / Challenge into one path. **B1 receptive practice** — "watch the animated hand spell a word → type what you saw" (reuse `reference.createCanonicalPlayer`, difficulty tiers). **B4 curated word content** — themed lists (names, places, everyday words), frequency-ranked; also *is* Stage 8's dictionary. | 10–16 |
-| **M3** | **Data upgrade** | **B3** — `tools/import-kaggle.*`: import the Google Kaggle Deaf-signer landmark sequences; keep `data/fs_sequences.json` as Stage 8's continuous test set; harvest per-letter frames via forced alignment; retrain heads; refresh the confusion matrix. **B6** — digit signs **0–9**: capture tool → data → train → wire in (high community value; needed for phone numbers/addresses). | 8–14 |
+| **M3** | **Full data upgrade** | **B3 (rest)** — harvest per-letter frames from the Kaggle sequences via forced alignment; retrain heads; refresh the confusion matrix (feeds M4). **B6** — digit signs **0–9**: capture tool → data → train → wire in (high community value; needed for phone numbers/addresses). | 7–12 |
 | **M4** | **Stage 8 — fingerspell → sentence → speech** | The full phased build in the Stage 8 section (Ph 0–5): `decode.js` (trie + CTC-collapse + beam + Norvig fallback), `decode-lab.html`, confusion-matrix export, wire behind a "fluid mode (beta)" toggle, raw/split/sentence UI, `speechSynthesis` + captions, per-word "keep as spelled". | 14–22 |
 | **M5** | **Showcase prep** | **B8 PWA** (installs + works offline at the demo). An honest **about page** — what it does, what it doesn't, the Stage 9 direction, credits, "it's open". A demo script + a recorded fallback video. **Reach out to RIT/NTID** — this doubles as Stage 9's "talk to Deaf people first" step. | 4–6 |
 | **→** | **Showcase** | Demo. Then Stage 9 (sequence model for native-speed; context lexicons; **B7** accounts), pursued with whatever mentorship / data / collaboration the showcase generates. | — |
@@ -124,11 +135,11 @@ _Last updated 2026-09-04. This block is the fast catch-up after a context reset;
 
 ### Timeline (part-time solo, learning as you go)
 
-M1+M2 ≈ 1.5–2 months · M3 ≈ 1 month · M4 ≈ 1.5–2 months · M5 ≈ 2 weeks → **roughly 4–6 months to showcase-ready** *without* Stage 9's sequence model. Stage 9 (native-speed continuous recognition) is a further semester and is best done *with* RIT involvement — the showcase is the catalyst for it, not a prerequisite.
+M0 ≈ few days · M1+M2 ≈ 1.5–2 months · M3 ≈ 3–4 weeks · M4 ≈ 1.5–2 months · M5 ≈ 2 weeks → **roughly 4–6 months to showcase-ready** *without* Stage 9's sequence model. Stage 9 (native-speed continuous recognition) is a further semester and is best done *with* RIT involvement — the showcase is the catalyst for it, not a prerequisite.
 
 ### Fastest path to "something worth showing" if time is short
 
-M1's accessibility pass + `transition.js` + `js/decode.js` on typed input (skip the model retrain) + `speechSynthesis` → a demonstrable "spell a sentence, hear it spoken" in ~3–4 weeks. Everything else deepens it.
+M0 (`fs_sequences.json`) → M1's `transition.js` + accessibility pass → `js/decode.js` on typed input (skip the retrain) → `speechSynthesis` → a demonstrable "spell a sentence, hear it spoken" in ~3–4 weeks. Everything else deepens it.
 
 ---
 
