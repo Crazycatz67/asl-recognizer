@@ -24,6 +24,7 @@ import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
 import { createChallenge } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
+import { createSpeller } from "./speller.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -104,6 +105,14 @@ const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
 const intro = $("intro");
 const introClose = $("introClose");
+const spellPanel = $("spellPanel");
+const spText = $("spText");
+const spPending = $("spPending");
+const spRing = $("spRing");
+const spSpace = $("spSpace");
+const spBack = $("spBack");
+const spClear = $("spClear");
+const spCopy = $("spCopy");
 
 const sound = createSound();
 const fx = createFx();
@@ -202,8 +211,11 @@ let azTimes = []; // {letter, ms} per completion in the current run
 let firstHandAt = 0; // when a hand first appeared for the current target
 let stuckSince = 0; // when the current (uncompleted) attempt began
 let stuckShown = false;
-let mode = "practice"; // "practice" | "challenge"
+let mode = "practice"; // "practice" | "challenge" | "spell"
 let pendingChallengeStart = false; // start the game as soon as the camera is up
+let speller = null; // spell mode: continuous fingerspelling -> transcript
+let spellStab = null; // its own (faster) stabilizer so held letters commit sooner
+let spellAnchor = null; // wrist position at the last commit — for "moved" re-arm
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -237,6 +249,8 @@ const datasetPromise = loadDataset(DATASET_URL)
     refPlayer = createCanonicalPlayer(refCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
+    speller = createSpeller();
+    spellStab = createStabilizer({ stableFrames: 5, minConfidence: 0.5 });
     buildLetterPicker(ALL_LETTERS);
     learnRow.hidden = false;
     modeToggle.hidden = false;
@@ -251,6 +265,7 @@ const datasetPromise = loadDataset(DATASET_URL)
       applyHand();
     }
     if (loadPref("mode") === "challenge") setMode("challenge");
+    else if (loadPref("mode") === "spell") setMode("spell");
     else {
       const savedLetter = loadPref("letter");
       if (savedLetter && ALL_LETTERS.includes(savedLetter)) setTarget(savedLetter);
@@ -456,6 +471,12 @@ function setMode(next) {
   clearChallengeHud();
   learnRow.hidden = mode !== "practice";
   ghostToggleWrap.hidden = true;
+  spellPanel.hidden = mode !== "spell";
+  if (mode === "spell") {
+    spellStab?.reset(); // don't commit a letter left latched from before
+    spellAnchor = null;
+    spText.textContent = speller.text;
+  }
   if (mode === "challenge") {
     chCardTitle.textContent = "Challenge";
     chCardSub.textContent = state === "tracking" || state === "searching"
@@ -865,6 +886,7 @@ function loop() {
       if (refined !== lastPred.label) { lastPred.label = refined; lastPred.refined = true; }
     }
     stabilizer.push(hasHand ? lastPred : null);
+    if (spellStab) spellStab.push(mode === "spell" && hasHand ? lastPred : null);
   }
 
   // score the shape once — the guide's reveal ramp and the practice block need it
@@ -920,9 +942,55 @@ function loop() {
 
   // recognition -> corner badge (hidden during the challenge — no peeking)
   if (classifier) {
-    const shown = mode === "practice" ? stabilizer.current : null;
+    const shown =
+      mode === "practice" ? stabilizer.current
+      : mode === "spell" ? spellStab?.current
+      : null;
     letterBadge.hidden = !shown;
     if (shown) letterBadge.textContent = shown;
+  }
+
+  // spell mode: continuous fingerspelling -> a running transcript
+  if (mode === "spell" && speller && spellStab) {
+    bg.setMatch(null);
+    const cand = spellStab.candidate;
+    const cur = spellStab.current;
+    const holding = spellStab.progress >= 1 && !!cand && cand === cur;
+
+    // a notable wrist shift since the last commit lets a deliberate bounce
+    // re-arm a doubled letter (LL, SS) without waiting for the full pause
+    let moved = false;
+    if (hasHand && hand && spellAnchor) {
+      moved =
+        Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) > 0.14;
+    }
+
+    const res = speller.feed({
+      holding,
+      letter: cur,
+      stroke,
+      handPresent: hasHand,
+      moved,
+      now,
+    });
+
+    if (res.event === "letter") {
+      spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
+      sound.lock?.();
+      buzz(12);
+      fx.flash("rgba(56, 189, 248, 0.5)");
+    } else if (res.event === "space") {
+      buzz([0, 15, 30, 15]);
+    }
+
+    spText.textContent = res.text;
+    spText.scrollTop = spText.scrollHeight;
+    const building = cand && /^[A-Z]$/.test(cand) ? cand : "";
+    spPending.textContent = building || "–";
+    spRing.style.setProperty(
+      "--p",
+      building ? spellStab.progress.toFixed(2) : "0"
+    );
   }
 
   // challenge: you advance when the RECOGNISER reads your hand as the target
@@ -1193,6 +1261,27 @@ chStart.addEventListener("click", () => {
 });
 chSkip.addEventListener("click", () => challenge?.skip());
 
+// spell-mode transcript controls
+const syncSpellText = () => {
+  if (!speller) return;
+  spText.textContent = speller.text;
+  spText.scrollTop = spText.scrollHeight;
+};
+spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
+spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); });
+spClear.addEventListener("click", () => { speller?.clear(); syncSpellText(); });
+spCopy.addEventListener("click", async () => {
+  if (!speller?.text) return;
+  try {
+    await navigator.clipboard.writeText(speller.text);
+    spCopy.textContent = "Copied ✓";
+    setTimeout(() => (spCopy.textContent = "Copy"), 1200);
+  } catch {
+    spCopy.textContent = "Copy failed";
+    setTimeout(() => (spCopy.textContent = "Copy"), 1200);
+  }
+});
+
 // enlarge the demo (tap the panel canvas)
 demoZoomBtn.addEventListener("click", () => {
   if (!reference || !targetLetter) return;
@@ -1210,6 +1299,11 @@ document.addEventListener("keydown", (e) => {
   const tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
   if (!intro.hidden && e.key === "Enter") { introClose.click(); return; }
+
+  if (mode === "spell") {
+    if (e.key === "Backspace") { e.preventDefault(); speller?.backspace(); syncSpellText(); return; }
+    if (e.key === " ") { e.preventDefault(); speller?.space(); syncSpellText(); return; }
+  }
 
   if (e.key === "ArrowRight") stepLetter(1);
   else if (e.key === "ArrowLeft") stepLetter(-1);

@@ -13,6 +13,7 @@
     <div class="mode" id="modeToggle" role="tablist" hidden>
       <button class="mode-btn on" type="button" data-mode="practice">Practice</button>
       <button class="mode-btn" type="button" data-mode="challenge">Challenge</button>
+      <button class="mode-btn" type="button" data-mode="spell">Spell</button>
     </div>
   </header>
   <div class="learn" id="learnRow" hidden data-run="off">
@@ -75,7 +76,7 @@
           <div class="curtain-inner">
             <button class="cta" id="startBtn" type="button">Turn on camera</button>
             <p class="cta-sub" id="curtainSub">
-              Then pick a letter to learn, or switch to Challenge mode.
+              Then learn a letter, test yourself in Challenge, or spell words in Spell.
               Runs entirely on your device — nothing is recorded or uploaded.
             </p>
           </div>
@@ -102,6 +103,21 @@
         <p class="letter-stat" id="letterStat" hidden></p>
       </div>
     </aside>
+
+    <!-- spell mode: continuous fingerspelling -> text -->
+    <section class="speller" id="spellPanel" hidden>
+      <div class="sp-live">
+        <span class="sp-ring" id="spRing" style="--p:0"><b id="spPending">–</b></span>
+        <span class="sp-hint" id="spHint">Spell a word — hold each letter, pause between words</span>
+      </div>
+      <output class="sp-text" id="spText" aria-live="polite"></output>
+      <div class="sp-controls">
+        <button type="button" id="spSpace">Space</button>
+        <button type="button" id="spBack" aria-label="backspace">⌫</button>
+        <button type="button" id="spClear">Clear</button>
+        <button type="button" id="spCopy">Copy</button>
+      </div>
+    </section>
   </main>
 
   <!-- enlarged demo (mobile: tap the panel canvas) -->

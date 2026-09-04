@@ -463,6 +463,74 @@ function mkHand() {
         return g.active === false && g.update(1, "A") === null;
       })());
 
+    // ---- speller.js (continuous fingerspelling -> text) ----
+    const spMod = await import("../js/speller.js");
+    // hold a letter = many frames of {holding:true}; a gap = frames of not-holding
+    const hold = (sp, L, t0, frames = 4) => {
+      let t = t0, r;
+      for (let i = 0; i < frames; i++) r = sp.feed({ holding: true, letter: L, handPresent: true, moved: false, now: t += 40 });
+      return { r, t };
+    };
+    const gap = (sp, t0, ms) => {
+      let t = t0;
+      const end = t0 + ms;
+      while (t < end) sp.feed({ holding: false, letter: null, handPresent: true, moved: false, now: t += 40 });
+      return t;
+    };
+    ok("speller: distinct letters spell a word (CAT)", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "C", 0);
+      t = gap(sp, t, 120); ({ t } = hold(sp, "A", t));
+      t = gap(sp, t, 120); ({ t } = hold(sp, "T", t));
+      return sp.text === "CAT";
+    })());
+    ok("speller: a held letter commits once, not every frame", (() => {
+      const sp = spMod.createSpeller();
+      hold(sp, "E", 0, 30);
+      return sp.text === "E";
+    })());
+    ok("speller: a doubled letter needs a real gap (BOOK)", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "B", 0);
+      t = gap(sp, t, 120); ({ t } = hold(sp, "O", t));
+      // no real gap -> the second O must NOT register
+      ({ t } = hold(sp, "O", t));
+      const oneO = sp.text === "BO";
+      // now a clear gap, then O again -> BOO
+      t = gap(sp, t, 500); ({ t } = hold(sp, "O", t));
+      t = gap(sp, t, 120); ({ t } = hold(sp, "K", t));
+      return oneO && sp.text === "BOOK";
+    })());
+    ok("speller: a long pause inserts one space (not two)", (() => {
+      const sp = spMod.createSpeller();
+      let u = hold(sp, "H", 0).t;
+      u = gap(sp, u, 120); u = hold(sp, "I", u).t;
+      u = gap(sp, u, 1500); // long pause -> a space
+      u = gap(sp, u, 1500); // still just one space
+      u = hold(sp, "U", u).t;
+      return sp.text === "HI U";
+    })());
+    ok("speller: J/Z strokes append and can repeat (JAZZ)", (() => {
+      const sp = spMod.createSpeller();
+      let t = 40;
+      sp.feed({ holding: false, letter: null, stroke: "J", handPresent: true, moved: false, now: t }); t += 200;
+      ({ t } = hold(sp, "A", t)); t = gap(sp, t, 120);
+      sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t }); t += 200;
+      sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t });
+      return sp.text === "JAZZ";
+    })());
+    ok("speller: backspace / clear / manual space", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "A", 0);
+      t = gap(sp, t, 120); ({ t } = hold(sp, "B", t));
+      sp.backspace();
+      const afterBack = sp.text === "A";
+      sp.space();
+      const afterSpace = sp.text === "A ";
+      sp.clear();
+      return afterBack && afterSpace && sp.text === "";
+    })());
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
