@@ -17,8 +17,10 @@
 // dead-ends (an out-of-vocabulary name), it falls back to segment().
 
 // ASL fingerspelling look-alikes: elevated P(observed | true). Symmetric-ish;
-// unlisted pairs get EPS. Override via createDecoder({confusion}).
-const CONFUSE = {
+// unlisted pairs get EPS. This is the hand-set FLOOR — a measured matrix
+// (data/confusion.json, from tools/test-knn.html) blends on top of it via
+// mergeConfusion(), since posed data under-reports live confusion.
+export const DEFAULT_CONFUSION = {
   m: { n: 0.5, s: 0.15 }, n: { m: 0.5, s: 0.12 },
   d: { o: 0.25, c: 0.18, f: 0.08 }, o: { d: 0.25, c: 0.2, e: 0.08 }, c: { o: 0.2, d: 0.15 },
   u: { v: 0.4, r: 0.12 }, v: { u: 0.4, k: 0.12 }, r: { u: 0.2, v: 0.12 },
@@ -30,6 +32,21 @@ const CONFUSE = {
   f: { d: 0.08 }, b: { f: 0.06 }, x: { r: 0.08 }, w: { v: 0.06 },
 };
 const EPS = 0.006;
+
+// blend a measured confusion matrix over the hand-set floor: take the larger of
+// the two per pair (measured leads where it has signal, the floor covers the
+// rest — posed data under-reports live look-alikes).
+export function mergeConfusion(measured, floor = DEFAULT_CONFUSION) {
+  const out = {};
+  for (const src of [floor, measured || {}]) {
+    for (const h in src) {
+      if (h.startsWith("_")) continue;
+      out[h] = out[h] || {};
+      for (const o in src[h]) out[h][o] = Math.max(out[h][o] || 0, src[h][o]);
+    }
+  }
+  return out;
+}
 
 export function buildLexicon(input) {
   const rows =
@@ -59,7 +76,7 @@ export function buildLexicon(input) {
 
 export function createDecoder(lexicon, opts = {}) {
   const { trie, logp } = lexicon;
-  const confuse = opts.confusion || CONFUSE;
+  const confuse = opts.confusion || DEFAULT_CONFUSION;
   const beamWidth = opts.beamWidth ?? 120;
   const wordPenalty = opts.wordPenalty ?? -2.5;
   const insPenalty = opts.insPenalty ?? -5.0;
@@ -136,21 +153,13 @@ export function createDecoder(lexicon, opts = {}) {
     return pruned;
   }
 
-  function decode(input) {
-    const frames =
-      Array.isArray(input) && input.length && typeof input[0] === "object"
-        ? input
-        : String(input).toLowerCase().split("").map((letter) => ({ letter, conf: 0.9 }));
-    const obs = collapse(frames, minConf + 0.05);
-    if (!obs.length) return { text: "", words: [], raw: "" };
-    const raw = obs.map((f) => f.letter).join("");
-
+  // beam-decode one alphabetic run
+  function decodeRun(obs) {
     let beam = [{ node: trie, cur: "", words: [], score: 0, ins: 0 }];
     for (const f of obs) {
       beam = advance(beam, f.letter, f.conf);
       if (!beam.length) break;
     }
-
     let best = null;
     for (const h of beam) {
       let score = h.score, words = h.words;
@@ -161,11 +170,38 @@ export function createDecoder(lexicon, opts = {}) {
       }
       if (words.length && (!best || score > best.score)) best = { score, words };
     }
-    if (!best) {
-      const words = segment(raw);
-      return { text: words.join(" "), words, raw, fallback: true };
+    return best ? best.words : null;
+  }
+
+  function decode(input) {
+    const frames =
+      Array.isArray(input) && input.length && typeof input[0] === "object"
+        ? input
+        : String(input).toLowerCase().split("").map((letter) => ({ letter, conf: 0.9 }));
+    const obs = collapse(frames, minConf + 0.05);
+    if (!obs.length) return { text: "", words: [], raw: "" };
+    const raw = obs.map((f) => f.letter).join("");
+
+    // split into alternating digit-runs (passed through verbatim — phone numbers,
+    // addresses) and alphabetic runs (beam-decoded)
+    const words = [];
+    let anyFallback = false;
+    let i = 0;
+    while (i < obs.length) {
+      const isDigit = /[0-9]/.test(obs[i].letter);
+      let j = i;
+      while (j < obs.length && /[0-9]/.test(obs[j].letter) === isDigit) j++;
+      const run = obs.slice(i, j);
+      if (isDigit) {
+        words.push(run.map((f) => f.letter).join(""));
+      } else {
+        const w = decodeRun(run);
+        if (w) words.push(...w);
+        else { anyFallback = true; words.push(...segment(run.map((f) => f.letter).join(""))); }
+      }
+      i = j;
     }
-    return { text: best.words.join(" "), words: best.words, raw };
+    return { text: words.join(" "), words, raw, fallback: anyFallback || undefined };
   }
 
   // Norvig max-likelihood word split of an unspaced string.

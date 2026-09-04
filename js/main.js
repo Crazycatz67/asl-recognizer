@@ -28,7 +28,7 @@ import { createSpeller } from "./speller.js";
 import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
 import { createTransitionMatcher } from "./transition.js";
-import { buildLexicon, createDecoder } from "./decode.js";
+import { buildLexicon, createDecoder, mergeConfusion } from "./decode.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -52,15 +52,18 @@ const transition = createTransitionMatcher(); // fluid mode: rhythm-based letter
 let decoder = null; // fluid mode: lexicon decoder — loaded in the background
 let lastDecodeAt = 0;
 
-// word list -> decoder, in the background; fluid mode just falls back to the raw
-// transcript until it's ready
-fetch(new URL("../data/words25k.txt", import.meta.url))
-  .then((r) => (r.ok ? r.text() : null))
-  .then((txt) => {
-    if (txt) {
-      decoder = createDecoder(buildLexicon(txt));
-      console.info("fluid-mode decoder ready");
-    }
+// word list + measured confusion matrix -> decoder, in the background; fluid
+// mode falls back to the raw transcript until it's ready
+Promise.all([
+  fetch(new URL("../data/words25k.txt", import.meta.url)).then((r) => (r.ok ? r.text() : null)),
+  fetch(new URL("../data/confusion.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+])
+  .then(([txt, conf]) => {
+    if (!txt) return;
+    decoder = createDecoder(buildLexicon(txt), {
+      confusion: conf ? mergeConfusion(conf) : undefined,
+    });
+    console.info(`fluid-mode decoder ready${conf ? " (measured confusion blended)" : ""}`);
   })
   .catch(() => {});
 

@@ -130,6 +130,37 @@ async function run() {
 
     // matrix
     renderMatrix(classes, confusion);
+
+    // export for js/decode.js — P(observed=o | true=h), lowercase, off-diagonal,
+    // only entries >= 1%. Also stashed on window for tooling to read.
+    const conf = {};
+    classes.forEach((h, r) => {
+      const rowTotal = confusion[r].reduce((a, b) => a + b, 0) || 1;
+      classes.forEach((o, c) => {
+        if (r === c) return;
+        const p = confusion[r][c] / rowTotal;
+        if (p >= 0.01) {
+          conf[h.toLowerCase()] = conf[h.toLowerCase()] || {};
+          conf[h.toLowerCase()][o.toLowerCase()] = +p.toFixed(3);
+        }
+      });
+    });
+    window.__confusion = conf;
+    let dl = document.getElementById("dlConf");
+    if (!dl) {
+      dl = document.createElement("button");
+      dl.id = "dlConf";
+      dl.textContent = "download data/confusion.json";
+      dl.style.marginTop = "0.6rem";
+      matrixEl.parentNode.insertBefore(dl, matrixEl.nextSibling);
+      dl.addEventListener("click", () => {
+        const blob = new Blob([JSON.stringify(window.__confusion, null, 1)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "confusion.json";
+        a.click();
+      });
+    }
   } catch (err) {
     statusEl.textContent =
       err.status === 404

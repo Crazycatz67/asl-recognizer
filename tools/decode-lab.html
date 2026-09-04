@@ -41,7 +41,7 @@
 <div class="out" id="tbl">not run</div>
 
 <script type="module">
-import { buildLexicon, createDecoder } from "../js/decode.js";
+import { buildLexicon, createDecoder, mergeConfusion } from "../js/decode.js";
 
 const $ = (id) => document.getElementById(id);
 let dec = null;
@@ -152,13 +152,17 @@ $("bench").addEventListener("click", () => {
   }, 20);
 });
 
-// ---- load lexicon ----
-fetch("../data/words25k.txt").then((r) => r.text()).then((txt) => {
+// ---- load lexicon + measured confusion ----
+Promise.all([
+  fetch("../data/words25k.txt").then((r) => r.text()),
+  fetch("../data/confusion.json").then((r) => r.json()).catch(() => null),
+]).then(([txt, conf]) => {
   const t0 = performance.now();
   const lex = buildLexicon(txt);
-  dec = createDecoder(lex);
+  dec = createDecoder(lex, { confusion: conf ? mergeConfusion(conf) : undefined });
   const ms = Math.round(performance.now() - t0);
-  $("one").textContent = `lexicon ready — ${lex.size} words, built in ${ms} ms. Click decode.`;
+  $("one").textContent =
+    `lexicon ready — ${lex.size} words, built in ${ms} ms${conf ? " · measured confusion blended" : ""}. Click decode.`;
 });
 </script>
 </body>

@@ -760,6 +760,17 @@ function mkHand() {
       dc.segment("siobhan").length >= 1); // no throw, returns some split
     ok("decode: empty / junk input is safe",
       dc.decode("").text === "" && dc.decode([]).text === "");
+    ok("decode: digit runs pass through verbatim (phone/address)", (() => {
+      const d = (L) => ({ letter: L, conf: 0.9 });
+      const r = dc.decode([d("c"), d("a"), d("l"), { letter: "", conf: 0 }, d("l"),
+        { letter: "", conf: 0 }, d("4"), d("0"), d("7")]);
+      return r.words.includes("407"); // "call" beamed, "407" verbatim
+    })());
+    ok("decode: mergeConfusion blends measured over the floor", (() => {
+      const merged = dcMod.mergeConfusion({ m: { n: 0.9 }, z: { s: 0.3 } });
+      return merged.m.n === 0.9 && merged.z.s === 0.3 &&
+        merged.d && typeof merged.d.o === "number"; // floor kept where measured is silent
+    })());
 
     // ---- transition.js (rhythm-based letter segmentation) ----
     const trMod = await import("../js/transition.js");
