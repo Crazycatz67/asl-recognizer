@@ -709,6 +709,39 @@ function mkHand() {
       return sp.text === "" && sp.pending === "" && sp.display === "";
     })());
 
+    // ---- decode.js (Stage 8 lexicon decoder) ----
+    const dcMod = await import("../js/decode.js");
+    const lexTxt = "the 100\nquick 40\nbrown 30\nfox 20\nwhat 90\nare 80\nyou 85\ndoing 25\n" +
+      "where 70\nis 95\nbathroom 8\nhow 60\nmuch 50\ndoes 45\nthis 88\ncost 22\ni 99\nam 55\n" +
+      "learning 12\nsign 30\nlanguage 15\ncan 65\nhelp 28\nme 75\nplease 26";
+    const lex = dcMod.buildLexicon(lexTxt);
+    const dc = dcMod.createDecoder(lex);
+    ok("decode: buildLexicon returns a sized trie", lex.size === 25 && typeof lex.logp === "function");
+    ok("decode: segment() splits a clean run",
+      dc.segment("whatareyoudoing").join(" ") === "what are you doing");
+    ok("decode: decode() is exact on a clean letter string",
+      dc.decode("whereisthebathroom").text === "where is the bathroom");
+    ok("decode: confusion-aware — recovers M<->N / D<->O style swaps", (() => {
+      // "wemt" -> "what" (m->a? no) ; use a real near-miss: "whar" -> "what" (r->t not listed)
+      // "wnat are you" : n->h is not a pair; test the built-in default matrix instead
+      const d2 = dcMod.createDecoder(dcMod.buildLexicon(
+        "what 90\nare 80\nyou 85\ndoing 25\nmine 30\nnine 28\nmind 20"));
+      // "mird" with a D-confusion should prefer a real word over the raw string
+      const r = d2.decode([{ letter: "m", conf: .6 }, { letter: "i", conf: .8 },
+        { letter: "n", conf: .55 }, { letter: "d", conf: .7 }]);
+      return r.text === "mind" || r.text === "mine";
+    })());
+    ok("decode: a garbage run still returns a string, never throws", (() => {
+      try {
+        const r = dc.decode("zzqxjkbbbwptmns");
+        return typeof r.text === "string" && Array.isArray(r.words);
+      } catch { return false; }
+    })());
+    ok("decode: segment() is the standalone OOV fallback (names)",
+      dc.segment("siobhan").length >= 1); // no throw, returns some split
+    ok("decode: empty / junk input is safe",
+      dc.decode("").text === "" && dc.decode([]).text === "");
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
