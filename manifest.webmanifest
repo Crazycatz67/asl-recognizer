@@ -1,0 +1,18 @@
+{
+  "name": "ASL Fingerspelling Recognizer",
+  "short_name": "ASL Spell",
+  "description": "Learn and practise the ASL fingerspelling alphabet with your webcam. Runs entirely on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "id": "asl-fingerspelling-recognizer",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "categories": ["education", "accessibility", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
