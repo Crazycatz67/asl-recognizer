@@ -409,6 +409,79 @@ function mkHand() {
     ok("motion: push(null) / reset() don't throw",
       (() => { try { const mm = motMod.createMotionMatcher(); mm.push(null, 0); mm.reset(); return mm.match(1) === null; } catch { return false; } })());
 
+    // ---- swipe.js (spell-mode "wipe to delete") ----
+    const swMod = await import("../js/swipe.js");
+    // a spread-open "5" hand at wrist (wx,wy)
+    const openHand = (wx, wy) => {
+      const lm = Array.from({ length: 21 }, () => ({ x: wx, y: wy, z: 0 }));
+      lm[0] = { x: wx, y: wy, z: 0 };
+      lm[5] = { x: wx - 0.06, y: wy - 0.10, z: 0 };
+      lm[9] = { x: wx - 0.02, y: wy - 0.12, z: 0 };
+      lm[13] = { x: wx + 0.02, y: wy - 0.12, z: 0 };
+      lm[17] = { x: wx + 0.06, y: wy - 0.10, z: 0 };
+      lm[8] = { x: wx - 0.14, y: wy - 0.26, z: 0 };
+      lm[12] = { x: wx - 0.04, y: wy - 0.32, z: 0 };
+      lm[16] = { x: wx + 0.06, y: wy - 0.30, z: 0 };
+      lm[20] = { x: wx + 0.15, y: wy - 0.22, z: 0 };
+      return lm;
+    };
+    // a fist at (wx,wy) — tips sit on top of their MCPs
+    const fistHand = (wx, wy) => {
+      const lm = openHand(wx, wy);
+      lm[8] = { ...lm[5] }; lm[12] = { ...lm[9] };
+      lm[16] = { ...lm[13] }; lm[20] = { ...lm[17] };
+      return lm;
+    };
+    ok("swipe: a fast open sideways sweep fires 'delete'", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let out = null;
+      [0.30, 0.38, 0.46, 0.54, 0.62].forEach((wx, i) => {
+        sw.push(openHand(wx, 0.6), i * 40);
+        out = sw.match(i * 40) || out;
+      });
+      return out === "delete";
+    })());
+    ok("swipe: a slow open drift does nothing", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let out = null;
+      for (let i = 0; i < 12; i++) {
+        sw.push(openHand(0.30 + i * 0.004, 0.6), i * 40);
+        out = sw.match(i * 40) || out;
+      }
+      return out === null;
+    })());
+    ok("swipe: a fast VERTICAL move does nothing", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let out = null;
+      [0.20, 0.30, 0.40, 0.50, 0.60].forEach((wy, i) => {
+        sw.push(openHand(0.5, wy), i * 40);
+        out = sw.match(i * 40) || out;
+      });
+      return out === null;
+    })());
+    ok("swipe: a fist sweeping fast does nothing (not open)", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let out = null;
+      [0.30, 0.40, 0.50, 0.60, 0.70].forEach((wx, i) => {
+        sw.push(fistHand(wx, 0.6), i * 40);
+        out = sw.match(i * 40) || out;
+      });
+      return out === null;
+    })());
+    ok("swipe: fires once, then a cooldown", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let hits = 0;
+      for (let i = 0; i < 14; i++) {
+        // keep sweeping back and forth fast the whole time
+        const wx = 0.30 + 0.32 * (i % 2);
+        sw.push(openHand(wx, 0.6), i * 40);
+        if (sw.match(i * 40) === "delete") hits++;
+      }
+      return hits === 1;
+    })());
+    ok("swipe: push(null) / reset() don't throw",
+      (() => { try { const sw = swMod.createSwipeMatcher(); sw.push(null, 0); sw.reset(); return sw.match(1) === null; } catch { return false; } })());
+
     // ---- challenge.js (speed game) ----
     const gameMod = await import("../js/challenge.js");
     ok("challenge: study -> go -> play -> win, then 3 misses -> over", (() => {

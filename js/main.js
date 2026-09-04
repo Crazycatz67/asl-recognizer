@@ -25,6 +25,7 @@ import { createBackground } from "./bg.js";
 import { createChallenge } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
 import { createSpeller } from "./speller.js";
+import { createSwipeMatcher } from "./swipe.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -42,6 +43,7 @@ import {
 
 const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
 const motion = createMotionMatcher();
+const swipe = createSwipeMatcher(); // spell mode: open-hand sideways sweep = delete
 
 const $ = (id) => document.getElementById(id);
 const workspace = $("workspace");
@@ -475,6 +477,7 @@ function setMode(next) {
   spellPanel.hidden = mode !== "spell";
   if (mode === "spell") {
     spellStab?.reset(); // don't commit a letter left latched from before
+    swipe.reset();
     spellAnchor = null;
     spText.textContent = speller.text;
   }
@@ -866,6 +869,7 @@ function loop() {
   // accumulate into a fake "stroke"
   motion.push(hand, now);
   const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
+  swipe.push(hand, now); // spell mode: open-hand sideways sweep = delete
 
   // normalize once; reused by the classifier, the practice meter, and the guide
   let vec = null;
@@ -954,6 +958,16 @@ function loop() {
   // spell mode: continuous fingerspelling -> a running transcript
   if (mode === "spell" && speller && spellStab) {
     bg.setMatch(null);
+
+    // open-hand sideways wipe -> delete the last character
+    if (swipe.match(now) === "delete" && speller.backspace()) {
+      syncSpellText();
+      spellStab.reset(); // the flat hand mustn't then register as a letter
+      spellAnchor = null;
+      buzz([0, 25, 45, 25]);
+      fx.flash("rgba(248, 113, 113, 0.4)");
+    }
+
     const cand = spellStab.candidate;
     const cur = spellStab.current;
     const holding = spellStab.progress >= 1 && !!cand && cand === cur;
