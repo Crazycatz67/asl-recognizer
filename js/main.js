@@ -1030,15 +1030,24 @@ function loop() {
       building ? spellStab.progress.toFixed(2) : "0"
     );
 
-    // live gesture readout — shows what the swipe detector is measuring so a
-    // swipe that won't register can be tuned ( needs sideways ≥ 1.1, > up/down )
+    // live gesture readout — so a gesture that won't register can be tuned.
+    // swipe wants sideways ≥ 1.1 (and > up/down); copy/paste want the two-hand
+    // gap to swing past ~2.2 <-> ~1.6
     if (spMetrics && now - lastHintAt >= HINT_INTERVAL) {
       lastHintAt = now;
-      const sm = swipe.metrics();
-      spMetrics.textContent =
-        hasHand && sm
-          ? `swipe: sideways ${sm.dx}/1.1 · up-down ${sm.dy} · open ${sm.open}`
-          : "";
+      const twoHands = (result.landmarks?.length ?? 0) >= 2;
+      if (twoHands) {
+        const tm = twohand.metrics();
+        spMetrics.textContent = tm?.gap != null
+          ? `hands: gap ${tm.gap} (saw ${tm.min}–${tm.max}) — copy/paste needs a big swing`
+          : `hands: ${tm?.hands ?? "…"}`;
+      } else {
+        const sm = swipe.metrics();
+        spMetrics.textContent =
+          hasHand && sm
+            ? `swipe: sideways ${sm.dx}/1.1 · up-down ${sm.dy} · open ${sm.open}`
+            : "";
+      }
     }
   }
 

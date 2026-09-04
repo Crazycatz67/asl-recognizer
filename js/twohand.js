@@ -1,17 +1,18 @@
 // Two-hand gestures for Spell mode — "carry the text through the air":
-//   both open hands brought TOGETHER   -> "copy"  (grab it)
-//   both open hands pulled APART        -> "paste" (drop it here)
+//   both open hands brought TOGETHER  -> "copy"  (grab it)
+//   both open hands pulled APART       -> "paste" (drop it here)
 //
-// Fingerspelling is one-handed, so needing two open, spread hands plus a clear
-// change in the gap between them keeps these clear of normal spelling.
+// Fingerspelling is one-handed, so needing two open hands plus a big change in
+// the gap between them keeps these clear of normal spelling.
 //
 //   const th = createTwoHandMatcher();
 //   th.push(hands, now);              // hands: array of 0..2 landmark sets
 //   th.match(now) -> "copy" | "paste" | null   // fires once, then a cooldown
 
-const WINDOW_MS = 560;
+const WINDOW_MS = 750;
 const COOLDOWN_MS = 800;
-const MIN_FRAMES = 5;
+const KEEP_ON_GAP_MS = 350; // hands often merge/drop a track as they meet — tolerate it
+const MIN_OK_FRAMES = 3;
 
 const TIPS = [8, 12, 16, 20];
 const MCPS = [5, 9, 13, 17];
@@ -22,21 +23,25 @@ function spanOf(lm) {
   for (const j of MCPS) { mx += lm[j].x; my += lm[j].y; }
   return Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
 }
-function isSpreadOpen(lm, span) {
+// roughly open: >= 3 of 4 fingers extended, with a little spread (loose — a
+// moving hand's landmarks smear)
+function isOpenish(lm, span) {
+  let ext = 0;
   for (let i = 0; i < 4; i++) {
     const t = lm[TIPS[i]], m = lm[MCPS[i]];
-    if (Math.hypot(t.x - m.x, t.y - m.y) / span < 0.85) return false;
+    if (Math.hypot(t.x - m.x, t.y - m.y) / span > 0.7) ext++;
   }
+  if (ext < 3) return false;
   let gaps = 0;
   for (let i = 0; i < 3; i++) {
     const a = lm[TIPS[i]], b = lm[TIPS[i + 1]];
     gaps += Math.hypot(a.x - b.x, a.y - b.y) / span;
   }
-  return gaps > 0.9;
+  return gaps > 0.5;
 }
 
 export function createTwoHandMatcher() {
-  let buf = []; // { t, ok, dist }  ok = two spread-open hands; dist = wrist gap in spans
+  let buf = []; // { t, ok, dist }  ok = two open hands this frame; dist = wrist gap in spans
   let coolUntil = 0;
 
   return {
@@ -45,9 +50,10 @@ export function createTwoHandMatcher() {
     },
 
     push(hands, now) {
-      const two = hands && hands.length >= 2 && hands[0]?.length >= 21 && hands[1]?.length >= 21;
+      const two =
+        hands && hands.length >= 2 && hands[0]?.length >= 21 && hands[1]?.length >= 21;
       if (!two) {
-        if (now - (buf.at(-1)?.t ?? 0) > 220) buf = [];
+        if (now - (buf.at(-1)?.t ?? 0) > KEEP_ON_GAP_MS) buf = [];
         else buf.push({ t: now, ok: false, dist: 0 });
         return;
       }
@@ -55,35 +61,40 @@ export function createTwoHandMatcher() {
       const sa = spanOf(a), sb = spanOf(b);
       const span = (sa + sb) / 2;
       const dist = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y) / span;
-      const ok = isSpreadOpen(a, sa) && isSpreadOpen(b, sb);
-      buf.push({ t: now, ok, dist });
+      buf.push({ t: now, ok: isOpenish(a, sa) && isOpenish(b, sb), dist });
       while (buf.length && now - buf[0].t > WINDOW_MS) buf.shift();
     },
 
     match(now) {
-      if (now < coolUntil || buf.length < MIN_FRAMES) return null;
-      if (now - buf[0].t < 200) return null;
-      const okFrac = buf.filter((f) => f.ok).length / buf.length;
-      if (okFrac < 0.7) return null;
-      const d = buf.filter((f) => f.ok).map((f) => f.dist);
-      const first = d.slice(0, Math.ceil(d.length / 3)).reduce((s, v) => s + v, 0) / Math.ceil(d.length / 3);
-      const last = d.slice(-Math.ceil(d.length / 3)).reduce((s, v) => s + v, 0) / Math.ceil(d.length / 3);
-      // came together: was well apart, ended close
-      if (first > 2.4 && last < 1.6 && first - last > 1.1) {
-        coolUntil = now + COOLDOWN_MS;
-        return "copy";
+      if (now < coolUntil) return null;
+      const ok = buf.filter((f) => f.ok);
+      if (ok.length < MIN_OK_FRAMES) return null;
+      if (ok.at(-1).t - ok[0].t < 150) return null;
+
+      // the widest and the narrowest gap we saw between two open hands, and when
+      let far = ok[0], near = ok[0];
+      for (const f of ok) {
+        if (f.dist > far.dist) far = f;
+        if (f.dist < near.dist) near = f;
       }
-      // pulled apart: was close, ended well apart
-      if (first < 1.6 && last > 2.4 && last - first > 1.1) {
-        coolUntil = now + COOLDOWN_MS;
-        return "paste";
-      }
-      return null;
+      if (far.dist < 2.2 || near.dist > 1.7 || far.dist - near.dist < 1.0) return null;
+
+      // apart -> together = copy;  together -> apart = paste  (by which came first)
+      const res = far.t < near.t ? "copy" : "paste";
+      coolUntil = now + COOLDOWN_MS;
+      return res;
     },
 
     metrics() {
-      const f = buf.at(-1);
-      return f ? { ok: f.ok, dist: +f.dist.toFixed(2) } : null;
+      const ok = buf.filter((f) => f.ok);
+      if (!ok.length) return { hands: buf.at(-1)?.ok === false ? "<2 open" : "…", gap: null };
+      const dists = ok.map((f) => f.dist);
+      return {
+        hands: "2 open",
+        gap: +ok.at(-1).dist.toFixed(2),
+        min: +Math.min(...dists).toFixed(2),
+        max: +Math.max(...dists).toFixed(2),
+      };
     },
   };
 }

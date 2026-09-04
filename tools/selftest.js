@@ -527,6 +527,21 @@ function mkHand() {
       runTwoHand(0.22, 0.46, 0.80, 0.56, (wx, wy) => (wx < 0.5 ? fistHand(wx, wy) : openHand(wx, wy))) === null);
     ok("twohand: two open hands held at a fixed gap -> nothing",
       runTwoHand(0.30, 0.30, 0.70, 0.70) === null);
+    ok("twohand: still fires 'copy' if a hand track drops as they meet", (() => {
+      const th = thMod.createTwoHandMatcher();
+      let out = null;
+      // 6 frames: two open hands closing from ~5 spans to ~1.4
+      [[0.20, 0.80], [0.24, 0.76], [0.29, 0.71], [0.34, 0.66], [0.39, 0.61], [0.43, 0.57]].forEach(([ax, bx], i) => {
+        th.push([openHand(ax, 0.55), openHand(bx, 0.55)], i * 40);
+        out = th.match(i * 40) || out;
+      });
+      // then the hands merge — only one is tracked for a few frames
+      for (let i = 6; i < 10; i++) {
+        th.push([openHand(0.5, 0.55)], i * 40);
+        out = th.match(i * 40) || out;
+      }
+      return out === "copy";
+    })());
     ok("twohand: fires once, then a cooldown", (() => {
       const th = thMod.createTwoHandMatcher();
       let hits = 0;
