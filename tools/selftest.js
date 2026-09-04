@@ -882,6 +882,73 @@ function mkHand() {
       for (let i = 0; i < 3; i++) seen.add(r.next());
       return seen.size === 3;
     })());
+    ok("reader: next(list) picks from a caller-supplied list", (() => {
+      const r = rdMod.createReader(bank);
+      const seen = new Set();
+      for (let i = 0; i < 4; i++) seen.add(r.next(["JAZZ", "zone"]));
+      return [...seen].every((w) => ["jazz", "zone"].includes(w)) && seen.size === 2;
+    })());
+
+    // ---- curriculum.js (teaching-order lessons, progress gating) ----
+    const cuMod = await import("../js/curriculum.js");
+    const cuJson = {
+      unlockThreshold: 2,
+      tiers: [
+        { name: "T1", blurb: "b1", letters: "ABC", words: ["cab", "abc"] },
+        { name: "T2", blurb: "b2", letters: "DE", words: ["dead", "bead"] },
+        { name: "T3", blurb: "b3", letters: "FG", words: ["fig"] },
+      ],
+    };
+    ok("curriculum: starts with only the first tier unlocked", (() => {
+      const c = cuMod.createCourse(cuJson);
+      const v = c.view();
+      return c.unlocked === 1 && v[0].locked === false && v[1].locked === true && c.tier.name === "T1";
+    })());
+    ok("curriculum: words() are the active tier's words", (() => {
+      const c = cuMod.createCourse(cuJson);
+      return JSON.stringify(c.words()) === JSON.stringify(["cab", "abc"]);
+    })());
+    ok("curriculum: N correct answers on the frontier unlock the next tier", (() => {
+      const c = cuMod.createCourse(cuJson);
+      const a = c.record(true).unlocked === false; // 1/2
+      const r = c.record(true); // 2/2 -> promote
+      return a && r.unlocked === true && r.tierName === "T2" && c.unlocked === 2;
+    })());
+    ok("curriculum: wrong answers don't advance progress", (() => {
+      const c = cuMod.createCourse(cuJson);
+      c.record(false); c.record(false);
+      return c.progress().done === 0 && c.unlocked === 1;
+    })());
+    ok("curriculum: select() only moves to an unlocked tier", (() => {
+      const c = cuMod.createCourse(cuJson);
+      const blocked = c.select(1) === false && c.activeIndex === 0;
+      c.record(true); c.record(true); // unlock T2
+      return blocked && c.select(1) === true && c.tier.name === "T2";
+    })());
+    ok("curriculum: state() round-trips through createCourse", (() => {
+      const c1 = cuMod.createCourse(cuJson);
+      c1.record(true); c1.record(true); c1.select(1); c1.record(true); // unlock T2, move in, 1/2
+      const c2 = cuMod.createCourse(cuJson, c1.state());
+      return c2.unlocked === 2 && c2.activeIndex === 1 && c2.progress().done === 1;
+    })());
+    ok("curriculum: taughtLetters() spans the active tier and earlier", (() => {
+      const c = cuMod.createCourse(cuJson);
+      c.record(true); c.record(true); c.select(1);
+      return c.taughtLetters().join("") === "ABCDE";
+    })());
+    ok("curriculum: promotion only from the frontier, and only once", (() => {
+      const c = cuMod.createCourse(cuJson);
+      c.record(true); c.record(true); // -> T2 unlocked, active still 0
+      const again = c.record(true); // more correct on tier 0, already not frontier
+      return again.unlocked === false && c.unlocked === 2;
+    })());
+    ok("curriculum: last tier finished -> complete", (() => {
+      const c = cuMod.createCourse(cuJson);
+      c.record(true); c.record(true); c.select(1);
+      c.record(true); c.record(true); c.select(2);
+      c.record(true); c.record(true);
+      return c.complete === true;
+    })());
 
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",

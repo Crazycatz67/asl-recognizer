@@ -1,0 +1,36 @@
+{
+  "_note": "Read-mode course: fingerspelling letters grouped by handshape difficulty, unlocked in order. Each tier's words use only letters from that tier and earlier.",
+  "unlockThreshold": 10,
+  "tiers": [
+    {
+      "name": "Anchors",
+      "blurb": "Six shapes that look nothing alike — your reference points.",
+      "letters": "ABCLOY",
+      "words": ["boy", "cab", "all", "ball", "call", "cola", "clay", "cool", "loyal", "cocoa", "alloy", "local"]
+    },
+    {
+      "name": "One or two fingers",
+      "blurb": "Adds D F I K U V W — pointing and small handshapes.",
+      "letters": "ABCLOYDFIKUVW",
+      "words": ["could", "would", "cloud", "wild", "cold", "wolf", "duck", "yolk", "bowl", "club", "fluid", "vivid"]
+    },
+    {
+      "name": "Pointing & flat",
+      "blurb": "Adds E G H P Q R — where reading gets faster.",
+      "letters": "ABCLOYDFIKUVWEGHPQR",
+      "words": ["here", "hope", "help", "gear", "rope", "peace", "grape", "clear", "paper", "purple", "cheer", "prayer"]
+    },
+    {
+      "name": "Fists & look-alikes",
+      "blurb": "Adds M N S T X — the confusable cluster. Slow down here.",
+      "letters": "ABCLOYDFIKUVWEGHPQRMNSTX",
+      "words": ["name", "time", "most", "best", "want", "must", "next", "mix", "taxi", "stamp", "moment", "sixth"]
+    },
+    {
+      "name": "Motion letters",
+      "blurb": "Adds J Z — the two that move.",
+      "letters": "ABCLOYDFIKUVWEGHPQRMNSTXJZ",
+      "words": ["jazz", "jump", "juice", "zebra", "zone", "zoom", "joke", "jelly", "puzzle", "dizzy", "prize", "major"]
+    }
+  ]
+}

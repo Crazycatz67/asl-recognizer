@@ -33,6 +33,21 @@
   <main class="workspace" id="workspace" data-target="off">
     <!-- read mode: no camera — watch the animated hand spell a word, type what you saw -->
     <section class="reader" id="readPanel" hidden>
+      <div class="rd-modes" id="rdModes" role="group" aria-label="Practice style">
+        <button type="button" class="rd-mode on" data-rmode="free" aria-pressed="true">Free play</button>
+        <button type="button" class="rd-mode" data-rmode="course" aria-pressed="false">Course</button>
+      </div>
+      <div class="rd-course" id="rdCourse" hidden>
+        <div class="rd-path" id="rdPath" role="group" aria-label="Lessons"></div>
+        <div class="rd-lesson">
+          <div class="rd-lesson-head">
+            <strong id="rdLessonName"></strong>
+            <span class="rd-lesson-prog" id="rdLessonProg" aria-live="polite"></span>
+          </div>
+          <p class="rd-lesson-blurb" id="rdLessonBlurb"></p>
+          <div class="rd-bar"><i id="rdBar"></i></div>
+        </div>
+      </div>
       <div class="rd-top">
         <div class="rd-cats" id="rdCats"></div>
         <span class="rd-score" id="rdScore" aria-live="polite">0</span>

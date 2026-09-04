@@ -1025,6 +1025,49 @@ body {
 }
 .rd-cat.on { border-color: var(--accent, #38bdf8); color: #7dd3fc; background: #10263a; }
 .rd-score { font: 800 1rem ui-monospace, monospace; color: var(--fg); white-space: nowrap; }
+
+/* --- Course: teaching-order lessons with progress gating --- */
+.rd-modes { display: flex; gap: 0.35rem; }
+.rd-mode {
+  font: 700 0.76rem system-ui, sans-serif;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #0b1220;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rd-mode.on { border-color: var(--accent, #38bdf8); color: #0f172a; background: var(--accent, #38bdf8); }
+.rd-course { display: flex; flex-direction: column; gap: 0.55rem; }
+.rd-path { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.rd-step {
+  font: 700 0.72rem system-ui, sans-serif;
+  padding: 0.24rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #0b1220;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.rd-step.active { border-color: var(--accent, #38bdf8); color: #7dd3fc; background: #10263a; }
+.rd-step.done { color: #4ade80; border-color: #1f7a46; }
+.rd-step.locked { cursor: not-allowed; opacity: 0.5; }
+.rd-step .tick { font-size: 0.85em; }
+.rd-lesson-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.rd-lesson-head strong { font: 800 0.95rem system-ui, sans-serif; color: var(--fg); }
+.rd-lesson-prog { font: 700 0.8rem ui-monospace, monospace; color: var(--muted); white-space: nowrap; }
+.rd-lesson-blurb { margin: 0; font: 500 0.8rem system-ui, sans-serif; color: var(--muted); }
+.rd-bar { height: 6px; border-radius: 999px; background: #0b1220; border: 1px solid var(--line); overflow: hidden; }
+.rd-bar > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent, #38bdf8), #4ade80);
+  transition: width 0.4s ease;
+}
 .rd-stage {
   flex: 0 1 auto;
   display: grid;
@@ -1313,7 +1356,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   .chip.on { transform: none; }
   .toast.show { transform: translate(-50%, 0); }
   /* new (Spell/Read) surfaces */
-  .sp-ring, .g-anim .h, .g-ring, .g-gap, .meter-fill { animation: none !important; transition: none !important; }
+  .sp-ring, .g-anim .h, .g-ring, .g-gap, .meter-fill, .rd-bar > i { animation: none !important; transition: none !important; }
 }
 
 /* ---- accessibility --------------------------------------- */
@@ -1328,6 +1371,8 @@ summary:focus-visible,
 .chip:focus-visible,
 .mode-btn:focus-visible,
 .rd-cat:focus-visible,
+.rd-mode:focus-visible,
+.rd-step:focus-visible,
 .sp-cell:focus-visible {
   outline: 3px solid #fde047;
   outline-offset: 2px;
@@ -1347,6 +1392,7 @@ summary:focus-visible,
   }
   .sp-pending { color: #cbd5e1; border-bottom-color: #94a3b8; }
   .rd-len { color: #94a3b8; }
+  .rd-mode, .rd-step { border-color: #94a3b8; }
   .dim, .g-note, .sp-fluid-hint, .sp-decoded-label { color: #cbd5e1 !important; }
 }
 

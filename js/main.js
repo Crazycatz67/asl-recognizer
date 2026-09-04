@@ -30,6 +30,7 @@ import { createTwoHandMatcher } from "./twohand.js";
 import { createTransitionMatcher } from "./transition.js";
 import { buildLexicon, createDecoder, mergeConfusion } from "./decode.js";
 import { createReader } from "./reader.js";
+import { createCourse } from "./curriculum.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -148,6 +149,13 @@ const spDecodedText = $("spDecodedText");
 const spSpeak = $("spSpeak");
 const spAutoSpeak = $("spAutoSpeak");
 const readPanel = $("readPanel");
+const rdModes = $("rdModes");
+const rdCourse = $("rdCourse");
+const rdPath = $("rdPath");
+const rdLessonName = $("rdLessonName");
+const rdLessonProg = $("rdLessonProg");
+const rdLessonBlurb = $("rdLessonBlurb");
+const rdBar = $("rdBar");
 const rdCats = $("rdCats");
 const rdScore = $("rdScore");
 const rdCanvas = $("rdCanvas");
@@ -268,6 +276,8 @@ let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + dec
 let fluidLastLetterAt = 0; // for auto-speak-on-pause
 let fluidSpoke = false; // already spoke this pause?
 let reader = null; // read mode: receptive practice
+let course = null; // read mode: teaching-order lessons with progress gating
+let readStyle = loadPref("read-style") === "course" ? "course" : "free";
 let readPlayer = null; // animates the word being spelled
 let readTimers = []; // per-letter playback timeouts
 let lastPred = null;
@@ -290,7 +300,20 @@ fetch(new URL("../data/practice-words.json", import.meta.url))
       reader = createReader(bank);
       if (rdSpeed) rdSpeed.value = loadPref("read-speed") || rdSpeed.value;
       buildReadCats();
-      if (mode === "read") nextReadWord(); // restored straight into read mode
+      if (mode === "read") applyReadStyle(); // restored straight into read mode
+    }
+  })
+  .catch(() => {});
+
+// read mode's course spine: letter tiers unlocked in a teaching order
+fetch(new URL("../data/curriculum.json", import.meta.url))
+  .then((r) => (r.ok ? r.json() : null))
+  .then((json) => {
+    if (json) {
+      course = createCourse(json, loadJSON("course", null));
+      buildReadPath();
+      renderLesson();
+      if (mode === "read" && readStyle === "course") applyReadStyle();
     }
   })
   .catch(() => {});
@@ -545,6 +568,67 @@ function buildReadCats() {
   }
 }
 
+// --- course: teaching-order lessons -------------------------
+
+function buildReadPath() {
+  if (!course || !rdPath) return;
+  rdPath.innerHTML = "";
+  for (const t of course.view()) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className =
+      "rd-step" +
+      (t.active ? " active" : "") +
+      (t.locked ? " locked" : "") +
+      (!t.locked && t.done >= t.need ? " done" : "");
+    b.dataset.step = String(t.index);
+    b.disabled = t.locked;
+    const mark = t.locked ? "🔒" : t.done >= t.need ? "✓" : `${t.done}/${t.need}`;
+    b.innerHTML = `${t.name} <span class="tick" aria-hidden="true">${mark}</span>`;
+    b.setAttribute(
+      "aria-label",
+      t.locked
+        ? `${t.name} — locked`
+        : `${t.name}${t.active ? ", current lesson" : ""} — ${t.done} of ${t.need} correct`
+    );
+    b.setAttribute("aria-pressed", String(t.active));
+    rdPath.appendChild(b);
+  }
+}
+
+function renderLesson() {
+  if (!course) return;
+  const t = course.tier;
+  if (!t) return;
+  if (rdLessonName) rdLessonName.textContent = `${t.name}  ·  ${t.letters.split("").join(" ")}`;
+  if (rdLessonBlurb) rdLessonBlurb.textContent = t.blurb || "";
+  const p = course.progress();
+  if (rdLessonProg) {
+    rdLessonProg.textContent = course.complete ? "course complete 🎉" : `${p.done} / ${p.need}`;
+  }
+  if (rdBar) rdBar.style.width = `${Math.round(p.ratio * 100)}%`;
+}
+
+function applyReadStyle() {
+  if (!reader) return;
+  savePref("read-style", readStyle); // remember intent even if the course JSON is still loading
+  const onCourse = readStyle === "course" && !!course;
+  if (rdModes) {
+    for (const b of rdModes.children) {
+      const on = b.dataset.rmode === readStyle;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    }
+  }
+  if (rdCourse) rdCourse.hidden = !onCourse;
+  if (rdCats) rdCats.hidden = onCourse;
+  if (onCourse) {
+    buildReadPath();
+    renderLesson();
+  }
+  nextReadWord();
+}
+
 function playWord(word) {
   readTimers.forEach(clearTimeout);
   readTimers = [];
@@ -568,7 +652,8 @@ function playWord(word) {
 
 function nextReadWord() {
   if (!reader) return;
-  const w = reader.next();
+  const w =
+    readStyle === "course" && course ? reader.next(course.words()) : reader.next();
   rdInput.value = "";
   rdInput.disabled = false;
   rdFeedback.textContent = "";
@@ -580,7 +665,7 @@ function nextReadWord() {
 
 function enterRead() {
   if (!reader) { rdFeedback.textContent = "loading word list…"; return; }
-  nextReadWord();
+  applyReadStyle();
 }
 function leaveRead() {
   readTimers.forEach(clearTimeout);
@@ -594,17 +679,26 @@ function judgeRead(revealed) {
   const ok = !revealed && reader.check(rdInput.value);
   rdInput.disabled = true;
   rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
+  let promo = null;
+  if (readStyle === "course" && course) {
+    promo = course.record(ok);
+    saveJSON("course", course.state());
+    buildReadPath();
+    renderLesson();
+  }
   if (ok) {
-    rdFeedback.textContent = "✓ correct";
+    rdFeedback.textContent = promo && promo.unlocked
+      ? `✓ correct — 🔓 new lesson: ${promo.tierName}`
+      : "✓ correct";
     rdFeedback.className = "rd-feedback good";
-    buzz(20);
+    buzz(promo && promo.unlocked ? 40 : 20);
     sound.success?.();
   } else {
     rdFeedback.textContent = revealed ? `it was “${answer}”` : `✗ that was “${answer}”`;
     rdFeedback.className = "rd-feedback bad";
     if (!revealed) { buzz(60); sound.fail?.(); }
   }
-  setTimeout(nextReadWord, ok ? 850 : 1600);
+  setTimeout(nextReadWord, ok ? (promo && promo.unlocked ? 1400 : 850) : 1600);
 }
 
 // ---- challenge mode -------------------------------------------
@@ -1608,6 +1702,22 @@ rdCats.addEventListener("click", (e) => {
   reader.toggleCategory(b.dataset.cat);
   buildReadCats();
   if (mode === "read") nextReadWord();
+});
+rdModes.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-rmode]");
+  if (!b || b.dataset.rmode === readStyle) return;
+  if (b.dataset.rmode === "course" && !course) return; // still loading
+  readStyle = b.dataset.rmode;
+  applyReadStyle();
+});
+rdPath.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-step]");
+  if (!b || !course || b.disabled) return;
+  if (!course.select(Number(b.dataset.step))) return;
+  saveJSON("course", course.state());
+  buildReadPath();
+  renderLesson();
+  nextReadWord();
 });
 
 async function doSpellCopy() {

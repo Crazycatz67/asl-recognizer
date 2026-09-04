@@ -41,8 +41,14 @@ export function createReader(bank = {}) {
       seen.clear();
     },
 
-    next() {
-      const all = pool();
+    // next()          -> pick from the active-category pool
+    // next(["a","b"]) -> pick from a caller-supplied list (Course mode drives this),
+    //                    still avoiding repeats until that list is exhausted
+    next(override) {
+      const all =
+        Array.isArray(override) && override.length
+          ? [...new Set(override.map((w) => String(w).toLowerCase()))]
+          : pool();
       let fresh = all.filter((w) => !seen.has(w));
       if (!fresh.length) { seen.clear(); fresh = all; }
       current = fresh[(Math.random() * fresh.length) | 0] || null;
