@@ -6,11 +6,12 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 - **Where we are:** Stages 1–4 done + a large, live-tested practice/challenge experience on top, all **deployed** → https://crazycatz67.github.io/asl-recognizer/ . Update = `git push` (repo `Crazycatz67/asl-recognizer`, `main`, `/` root).
 - **Verified working:** `tools/selftest.html` **119/119**; all modules load clean; the user has run it live on Mac + phone across ~20 feedback iterations. Recognition is now **97.1%** held-out (kNN + learned M/N & D/O/C heads), every letter ≥92%.
 - **Can't verify in-session:** the live camera loop / reward / animations — automation-browser limits (synthetic camera + hidden-pane rAF throttle). The user confirms these on the deployed site; everything else is unit-tested + checked layer-by-layer.
-- **What's genuinely left (roadmap):** (5) formal **live evaluation** — per-letter accuracy on the deployed app + a skin-tone detection-reliability check (needs a person or two at the webcam). Everything in Stage 6 is built: Challenge game, J/Z motion letters, and **Spell mode** (continuous fingerspelling → text with a pending-word buffer, swipe-to-scrap, two-hand copy/paste). Open follow-up on Spell mode: the gesture thresholds are still being tuned against real signing (user testing live). PWA/offline is a nice-to-have.
+- **What's genuinely left (roadmap):** **Stage 8** (chosen 2026-09-03) — fingerspelling → sentence → speech: segment the raw letter stream into words, confusion-aware correction, assemble + speak via `speechSynthesis`; all plain JS + one bundled word-frequency file. Then the **Backlog** (B1 receptive practice, B2 curriculum, B3 Deaf-signer data are the high-priority catch-up items) and (5) formal **live evaluation** at the webcam. Stage 6 is fully built (Challenge, J/Z, Spell mode); its open follow-up is gesture-threshold tuning against real signing.
 - **Don't re-explore:** the *single-measurement* M↔N / D↔O tie-breaker (`js/refine.js`) — disproven, shelved. The M/N/D fix that *worked* is `js/heads.js` (learned heads); retrain via `tools/train-heads.html` if the dataset changes.
 - **Working agreement:** explain choices plainly as you go; keep this doc current with a dated Revision-history entry per change; flag deviations and wait for confirmation; ask before adding any dependency beyond MediaPipe. User is an AI major building this to learn.
 
 ## Revision history
+- **2026-09-03:** **Plan redirect toward "word ASL via fingerspelling" + a competitive-gap backlog.** Two changes, from the *Signing to a Webcam* competitive read (`scratchpad/fingerspelling-landscape.html`): (1) new **"Backlog — catching up with the field"** section — every capability competitors ship that we don't (receptive practice, a real curriculum, Deaf-signer data, curated word content, app accessibility, number signs, accounts/sync, PWA), priority-ranked. (2) new **Stage 8 — fingerspelling → sentence → speech**: lean into what Spell mode already does — capture the raw recognised letter stream, then a plain-JS pipeline (dictionary + DP word-segmentation à la Norvig, confusion-aware fuzzy correction, sentence assembly) turns "whatareyoudoing" into "What are you doing?", shown live and spoken via the browser's `speechSynthesis`. Not real ASL word-sign recognition — a slow-spelling approximation that needs no word-sign data. Scope note updated.
 - **2026-09-03:** **Spell mode — pending-word buffer (the real "not fluid" fix).** Per-letter auto-commit was structurally wrong: every stray frame while the hand moved landed a permanent letter and swipe could only undo one. New model: recognised letters build a **pending word** (rendered dashed, `<span class="sp-pending">`) — a draft that drops into the transcript only on a ~1 s pause (word break) or a Space tap. `js/speller.js` rewritten: `text` + `pending`, `feed() → {text, pending, event:"letter"|"word"}`, `display`/`pending` getters, `clearPending()`, reworked `space`/`backspace`/`insert`/`clear`. **Swipe now = scrap the whole pending word** (not "delete one char") — the junk a moving hand adds gets wiped by the same motion; ⌫/backspace hits pending first, transcript only when the draft is empty; copy grabs `display`, paste commits the current word then inserts. Help + hint rewritten. Self-test 119/119.
 - **2026-09-03:** **Spell gestures — fix "not firing" on real hands.** (1) **Swipe-to-delete** was fed the EMA-smoothed landmarks, which damp exactly the fast motion a swipe is; now fed **raw** landmarks. Thresholds loosened: sideways travel 1.6→1.1 spans, horizontal dominance 2.2×→1.6×, open-fraction 0.7→0.5, "open" = 3/4 fingers extended + light spread (was all four fanned), window 440→650 ms, buffer survives a 450 ms frame-clip. (2) **Two-hand copy/paste** — MediaPipe merges/drops a hand track exactly when the hands meet (the moment "copy" needs). Rewrote `match()` to use the widest & narrowest gap seen between two *open* hands and their **order** (apart→together = copy, together→apart = paste) instead of first-third/last-third averages, so dropped frames in the middle don't matter; "open" loosened to 3/4 fingers; window 560→750 ms. (3) **Live readout** under the controls (`#spMetrics`): `swipe: sideways X/1.1 · up-down Y · open Z` with one hand, `hands: gap X (saw min–max)` with two — so a gesture that still won't register can be tuned to real numbers. (4) The gesture-demo box also animates **Add a letter** (hold still, ring fills) and **Space** (lower the hand, a gap appears). Self-test 116/116.
 - **2026-09-03:** **Spell mode — animated gesture demos.** New "Hand gestures — how to do them" fold (open by default) with a small looping CSS animation per gesture: an open hand sweeping sideways (delete), two hands together (copy), two hands apart (paste), + a "fingers must be spread" note. `prefers-reduced-motion` freezes them at a legible pose. "How to spell" (text steps) collapsed by default now that the gesture block owns the how-to. `serve.ps1` also wraps `GetContext()` so a listener hiccup can't end the loop. Self-test 114/114.
@@ -81,18 +82,37 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 | 4 Live inference + overlay | **done** | confirmed live by the user across ~20 feedback rounds; progressive correction guide, tilt forgiveness, EMA smoothing, real-time handedness, back-camera aware |
 | 5 Evaluation | **offline done; live pending** | confusion matrix + per-letter in `tools/test-knn.html` (95.9%). Still to do: a structured **live** per-letter accuracy pass + a skin-tone detection-reliability check with 2–3 people |
 | Practice mode (in `index.html`) | **done + heavily polished** | free-pick / **A→Z run**; animated demo (+ tap to enlarge); plain-language descriptions; progressive guide with finger highlight; self-calibrated "readable not perfect" meter; hold-to-win + charge sound + haptics; recogniser readout; per-letter stats; "stuck" assist; remembered setup; first-visit walkthrough |
-| 6 Challenge / words / J/Z (stretch) | **all three done (v1)** | `js/challenge.js` speed game (recogniser-gated, GO flash, speed scoring, streak, 3 lives + Skip, results card). **J/Z** via `js/motion.js` (fingertip stroke matcher) — full 26-letter picker, stroke demo, works everywhere. **Spell mode** (`js/speller.js`) — continuous fingerspelling → transcript, auto-space on pause, doubled-letter handling, Space/⌫/Clear/Copy. Tuning of the hold/gap timings against real signing is the open follow-up. |
+| 6 Challenge / words / J/Z (stretch) | **all three done (v1)** | `js/challenge.js` speed game (recogniser-gated, GO flash, speed scoring, streak, 3 lives + Skip, results card). **J/Z** via `js/motion.js` (fingertip stroke matcher) — full 26-letter picker, stroke demo, works everywhere. **Spell mode** (`js/speller.js`) — continuous fingerspelling → transcript with a forgiving pending-word buffer, pause-to-commit, swipe-to-scrap, two-hand copy/paste, in-panel help + gesture demos + A–Z chart. Tuning of the gesture thresholds against real signing is the open follow-up. |
+| 8 Fingerspell → sentence → speech | **planned** | the "slow Google Translate" path — segment the raw letter stream into words, confusion-aware correction, sentence assembly, `speechSynthesis` playback. All plain JS + one bundled word-frequency file. See the Stage 8 section. |
+| Backlog (catch-up with the field) | **not started** | B1 receptive practice · B2 curriculum · B3 Deaf-signer data · B4 word content · B5 accessibility · B6 numbers/variants · B7 accounts · B8 PWA. See the Backlog section. |
 
-**Immediate next (pick one):** (a) Stage 5 live evaluation — sit down and log per-letter hit rate on the deployed app, ideally with a second person for the skin-tone check; (b) Spell-mode polish — tune hold/gap/space timings live, add a confidence floor so junk frames don't commit, optional open-hand "space" gesture; (c) targeted M/N/D self-capture (shelved — user opted out 2026-09-03); (d) PWA / offline install.
+**Immediate next (pick one):** (a) **Stage 8** — the fingerspelling → sentence → speech pipeline (the "slow Google Translate" direction the user chose 2026-09-03); (b) Stage 5 live evaluation — log per-letter hit rate on the deployed app, ideally with a second person for the skin-tone check; (c) Backlog items below, in priority order (receptive practice + a real curriculum are the two that move us past the incumbent); (d) Spell-mode timing tuning against real signing.
 
 **Known weak letters:** ~~M 85%, N 84%, D 87%~~ **FIXED** — learned refinement heads (`js/heads.js`) lift M→92, N→96, D→97 (held-out), overall 95.9→97.1%. Every letter is now ≥92%. A *single-measurement* tie-breaker (`js/refine.js`) was disproven and stays shelved; the win was a *learned* combination over the full feature vector.
 
-**Architecture:** UI-free reusable core = `js/normalize.js` + `js/knn.js` + `js/dataset.js` + `js/stabilizer.js` + `js/reference.js` (practice pages / any future page consume these directly). `js/main.js` is the only live-UI glue. `js/refine.js` is a shelved tie-breaker (documented, not wired in). Test harness: `tools/selftest.html` (run after every change).
+**Architecture:** UI-free reusable core = `js/normalize.js` + `js/knn.js` + `js/dataset.js` + `js/stabilizer.js` + `js/reference.js` + `js/speller.js` (practice pages / any future page consume these directly). `js/main.js` is the only live-UI glue. `js/refine.js` is a shelved tie-breaker (documented, not wired in). Test harness: `tools/selftest.html` (run after every change).
+
+---
+
+## Backlog — catching up with the field
+
+From the *Signing to a Webcam* competitive read (2026-09-03). These are things one or more shipping competitors do and we don't. Priority = how much it closes the gap with **Fingerspelling.xyz** (the direct incumbent), not just novelty.
+
+| # | Item | Why | Priority |
+|---|------|-----|----------|
+| B1 | **Receptive practice** — a "watch a clip / animation of someone fingerspelling, then type what you saw" mode | Reading fingerspelling is the harder half of the skill and we train none of it (ASL Speed Spell is *entirely* this). Roughly doubles the app's usefulness. Can reuse `reference.createCanonicalPlayer` to animate a word letter-by-letter — no new video assets. | **High** |
+| B2 | **A real curriculum** — letters grouped by shape/difficulty and unlocked in a teaching order, with progress gating | We have modes (Free pick / A→Z / Challenge), not pedagogy. Fingerspelling.xyz opens with A,B,C,E,L,O,V,W,U,Y then widens; Lingvano has a full course spine. | **High** |
+| B3 | **Data from Deaf signers** | Dataset is grassknoted (Kaggle, mostly hearing) — the M/N/D weakness traces straight to it. PopSign used 47 Deaf signers; Fingerspelling.xyz partners with the American Society for Deaf Children. Affects accuracy *and* credibility with the audience. Path: recruit a few Deaf signers to record M/N/D + weak letters via a capture tool. | **High** |
+| B4 | **Curated word content** — name lists, themed categories, frequency-ranked words, light spaced repetition | Spell mode is free-form with nothing to practise against; feeds B1 and Stage 8. A bundled word-frequency list also *is* Stage 8's dictionary — one asset, two uses. | Med |
+| B5 | **App-level accessibility** — captions on every sound cue, ARIA labels, a full keyboard path, a high-contrast theme, `prefers-reduced-motion` audit | Table stakes for a tool aimed at a Deaf / hard-of-hearing audience; currently partial. | Med |
+| B6 | **Number signs 0–9 + handshape variants** — digits, plus the regional/stylistic variants real signers use for some letters | Extends the alphabet to what people actually fingerspell (phone numbers, addresses). New data collection. | Med |
+| B7 | **Accounts & cross-device progress** | Progress is `localStorage` on one browser. Fine now, a ceiling later. Needs a backend — first real dependency. | Low |
+| B8 | **Installable / offline (PWA)** — service worker, manifest, cache the model + dataset | Already noted as a nice-to-have. Most competitors are installed apps. No new dependency. | Low |
 
 ---
 
 ## Scope
-This plan covers **fingerspelling only**: recognizing static A–Z handshapes from a live camera feed and displaying the matched letter. It deliberately excludes full ASL word signs (which require motion, face, and torso tracking — see "Out of scope" below).
+This plan covers **fingerspelling** (A–Z + J/Z motion letters) from a live webcam. It does **not** do ASL word-sign recognition (whole-word signs, which need motion + face + torso tracking and datasets we don't have — see "Out of scope"). **Stage 8** pursues a deliberate approximation of sentence-level understanding *built on fingerspelling only*: a person spells a message out letter by letter and the app segments, corrects, assembles and **speaks** it — a "slow Google Translate" that works with the data we already have.
 
 ---
 
@@ -181,11 +201,48 @@ Given a live webcam feed, detect a hand, classify which letter (A–Z) it's form
 
 J and Z aren't actually static handshapes — J traces a small hook and Z draws a zigzag, so they need motion, not a single frame. **Plan: build and validate the other 24 letters first.** J and Z get added afterward as a small motion-buffer case, reusing the same hold/pause detection planned for Task 7 rather than needing a separate system.
 
+---
+
+## Stage 8 — Fingerspelling → sentence → speech ("slow Google Translate")
+
+**Idea (user, 2026-09-03):** we can't do ASL word-signs (no data), but we *can* read letters well. So let a person spell a whole message out slowly, capture the raw letter stream, and do the "what is this sentence" work in software — segment it into words, fix recognition errors, assemble a sentence, and **play it back as text and speech**. A real-time-ish Google-Translate feel that rides entirely on the fingerspelling we already have.
+
+### Pipeline (all plain JS, no ML dependency)
+
+1. **Capture** — extend `speller.js` to keep `rawLetters`: the exact recognised stream with pause markers, e.g. `W H A T · A R E · Y O U · D O I N G` (`·` = a detected word-gap). Spell mode already produces most of this; the change is keeping the *unsplit, uncorrected* stream alongside the cleaned transcript.
+2. **Segment** — `js/segment.js`: split an unspaced run (`whatareyoudoing`) into the most probable word sequence. Dynamic-programming / Viterbi over a bundled **word-frequency list** (Norvig's `segment` approach — `P(words) = ∏ P(word)`, DP for the best split). Pause markers are strong split hints but not required, so a missed pause still recovers.
+3. **Correct** — `js/correct.js`: for any segment that isn't a known word, find the nearest dictionary word within edit distance ≤ 2, ranked by word frequency **and a confusion-cost matrix** that makes our known classifier mix-ups cheap (M↔N, D↔O/C, U↔V, K↔P …). This is a small noisy-channel corrector; it turns `wat ara yuo doing` → `what are you doing`.
+4. **Assemble** — capitalise sentence starts, join with spaces, end a sentence on a long pause or an explicit "period" gesture/button; keep a running transcript of finished sentences.
+5. **Speak** — `window.speechSynthesis` (built into every browser, zero dependency). A 🔊 **Speak** button + an auto-speak-on-sentence-end toggle; pick a voice, expose rate.
+
+### UI (evolves Spell mode, no new mode needed)
+
+A three-line live view in the spell panel:
+- **raw** — the letter stream as recognised (mono, dim)
+- **split** — the current best segmentation (updates every letter)
+- **sentence** — the corrected, capitalised sentence, large + a Speak button
+
+The existing dashed pending-word already covers "letters not yet confirmed"; Stage 8 adds the split/correct/speak layer on top.
+
+### New assets / deps
+
+- **One data file**: a compact English word-frequency list (~top 10–30k words; ~50–300 KB, gzips small). Ships with the app. *Not a code dependency* but flag it — it's the first bundled data beyond the training set. Doubles as backlog **B4**'s content source.
+- No new libraries. Segmentation, edit-distance and the corrector are ~150 lines of JS; TTS is a browser API.
+
+### Honest limits (write these into the UI copy)
+
+- This is **fingerspelling, not ASL**. Real signers rarely fingerspell whole sentences — it's slow and tiring. Stage 8's use case is "spell a message and have it spoken," an accessibility bridge and a demo, not a substitute for an interpreter.
+- Accuracy compounds: a sentence is only as good as its worst letter. The corrector helps; it won't save a badly-recognised run. Keep the **raw** line visible so the user can see and fix what it heard.
+- Names, jargon and non-dictionary words won't segment/correct well — offer a "keep as spelled" toggle per word.
+
+### Build order
+
+`segment.js` + a bundled word list (testable offline on typed strings) → `correct.js` with the confusion matrix → wire `rawLetters` capture into `speller.js` → the three-line UI → `speechSynthesis` playback → selftest coverage (segment/correct on known noisy inputs).
+
 ## 5. Out of scope for this plan
 
-- Full ASL word signs (motion-based, need face/pose tracking + a temporal model — separate project phase)
+- Full ASL word signs (motion-based, need face/pose tracking + a temporal model — a separate project phase; Stage 8 is a *fingerspelling-based approximation*, not this)
 - ASL grammar (facial expression as grammar, non-manual markers)
-- Two-handed letters or regional sign variants
-- Continuous sentence-level translation
+- Two-handed letters or regional sign variants (tracked as backlog B6 for the alphabet variants only)
 
 These stay explicitly parked so this plan doesn't quietly expand mid-build.
