@@ -1,3 +1,6 @@
 data/_src/
 *.zip
 .DS_Store
+
+# local Kaggle download (huge, do not commit)
+kaggle-fs/
