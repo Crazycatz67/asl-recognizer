@@ -93,6 +93,22 @@ function mkHand() {
         const px = sk.vectorToPixels(new Array(63).fill(0).map(() => Math.random() - 0.5), 200, 200);
         return px.length === 21 && px.every(([x, y]) => x >= 0 && x <= 200 && y >= 0 && y <= 200 && Number.isFinite(x));
       })());
+    ok("skeleton: drawHandShape renders a solid hand without throwing", (() => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 200;
+      const ctx = c.getContext("2d");
+      const px = sk.vectorToPixels(new Array(63).fill(0).map(() => Math.random() - 0.5), 200, 200);
+      try {
+        sk.drawHandShape(ctx, px);
+        sk.drawHandShape(ctx, px, { alpha: 0.2, nails: false });
+        sk.drawHandShape(ctx, null); // no-op, no throw
+        // it drew *something* — at least one non-transparent pixel
+        const data = ctx.getImageData(0, 0, 200, 200).data;
+        let painted = false;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) { painted = true; break; }
+        return painted;
+      } catch { return false; }
+    })());
 
     const ov = await import("../js/overlay.js");
     const cnv = document.createElement("canvas");

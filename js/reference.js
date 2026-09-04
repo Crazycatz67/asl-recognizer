@@ -11,7 +11,7 @@
 // as a typical training example does — not "closer to the mean than 99% of
 // them", which is what the old fixed threshold demanded (and why it never hit).
 
-import { drawSkeleton, vectorToPixels } from "./skeleton.js";
+import { drawHandShape, vectorToPixels } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
 
@@ -85,13 +85,8 @@ export function drawCanonical(canvasEl, vec) {
   const h = canvasEl.height;
   ctx.clearRect(0, 0, w, h);
   if (!vec) return;
-  const px = vectorToPixels(vec, w, h, { pad: 0.16 });
-  drawSkeleton(ctx, px, {
-    stroke: "#e2e8f0",
-    joint: "#38bdf8",
-    lineWidth: Math.max(4, w * 0.02),
-    jointRadius: Math.max(4, w * 0.018),
-  });
+  const px = vectorToPixels(vec, w, h, { pad: 0.18 });
+  drawHandShape(ctx, px);
 }
 
 // Distance over the 21 landmark X/Y only — deliberately NOT z.
@@ -477,14 +472,12 @@ export function createCanonicalPlayer(canvasEl) {
     }
     ctx.stroke();
 
-    // the hand skeleton, shifted so its fingertip is at the current point
+    // the solid hand, shifted so its fingertip is at the current point
     const tipNow = along(px, prog);
     const poseFit = poseAt0.map(fit);
     const dx = tipNow[0] - poseFit[tip][0];
     const dy = tipNow[1] - poseFit[tip][1];
-    drawSkeleton(ctx, poseFit.map(([x, y]) => [x + dx, y + dy]), {
-      stroke: "#e2e8f0", joint: "#38bdf8", glow: 0.35,
-    });
+    drawHandShape(ctx, poseFit.map(([x, y]) => [x + dx, y + dy]));
     ctx.fillStyle = "#e2e8f0";
     ctx.beginPath();
     ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
@@ -497,24 +490,14 @@ export function createCanonicalPlayer(canvasEl) {
     const h = canvasEl.height;
     ctx.clearRect(0, 0, w, h); // full clear every frame — no after-image
     if (!target) return;
-    // short motion trail: a few recent poses at low alpha so you read the
-    // path of the movement, then the crisp current pose on top
+    // one faint trailing hand so you read the movement, then the solid hand
     if (!reduce) {
-      for (let k = 3; k >= 1; k--) {
-        const f = Math.max(0, frac - k * 0.06);
-        drawSkeleton(ctx, vectorToPixels(poseAt(f), w, h, { pad: 0.16 }), {
-          stroke: "#38bdf8",
-          joint: "#38bdf8",
-          alpha: 0.1 + 0.05 * (3 - k),
-          halo: null,
-        });
-      }
+      drawHandShape(ctx, vectorToPixels(poseAt(Math.max(0, frac - 0.09)), w, h, { pad: 0.18 }), {
+        alpha: 0.18,
+        nails: false,
+      });
     }
-    drawSkeleton(ctx, vectorToPixels(poseAt(frac), w, h, { pad: 0.16 }), {
-      stroke: "#e2e8f0",
-      joint: "#38bdf8",
-      glow: 0.4,
-    });
+    drawHandShape(ctx, vectorToPixels(poseAt(frac), w, h, { pad: 0.18 }));
   }
 
   function loop(ts) {
