@@ -28,10 +28,18 @@ HAND = [f"{ax}_right_hand_{i}" for ax in "xyz" for i in range(21)]
 HAND_L = [f"{ax}_left_hand_{i}" for ax in "xyz" for i in range(21)]
 
 
+def rows_for(pq, sid):
+    """One sequence's frames from a parquet, whether sequence_id is the index or a column."""
+    if pq.index.name == "sequence_id":
+        return pq.loc[[sid]] if sid in pq.index else pq.iloc[0:0]
+    if "sequence_id" in pq.columns:
+        return pq[pq["sequence_id"] == sid]
+    return pq.iloc[0:0]
+
+
 def load_seq(pq, row):
     """Return frames [[ [x,y,z] x21 ] ...] for one sequence, or None."""
-    import pandas as pd  # noqa
-    df = pq[pq.index == row.sequence_id] if pq.index.name == "sequence_id" else pq.loc[[row.sequence_id]]
+    df = rows_for(pq, row.sequence_id)
     if df.empty:
         return None
     # prefer whichever hand is populated in more frames
