@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>harvest-kaggle — weakly-supervised per-letter samples</title>
+<style>
+  body { margin: 0; padding: 1.5rem; max-width: 900px; margin-inline: auto;
+    font: 14px/1.6 system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 1.05rem; } code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  button { background: #38bdf8; color: #0f172a; border: 0; border-radius: 8px;
+    padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; margin-right: 0.5rem; }
+  .out { margin-top: 0.8rem; padding: 0.8rem; background: #020617; border: 1px solid #1e293b;
+    border-radius: 8px; white-space: pre-wrap; }
+  label { font-size: 0.85rem; color: #cbd5e1; }
+  input[type=number] { width: 4rem; background: #1e293b; color: inherit;
+    border: 1px solid #334155; border-radius: 6px; padding: 2px 4px; }
+</style>
+</head>
+<body>
+<h1>harvest-kaggle — mine per-letter training frames from the phrase-labelled sequences</h1>
+<p style="color:#64748b">
+For each sequence: classify every frame, DTW-align the label stream to the known
+phrase, then from each phrase letter's frames take the middle of the longest
+held run and label it with the <b>phrase</b> letter (correcting misreads).
+Writes <code>data/kaggle_samples.json</code>.</p>
+
+<p>
+  <label>min run <input id="minrun" type="number" value="3" /></label>
+  &nbsp; <label>keep/run <input id="keep" type="number" value="3" /></label>
+  &nbsp; <label>min conf <input id="minconf" type="number" step="0.05" value="0" /></label>
+</p>
+<button id="run">harvest</button>
+<button id="dl" disabled>download kaggle_samples.json</button>
+<div class="out" id="status">loading…</div>
+<div class="out" id="result"></div>
+
+<script type="module">
+import { normalizeLandmarks } from "../js/normalize.js";
+import { loadDataset } from "../js/dataset.js";
+import { createClassifier } from "../js/knn.js";
+import { LETTERS, USE_EXTENDED_FEATURES, KNN_K } from "../js/config.js";
+
+const $ = (id) => document.getElementById(id);
+let clf, seqs;
+const LETSET = new Set(LETTERS); // 24, no J/Z
+
+// DTW: frame-label stream -> phrase-letter stream. down/diag cost = 0/1 by
+// match; left (skip a phrase letter) is expensive so every letter gets frames.
+function align(frameLabels, phrase) {
+  const n = frameLabels.length, m = phrase.length;
+  const D = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(1e9));
+  D[0][0] = 0;
+  for (let i = 1; i <= n; i++) D[i][0] = 1e9;
+  for (let j = 1; j <= m; j++) D[0][j] = j * 2;
+  for (let i = 1; i <= n; i++)
+    for (let j = 1; j <= m; j++) {
+      const c = frameLabels[i - 1] === phrase[j - 1] ? 0 : 1;
+      D[i][j] = Math.min(
+        D[i - 1][j] + c,       // hold: another frame on this letter
+        D[i - 1][j - 1] + c,   // advance both
+        D[i][j - 1] + 2        // skip this phrase letter (penalised)
+      );
+    }
+  const map = new Int32Array(n);
+  let i = n, j = m;
+  while (i > 0 && j > 0) {
+    map[i - 1] = j - 1;
+    const a = D[i - 1][j - 1], b = D[i - 1][j], cc = D[i][j - 1];
+    if (a <= b && a <= cc) { i--; j--; }
+    else if (b <= cc) i--;
+    else j--;
+  }
+  while (i > 0) { map[--i] = 0; }
+  return map;
+}
+
+async function boot() {
+  const ds = await loadDataset("../data/dataset.json");
+  clf = createClassifier(
+    ds.samples.filter((s) => LETSET.has(s.label)).map((s) => ({ label: s.label, v: s.v })),
+    { k: KNN_K }
+  );
+  seqs = (await fetch("../data/fs_sequences.json").then((r) => r.json())).sequences;
+  $("status").textContent = `ready — ${seqs.length} sequences, classifier ${clf.size} vectors.`;
+}
+
+$("run").addEventListener("click", () => {
+  const minRun = Number($("minrun").value) || 3;
+  const keepN = Number($("keep").value) || 3;
+  const minConf = Number($("minconf").value) || 0;
+  $("result").textContent = "harvesting…";
+  setTimeout(() => {
+    const t0 = performance.now();
+    const rows = [];
+    const perLetter = {};
+    let corrected = 0, agreed = 0;
+    for (const s of seqs) {
+      const phrase = s.phrase.toUpperCase().replace(/[^A-Z]/g, "").split("")
+        .filter((L) => LETSET.has(L));
+      if (!phrase.length) continue;
+      // classify every frame
+      const F = s.frames.map((fr) => {
+        const pts = fr.map(([x, y, z]) => ({ x, y, z }));
+        const vec = normalizeLandmarks(pts, { aspect: 1, mirrorX: true, extended: USE_EXTENDED_FEATURES });
+        const p = clf.classify(vec);
+        return { vec, label: p.label, conf: p.confidence };
+      });
+      const map = align(F.map((f) => f.label), phrase);
+      // group frame indices by phrase position
+      const groups = phrase.map(() => []);
+      map.forEach((pos, fi) => groups[pos].push(fi));
+      phrase.forEach((L, pos) => {
+        const idxs = groups[pos];
+        if (idxs.length < minRun) return;
+        // longest consecutive run with a single predicted label
+        let bestS = 0, bestLen = 0, curS = 0;
+        for (let k = 1; k <= idxs.length; k++) {
+          if (k < idxs.length && F[idxs[k]].label === F[idxs[curS]].label &&
+              idxs[k] === idxs[k - 1] + 1) continue;
+          const len = k - curS;
+          if (len > bestLen) { bestLen = len; bestS = curS; }
+          curS = k;
+        }
+        if (bestLen < minRun) return;
+        const runIdx = idxs.slice(bestS, bestS + bestLen);
+        const mid = runIdx.slice(1, -1).length ? runIdx.slice(1, -1) : runIdx;
+        const step = Math.max(1, Math.floor(mid.length / keepN));
+        for (let k = 0; k < mid.length && rows.length < 200000; k += step) {
+          const f = F[mid[k]];
+          if (f.conf < minConf) continue;
+          rows.push({ label: L, v: f.vec.map((n) => Math.round(n * 1e5) / 1e5) });
+          perLetter[L] = (perLetter[L] || 0) + 1;
+          if (f.label === L) agreed++; else corrected++;
+        }
+      });
+    }
+    const ms = Math.round(performance.now() - t0);
+    window.__kaggleSamples = {
+      created: new Date().toISOString(),
+      source: "kaggle asl-fingerspelling, DTW-aligned harvest",
+      vectorLength: rows[0]?.v.length ?? 74,
+      count: rows.length,
+      samples: rows,
+    };
+    $("dl").disabled = false;
+    let html = `${rows.length} samples from ${seqs.length} sequences · ${ms} ms\n`;
+    html += `${agreed} agreed with the classifier, ${corrected} corrected a misread\n\n`;
+    html += "per letter:\n";
+    for (const L of LETTERS)
+      html += `  ${L} ${String(perLetter[L] || 0).padStart(4)}${(perLetter[L] || 0) < 20 ? "  <- thin" : ""}\n`;
+    $("result").textContent = html;
+  }, 20);
+});
+
+$("dl").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(window.__kaggleSamples)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kaggle_samples.json";
+  a.click();
+});
+
+boot();
+</script>
+</body>
+</html>
