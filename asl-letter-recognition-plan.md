@@ -11,6 +11,7 @@ _Last updated 2026-09-03. This block is the fast catch-up after a context reset;
 - **Working agreement:** explain choices plainly as you go; keep this doc current with a dated Revision-history entry per change; flag deviations and wait for confirmation; ask before adding any dependency beyond MediaPipe. User is an AI major building this to learn.
 
 ## Revision history
+- **2026-09-04:** **Stage 9 added — the ambitious arc for "actually useful to the community."** Leads with *talk to Deaf people first* (confirm the problem; a solo project's best impact may be an open component + a consented Deaf-led landmark dataset). Two hard limits, each with a real attack: (1) **native-speed fingerspelling** needs a *sequence model on landmark input* — proven & on-device by the Kaggle competition (Squeezeformer + transformer decoder → TF-Lite); path = train a small CTC model (GRU/1D-CNN, ~100k–2M params) in Colab, run in-browser via ONNX Runtime Web, keep the kNN for Practice. The "no ML framework" rule is the only blocker and it's self-imposed. (2) **names/numbers** is a vocabulary+UX problem — context lexicons (Census names, address grammar, digit grammar), promote **B6 digit signs to high priority**, spell-back confirmation, session dictionary, entity priors. Semester-scale; sequenced after Stage 8.
 - **2026-09-04:** **Stage 8 build-simulation added** — phased plan (Ph 0 Kaggle test-set → Ph 1 `decode.js` → Ph 2 `transition.js` → Ph 3 wire behind a beta toggle → Ph 4 harvest+retrain → Ph 5 UI+speech), each with an effort estimate (≈14–22 focused sessions total, 3–6 weeks part-time), a risk column, an explicit failure-modes list with fallbacks, and an efficiency section (everything offline-testable against the replayed Kaggle sequences; `decode-lab.html` for keyboard-speed iteration; one word list two uses; ship behind a toggle).
 - **2026-09-04:** **Folded prior-art tactics into the plan** (after checking Stage 8 isn't a novel idea — Sign2Text, the Google Kaggle comp, and continuous-fingerspelling papers all do variants). Three concrete borrows: (1) **B3 rewritten around the [Google Kaggle ASL Fingerspelling dataset](https://www.kaggle.com/competitions/asl-fingerspelling)** — public MediaPipe landmark sequences from 100+ Deaf signers, drops into our pipeline, fixes M/N/D *and* gives Stage 8 its continuous test set (task: `tools/import-kaggle.html`). (2) **`js/transition.js`** added to Stage 6 follow-up — segment letters by the settle→move→settle rhythm instead of a still hold; the real fix for "Spell mode isn't fluid." (3) **Stage 8 pipeline rewritten** from "segment then correct" to **trie + CTC-collapse + beam search through a lexicon**, with per-letter emission costs weighted by the measured confusion matrix — the lightweight form of what the Kaggle winners do. Prior-art + honest-accuracy notes added to Stage 8.
 - **2026-09-03:** **Plan redirect toward "word ASL via fingerspelling" + a competitive-gap backlog.** Two changes, from the *Signing to a Webcam* competitive read (`scratchpad/fingerspelling-landscape.html`): (1) new **"Backlog — catching up with the field"** section — every capability competitors ship that we don't (receptive practice, a real curriculum, Deaf-signer data, curated word content, app accessibility, number signs, accounts/sync, PWA), priority-ranked. (2) new **Stage 8 — fingerspelling → sentence → speech**: lean into what Spell mode already does — capture the raw recognised letter stream, then a plain-JS pipeline (dictionary + DP word-segmentation à la Norvig, confusion-aware fuzzy correction, sentence assembly) turns "whatareyoudoing" into "What are you doing?", shown live and spoken via the browser's `speechSynthesis`. Not real ASL word-sign recognition — a slow-spelling approximation that needs no word-sign data. Scope note updated.
@@ -278,6 +279,38 @@ Effort in **focused sessions** (~2–4 h each) for a solo builder learning as th
 - **Build `transition.js` before leaning on `decode.js`** — clean letter boundaries make the decode job much smaller.
 - **Keep `decode.js` / `transition.js` DOM-free in the reusable core** so any future page or tool consumes them directly.
 - **Ship behind a beta toggle** — no big-bang cutover; Spell mode keeps working the whole time.
+
+## Stage 9 — Breaking the two hard limits ("actually useful to the community")
+
+Stage 8 is capped at *careful* spelling of *dictionary* words. The two ceilings, and how to attack each. **This stage is semester-scale, not weekend-scale** — it's the ambitious arc, logged so the direction is clear.
+
+### First, before any of it: talk to Deaf people
+
+The biggest lever on "actually useful" is not a model — it's confirming fingerspelling→speech is even the right problem. Ask a Deaf school, a university ASL program, a Deaf community centre, or an existing effort (PopSign / Georgia Tech works directly with Deaf signers; the Deaf Professional Arts Network; the sign-language-processing research community, SLTAT workshops). Possible outcomes: the highest-value thing is *receptive* practice (B1), or a specific transactional context (pharmacy, DMV, doctor intake), or contributing a component to a project that already has data + Deaf leadership + distribution. **A solo project's best path to impact may be a good open component others use, plus an openly-released consented landmark dataset (Deaf-led).**
+
+### Limit 1 — native-speed / conversational fingerspelling
+
+Frame-wise classification (the current kNN) *cannot* do this — at speed the hand never fully forms letters, the signal is in the *transitions*. The fix is a **sequence model on landmark input**:
+
+- **Proven, and on-device.** The [Google ASL Fingerspelling Kaggle comp](https://www.kaggle.com/competitions/asl-fingerspelling) is exactly this task; the [1st-place solution](https://github.com/ChristofHenkel/kaggle-asl-fingerspelling-1st-place-solution) is a Squeezeformer encoder + 2-layer transformer decoder on MediaPipe landmarks, exported to **TF-Lite for on-device**. The competition *required* a small on-device model. So "runs client-side" is not the blocker — the self-imposed "no ML framework" rule is.
+- **Path:** train a *small* CTC model (1D-CNN or GRU encoder, ~100k–2M params) on the Kaggle landmark sequences in Colab (free GPU, hours not days). Export to ONNX; run in-browser via **ONNX Runtime Web** (WASM / WebGPU). Landmark input is ~63 floats/frame — tiny, real-time even on a phone.
+- **Keep the kNN** for Practice/Challenge (fast, transparent, no model download). The sequence model powers a new **"Conversation" mode**.
+- **Augmentations from the winners:** FingerDropout, TimeStretch, CutMix; also predict a per-sequence confidence to flag garbage.
+- **Honest ceiling:** the competition had ~200 hours of data; Google's shipping model had 100k. This won't match Google. But the Kaggle winners got to usable word-error rates on 200 hours, on-device — that's the achievable target.
+
+### Limit 2 — names, addresses, phone numbers (out-of-vocabulary)
+
+Not a model problem — a **vocabulary + UX** problem. The decoder fails because the target isn't in the dictionary.
+
+- **Context lexicons.** Ask or infer the field type: *name* → US Census first/last names (~150k, tiny); *address* → number grammar + street-suffix set (ST/AVE/BLVD…) + city/state list; *phone / number* → pure digit grammar. Swap the trie for the context.
+- **Digit signs 0–9 (promote B6 to high priority).** Bounded data-collection task; unlocks the single most common real-world fingerspelling use. Probably the highest benefit-to-effort item on the whole roadmap.
+- **Spell-back confirmation.** On a low-confidence + no-dictionary-hit run (a name), don't guess — show the raw letters big, one tap to confirm or fix, then lock it. A name is spelled once per conversation; make the fix cheap.
+- **Session dictionary.** A name/term confirmed once is added to the live lexicon so its next occurrence decodes.
+- **Entity priors.** "my name is ___", "I live at ___" → pattern rules weight the right lexicon.
+
+### Sequencing
+
+Stage 8 first (it's the scaffold + the offline test harness + the lexicon/decoder Stage 9 reuses). Then, if the community conversation says fingerspelling→speech is worth pursuing: digit signs → context lexicons → the sequence model. The sequence model is the big commitment; everything before it is incremental and independently useful.
 
 ## 5. Out of scope for this plan
 
