@@ -995,6 +995,64 @@ body {
 .sp-autospeak { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; color: var(--muted); cursor: pointer; }
 .sp-autospeak input { margin: 0; }
 
+/* ---- spell-mode word drill (B4) --------------------------- */
+.sp-drill-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sp-drill-toggle input { margin: 0; }
+.sp-drill-toggle select {
+  background: #1e293b;
+  color: inherit;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font: inherit;
+  cursor: pointer;
+}
+.sp-drill {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0b1220;
+}
+.sp-drill-label {
+  font: 700 0.62rem ui-monospace, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sp-drill-word {
+  font: 800 1.15rem ui-monospace, monospace;
+  letter-spacing: 0.16em;
+  display: flex;
+  gap: 0.05em;
+}
+.sp-drill-word .ltr { color: #475569; transition: color 0.15s ease; }
+.sp-drill-word .ltr.hit { color: #4ade80; }
+.sp-drill-word .ltr.miss { color: #f87171; }
+.sp-drill-word.solved .ltr { color: #4ade80; }
+#spDrillSkip {
+  font: 600 0.72rem system-ui, sans-serif;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #1e293b;
+  color: var(--muted);
+  cursor: pointer;
+}
+#spDrillSkip:hover { border-color: var(--accent); }
+.sp-drill-score { margin-left: auto; font: 700 0.8rem ui-monospace, monospace; color: var(--fg); white-space: nowrap; }
+
 /* ---- read mode (receptive practice) ----------------------- */
 .reader {
   flex: 0 1 auto;
@@ -1356,7 +1414,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   .chip.on { transform: none; }
   .toast.show { transform: translate(-50%, 0); }
   /* new (Spell/Read) surfaces */
-  .sp-ring, .g-anim .h, .g-ring, .g-gap, .meter-fill, .rd-bar > i { animation: none !important; transition: none !important; }
+  .sp-ring, .g-anim .h, .g-ring, .g-gap, .meter-fill, .rd-bar > i, .sp-drill-word .ltr { animation: none !important; transition: none !important; }
 }
 
 /* ---- accessibility --------------------------------------- */
@@ -1393,7 +1451,9 @@ summary:focus-visible,
   .sp-pending { color: #cbd5e1; border-bottom-color: #94a3b8; }
   .rd-len { color: #94a3b8; }
   .rd-mode, .rd-step { border-color: #94a3b8; }
-  .dim, .g-note, .sp-fluid-hint, .sp-decoded-label { color: #cbd5e1 !important; }
+  .sp-drill, .sp-drill-toggle select { border-color: #94a3b8; }
+  .sp-drill-word .ltr { color: #cbd5e1; }
+  .dim, .g-note, .sp-fluid-hint, .sp-decoded-label, .sp-drill-label { color: #cbd5e1 !important; }
 }
 
 /* a visually-hidden helper for screen-reader-only text */

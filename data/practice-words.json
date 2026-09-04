@@ -1,29 +1,57 @@
 {
-  "_note": "Receptive-practice + Spell-mode word bank. Lowercase a-z only. Also usable as decoder practice content (backlog B4).",
+  "_note": "Receptive-practice (Read mode) + Spell-mode drill word bank. Lowercase a-z only, no spaces. Roughly familiarity-ordered within each list. Also used as decoder practice content. The Course spine has its own list in data/curriculum.json.",
   "short": [
     "cat", "dog", "sun", "run", "big", "red", "box", "cup", "hat", "bed",
-    "car", "map", "pen", "key", "cup", "fox", "owl", "bee", "ice", "toy",
+    "car", "map", "pen", "key", "fox", "owl", "bee", "ice", "toy", "bus",
+    "cow", "pig", "egg", "jam", "mug", "fan", "net", "web", "log", "mud",
     "milk", "book", "fish", "bird", "tree", "star", "rain", "snow", "gold", "hand",
-    "food", "door", "shoe", "lamp", "ring", "cake", "boat", "kite", "corn", "leaf"
+    "food", "door", "shoe", "lamp", "ring", "cake", "boat", "kite", "corn", "leaf",
+    "moon", "fire", "road", "ball", "sock", "cell", "desk", "gift", "rock", "wind"
   ],
   "common": [
     "house", "water", "happy", "green", "table", "phone", "bread", "seven", "music", "light",
     "smile", "chair", "cloud", "river", "money", "paper", "party", "night", "dream", "heart",
     "orange", "purple", "yellow", "flower", "coffee", "school", "friend", "family", "summer", "winter",
-    "please", "thanks", "hello", "sorry", "always", "never", "maybe", "again", "later", "today"
+    "please", "thanks", "hello", "sorry", "always", "never", "maybe", "again", "later", "today",
+    "morning", "evening", "weekend", "picture", "kitchen", "window", "garden", "letter", "office", "market",
+    "yesterday", "tomorrow", "birthday", "holiday", "weather", "question", "problem", "message", "welcome", "goodbye"
+  ],
+  "food": [
+    "apple", "grape", "lemon", "peach", "mango", "melon", "berry", "olive", "onion", "beans",
+    "pasta", "pizza", "salad", "soup", "rice", "toast", "honey", "sugar", "salt", "butter",
+    "cheese", "cookie", "muffin", "waffle", "pepper", "carrot", "potato", "tomato", "pickle", "noodle",
+    "banana", "cherry", "coconut", "pumpkin", "biscuit", "sandwich", "popcorn", "pancake", "cupcake", "pretzel"
+  ],
+  "animals": [
+    "bear", "wolf", "lion", "goat", "deer", "duck", "frog", "crab", "seal", "mole",
+    "horse", "sheep", "mouse", "tiger", "zebra", "koala", "panda", "camel", "otter", "shark",
+    "rabbit", "monkey", "turtle", "parrot", "donkey", "beaver", "badger", "iguana", "walrus", "falcon",
+    "penguin", "dolphin", "giraffe", "hamster", "leopard", "buffalo", "octopus", "raccoon", "hedgehog", "squirrel"
+  ],
+  "verbs": [
+    "walk", "jump", "read", "write", "talk", "sing", "cook", "swim", "draw", "play",
+    "help", "open", "close", "start", "learn", "teach", "build", "carry", "climb", "dance",
+    "listen", "answer", "follow", "gather", "borrow", "repeat", "remind", "search", "travel", "wonder",
+    "explain", "imagine", "believe", "arrive", "prepare", "deliver", "whisper", "promise", "collect", "discover"
   ],
   "names": [
     "sarah", "james", "maria", "kevin", "laura", "david", "emma", "chris", "julia", "peter",
     "nadia", "omar", "grace", "leon", "priya", "diego", "aisha", "noah", "wendy", "hank",
-    "keisha", "tyler", "rosa", "quinn", "brandon", "yusuf", "megan", "carlos", "hannah", "isaac"
+    "keisha", "tyler", "rosa", "quinn", "brandon", "yusuf", "megan", "carlos", "hannah", "isaac",
+    "amara", "felix", "ingrid", "jamal", "louis", "nina", "oscar", "ruby", "sana", "victor",
+    "willow", "xavier", "yara", "zane", "clara", "dmitri", "esther", "gabriel", "harper", "malik"
   ],
   "places": [
     "paris", "texas", "italy", "ohio", "miami", "boston", "denver", "japan", "cairo", "lima",
     "kenya", "spain", "maine", "tokyo", "berlin", "dublin", "oregon", "hawaii", "nevada", "quebec",
-    "brazil", "norway", "peru", "utah", "seattle", "atlanta", "phoenix", "portland", "chicago", "toronto"
+    "brazil", "norway", "peru", "utah", "seattle", "atlanta", "phoenix", "portland", "chicago", "toronto",
+    "kansas", "vermont", "florida", "georgia", "alaska", "montana", "london", "madrid", "vienna", "athens",
+    "iceland", "finland", "morocco", "jamaica", "uruguay", "belgium", "hungary", "senegal", "ecuador", "namibia"
   ],
   "numbers": [
     "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-    "twenty", "fifty", "hundred", "first", "second", "third", "half", "dozen", "zero", "million"
+    "eleven", "twelve", "thirteen", "fifteen", "twenty", "thirty", "fifty", "eighty", "hundred", "thousand",
+    "first", "second", "third", "fourth", "fifth", "tenth", "half", "quarter", "dozen", "zero",
+    "million", "billion", "double", "triple", "single", "couple", "count", "total", "amount", "number"
   ]
 }

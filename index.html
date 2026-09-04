@@ -163,6 +163,12 @@
           <button type="button" id="spSpeak" aria-label="speak the sentence">🔊 Speak</button>
           <label class="sp-autospeak"><input type="checkbox" id="spAutoSpeak" /> auto</label>
         </div>
+        <div class="sp-drill" id="spDrillRow" hidden>
+          <span class="sp-drill-label">spell this</span>
+          <span class="sp-drill-word" id="spDrillWord" aria-live="polite"></span>
+          <button type="button" id="spDrillSkip">Skip</button>
+          <span class="sp-drill-score" id="spDrillScore" aria-live="polite"></span>
+        </div>
         <div class="sp-controls">
           <button type="button" id="spSpace">Space</button>
           <button type="button" id="spBack" aria-label="delete last character">⌫ Delete</button>
@@ -174,6 +180,14 @@
           <input type="checkbox" id="spFluid" />
           Fluid + speak <span class="sp-beta">beta</span>
           <span class="sp-fluid-hint">— sign at a natural pace; a pause finishes a word</span>
+        </label>
+        <label class="sp-drill-toggle">
+          <input type="checkbox" id="spDrill" />
+          Practice a word
+          <select id="spDrillSrc" aria-label="word source">
+            <option value="course">from my lesson</option>
+            <option value="starter">common words</option>
+          </select>
         </label>
         <p class="sp-metrics" id="spMetrics"></p>
       </div>

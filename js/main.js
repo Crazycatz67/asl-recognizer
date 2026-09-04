@@ -25,6 +25,7 @@ import { createBackground } from "./bg.js";
 import { createChallenge } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
 import { createSpeller } from "./speller.js";
+import { createSpellDrill } from "./spelldrill.js";
 import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
 import { createTransitionMatcher } from "./transition.js";
@@ -148,6 +149,12 @@ const spDecodedRow = $("spDecodedRow");
 const spDecodedText = $("spDecodedText");
 const spSpeak = $("spSpeak");
 const spAutoSpeak = $("spAutoSpeak");
+const spDrill = $("spDrill");
+const spDrillSrc = $("spDrillSrc");
+const spDrillRow = $("spDrillRow");
+const spDrillWord = $("spDrillWord");
+const spDrillSkip = $("spDrillSkip");
+const spDrillScore = $("spDrillScore");
 const readPanel = $("readPanel");
 const rdModes = $("rdModes");
 const rdCourse = $("rdCourse");
@@ -275,6 +282,11 @@ let spellSuppressUntil = 0; // block letter commits briefly after a gesture
 let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + decode + speak
 let fluidLastLetterAt = 0; // for auto-speak-on-pause
 let fluidSpoke = false; // already spoke this pause?
+let drill = null; // spell mode: "spell this word" practice targets
+let drillMode = loadPref("drill") === "1";
+let drillSrc = loadPref("drill-src") === "starter" ? "starter" : "course";
+let drillStarter = []; // fallback word pool (short + common) when no course tier
+let drillHitAt = 0; // debounce the success -> next-word advance
 let reader = null; // read mode: receptive practice
 let course = null; // read mode: teaching-order lessons with progress gating
 let readStyle = loadPref("read-style") === "course" ? "course" : "free";
@@ -301,6 +313,13 @@ fetch(new URL("../data/practice-words.json", import.meta.url))
       if (rdSpeed) rdSpeed.value = loadPref("read-speed") || rdSpeed.value;
       buildReadCats();
       if (mode === "read") applyReadStyle(); // restored straight into read mode
+
+      // spell-mode drill: a short+common starter pool; the course tier is the
+      // other source (wired in refillDrill once curriculum.json lands)
+      drillStarter = [...(bank.short || []), ...(bank.common || [])];
+      drill = createSpellDrill(drillStarter);
+      if (spDrillSrc) spDrillSrc.value = drillSrc;
+      if (mode === "spell") applyDrill();
     }
   })
   .catch(() => {});
@@ -314,6 +333,10 @@ fetch(new URL("../data/curriculum.json", import.meta.url))
       buildReadPath();
       renderLesson();
       if (mode === "read" && readStyle === "course") applyReadStyle();
+      if (mode === "spell" && drillMode && drillSrc === "course") {
+        refillDrill();
+        nextDrillWord();
+      }
     }
   })
   .catch(() => {});
@@ -734,6 +757,7 @@ function setMode(next) {
     spDecodedRow.hidden = !fluidMode;
     if (spDecodedText) spDecodedText.textContent = "…";
     syncSpellText();
+    applyDrill(); // show / refresh the word-drill row if it's on
   }
   if (mode === "challenge") {
     chCardTitle.textContent = "Challenge";
@@ -1316,6 +1340,29 @@ function loop() {
       building ? spellStab.progress.toFixed(2) : "0"
     );
 
+    // word drill: match what's been spelled so far against the target word
+    if (drillMode && drill && drill.target && !spDrillRow.hidden) {
+      const committed = speller.text.trim().split(/\s+/).pop() || "";
+      const attempt = speller.pending || committed;
+      const solved = spDrillWord.classList.contains("solved");
+      if (!solved) paintDrill(attempt);
+      if (!solved && drill.match(attempt).ok && now - drillHitAt > 900) {
+        drillHitAt = now;
+        drill.submit(attempt);
+        spDrillWord.classList.add("solved");
+        spDrillWord.querySelectorAll(".ltr").forEach((s) => s.classList.remove("miss"));
+        renderDrillScoreOnly();
+        sound.success?.();
+        buzz([0, 20, 40, 20]);
+        fx.flash("rgba(74, 222, 128, 0.38)");
+        setTimeout(() => {
+          speller.clearPending();
+          syncSpellText();
+          nextDrillWord();
+        }, 700);
+      }
+    }
+
     // fluid mode: decode the raw letter stream -> a clean, speakable sentence,
     // and auto-speak it once the signer clearly stops (a ~2.2 s pause)
     if (fluidMode) {
@@ -1651,6 +1698,7 @@ spClear.addEventListener("click", () => {
   fluidLastLetterAt = 0;
   syncSpellText();
   spDecodedText.textContent = "…";
+  if (drillMode && drill?.target) renderDrillWord(); // drop the half-painted prompt
 });
 
 // fluid mode: transition.js letters + decoder + speech
@@ -1669,6 +1717,78 @@ function applyFluid() {
 spFluid.checked = fluidMode;
 applyFluid();
 spFluid.addEventListener("change", applyFluid);
+
+// ---- spell-mode word drill (B4) --------------------------------
+// Give the signer a target word; colour it in as they spell it; on an exact
+// match, celebrate and move on. Source is either the active course tier or a
+// short+common starter pool. Reads the attempt straight out of speller.js.
+
+function refillDrill() {
+  if (!drill) return;
+  const fromCourse = drillSrc === "course" && course && course.words().length;
+  drill.setWords(fromCourse ? course.words() : drillStarter);
+}
+
+function renderDrillScoreOnly() {
+  if (!drill || !spDrillScore) return;
+  spDrillScore.textContent = drill.done
+    ? `${drill.done} done${drill.streak >= 2 ? `  🔥${drill.streak}` : ""}`
+    : "";
+}
+
+function renderDrillWord() {
+  if (!drill || !spDrillWord) return;
+  const w = drill.target || "";
+  spDrillWord.innerHTML = w
+    .split("")
+    .map((c) => `<span class="ltr">${c.toUpperCase()}</span>`)
+    .join("");
+  spDrillWord.classList.remove("solved");
+  renderDrillScoreOnly();
+}
+
+// colour the prompt: matched prefix green, first wrong letter red
+function paintDrill(attempt) {
+  if (!drill || !spDrillWord || spDrillWord.classList.contains("solved")) return;
+  const m = drill.match(attempt);
+  const spans = spDrillWord.querySelectorAll(".ltr");
+  spans.forEach((s, i) => {
+    s.classList.toggle("hit", i < m.n);
+    s.classList.toggle("miss", m.bad && i === m.n);
+  });
+}
+
+function nextDrillWord() {
+  if (!drill) return;
+  drill.next();
+  renderDrillWord();
+}
+
+function applyDrill() {
+  drillMode = spDrill.checked;
+  savePref("drill", drillMode ? "1" : "0");
+  spDrillRow.hidden = !drillMode;
+  spellPanel.classList.toggle("drill", drillMode);
+  if (drillMode) {
+    refillDrill();
+    if (!drill?.target) nextDrillWord();
+    else renderDrillWord();
+  }
+}
+spDrill.checked = drillMode;
+spDrillSkip.addEventListener("click", () => {
+  drill?.skip();
+  renderDrillWord();
+  speller?.clearPending();
+  syncSpellText();
+});
+spDrillSrc.addEventListener("change", () => {
+  drillSrc = spDrillSrc.value === "starter" ? "starter" : "course";
+  savePref("drill-src", drillSrc);
+  refillDrill();
+  nextDrillWord();
+});
+spDrill.addEventListener("change", applyDrill);
 
 function speak(text) {
   const t = (text || "").trim();

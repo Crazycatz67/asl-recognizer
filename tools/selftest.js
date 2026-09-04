@@ -950,6 +950,58 @@ function mkHand() {
       return c.complete === true;
     })());
 
+    // ---- spelldrill.js (Spell-mode "spell this word" targets) ----
+    const sdMod = await import("../js/spelldrill.js");
+    ok("spelldrill: next() returns a normalized word from the pool", (() => {
+      const d = sdMod.createSpellDrill(["Brown", "seven!", "  fox "]);
+      const w = d.next();
+      return ["brown", "seven", "fox"].includes(w) && d.target === w && d.size === 3;
+    })());
+    ok("spelldrill: match() reports the matched prefix length", (() => {
+      const d = sdMod.createSpellDrill(["brown"]);
+      d.next(); // "brown"
+      const a = d.match("bro");
+      const b = d.match("brown");
+      return a.n === 3 && a.ok === false && a.bad === false && b.ok === true;
+    })());
+    ok("spelldrill: match() flags a diverged attempt as bad", (() => {
+      const d = sdMod.createSpellDrill(["brown"]);
+      d.next();
+      const m = d.match("brxx");
+      return m.n === 2 && m.bad === true && m.ok === false;
+    })());
+    ok("spelldrill: submit() scores an exact match + builds a streak", (() => {
+      const d = sdMod.createSpellDrill(["fox", "cat"]);
+      d.next();
+      const first = d.submit(d.target) === true && d.done === 1 && d.score >= 1;
+      d.next();
+      const second = d.submit(d.target) === true && d.streak === 2;
+      return first && second;
+    })());
+    ok("spelldrill: a wrong submit breaks the streak, not the score", (() => {
+      const d = sdMod.createSpellDrill(["fox"]);
+      d.next(); d.submit(d.target); // streak 1
+      const s0 = d.score;
+      d.next(); const wrong = d.submit("zzz") === false && d.streak === 0 && d.score === s0;
+      return wrong;
+    })());
+    ok("spelldrill: setWords() swaps the pool and clears the target if gone", (() => {
+      const d = sdMod.createSpellDrill(["fox"]);
+      d.next(); // "fox"
+      d.setWords(["apple", "grape"]);
+      return d.size === 2 && d.target === null;
+    })());
+    ok("spelldrill: next() avoids repeats until the pool is exhausted", (() => {
+      const d = sdMod.createSpellDrill(["a", "b", "c"]);
+      const seen = new Set();
+      for (let i = 0; i < 3; i++) seen.add(d.next());
+      return seen.size === 3;
+    })());
+    ok("spelldrill: empty pool -> next() is null, match() safe", (() => {
+      const d = sdMod.createSpellDrill([]);
+      return d.next() === null && d.match("x").ok === false && d.submit("x") === false;
+    })());
+
     const fx = (await import("../js/fx.js")).createFx();
     ok("fx: createFx returns burst + flash",
       typeof fx.burst === "function" && typeof fx.flash === "function");
