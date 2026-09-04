@@ -932,6 +932,62 @@ body {
   color: var(--muted);
 }
 .sp-metrics:empty { display: none; }
+
+/* fluid mode: the decoded, speakable sentence + speak button */
+.sp-decoded {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: #0b1220;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+.sp-decoded-label {
+  font: 600 0.62rem ui-monospace, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sp-decoded-text {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font: 700 1.05rem/1.35 system-ui, sans-serif;
+  color: #7dd3fc;
+}
+.sp-decoded-text[data-fallback="1"] { color: #cbd5e1; font-style: italic; }
+#spSpeak {
+  flex: none;
+  padding: 0.4rem 0.7rem;
+  background: var(--accent, #38bdf8);
+  color: #0f172a;
+  border: 0;
+  border-radius: 8px;
+  font: 700 0.82rem system-ui, sans-serif;
+  cursor: pointer;
+}
+#spSpeak:active { transform: scale(0.96); }
+.sp-fluid {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sp-fluid input { margin: 0; }
+.sp-beta {
+  font: 700 0.6rem ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+}
+.sp-fluid-hint { flex-basis: 100%; color: #475569; font-size: 0.74rem; }
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));

@@ -112,6 +112,11 @@
           <span class="sp-hint" id="spHint">Spell a word (shown dashed) — pause a second and it's saved. Swipe to scrap it.</span>
         </div>
         <output class="sp-text" id="spText" aria-live="polite"></output>
+        <div class="sp-decoded" id="spDecodedRow" hidden>
+          <span class="sp-decoded-label">reads as</span>
+          <span class="sp-decoded-text" id="spDecodedText" aria-live="polite">…</span>
+          <button type="button" id="spSpeak" aria-label="speak the sentence">🔊 Speak</button>
+        </div>
         <div class="sp-controls">
           <button type="button" id="spSpace">Space</button>
           <button type="button" id="spBack" aria-label="delete last character">⌫ Delete</button>
@@ -119,6 +124,11 @@
           <button type="button" id="spCopy">Copy</button>
           <button type="button" id="spPaste">Paste</button>
         </div>
+        <label class="sp-fluid">
+          <input type="checkbox" id="spFluid" />
+          Fluid + speak <span class="sp-beta">beta</span>
+          <span class="sp-fluid-hint">— sign at a natural pace; a pause finishes a word</span>
+        </label>
         <p class="sp-metrics" id="spMetrics"></p>
       </div>
 

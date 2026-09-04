@@ -29,13 +29,16 @@ export function createSpeller({
   let armed = true; // may a repeat of `last` be added right now?
   let offSince = 0; // when "not forming a letter" began (0 = forming one now)
   let accepted = true; // has the current pause already committed the word?
+  let raw = []; // {letter, conf}[] — the uncorrected letter stream, for decode.js
+  let rawWordStart = 0; // raw[] index where the current pending word began
 
   const isLetter = (s) => typeof s === "string" && /^[A-Z]$/.test(s);
   const room = () => maxLen - text.length - pending.length;
 
-  function add(letter) {
+  function add(letter, conf = 0.85) {
     if (!isLetter(letter) || room() <= 0) return null;
     pending += letter;
+    raw.push({ letter, conf });
     last = letter;
     armed = false;
     accepted = false;
@@ -46,6 +49,7 @@ export function createSpeller({
     if (!pending) return false;
     text += (text && !text.endsWith(" ") ? " " : "") + pending;
     pending = "";
+    rawWordStart = raw.length;
     last = null;
     armed = true;
     return true;
@@ -63,6 +67,15 @@ export function createSpeller({
     },
     get last() {
       return last;
+    },
+    get raw() {
+      return raw;
+    },
+
+    // append a letter that's already been segmented upstream (transition.js /
+    // fluid mode). No dedupe here — the caller owns segmentation.
+    addLetter(letter, conf) {
+      return add(letter, conf);
     },
 
     feed({ holding, letter, stroke, moved, now }) {
@@ -118,6 +131,7 @@ export function createSpeller({
     backspace() {
       if (pending) {
         pending = pending.slice(0, -1);
+        if (raw.length > rawWordStart) raw.pop();
         last = pending ? pending.at(-1) : null;
         armed = true;
         return true;
@@ -133,6 +147,7 @@ export function createSpeller({
     clearPending() {
       if (!pending) return false;
       pending = "";
+      raw.length = rawWordStart;
       last = null;
       armed = true;
       return true;
@@ -142,6 +157,8 @@ export function createSpeller({
       if (!text && !pending) return false;
       text = "";
       pending = "";
+      raw = [];
+      rawWordStart = 0;
       last = null;
       armed = true;
       accepted = true;

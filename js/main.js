@@ -27,6 +27,8 @@ import { createMotionMatcher } from "./motion.js";
 import { createSpeller } from "./speller.js";
 import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
+import { createTransitionMatcher } from "./transition.js";
+import { buildLexicon, createDecoder } from "./decode.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -46,6 +48,21 @@ const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
 const motion = createMotionMatcher();
 const swipe = createSwipeMatcher(); // spell mode: open-hand sideways sweep = delete
 const twohand = createTwoHandMatcher(); // spell mode: hands together = copy, apart = paste
+const transition = createTransitionMatcher(); // fluid mode: rhythm-based letter segmentation
+let decoder = null; // fluid mode: lexicon decoder — loaded in the background
+let lastDecodeAt = 0;
+
+// word list -> decoder, in the background; fluid mode just falls back to the raw
+// transcript until it's ready
+fetch(new URL("../data/words25k.txt", import.meta.url))
+  .then((r) => (r.ok ? r.text() : null))
+  .then((txt) => {
+    if (txt) {
+      decoder = createDecoder(buildLexicon(txt));
+      console.info("fluid-mode decoder ready");
+    }
+  })
+  .catch(() => {});
 
 const $ = (id) => document.getElementById(id);
 const workspace = $("workspace");
@@ -120,6 +137,11 @@ const spCopy = $("spCopy");
 const spPaste = $("spPaste");
 const spGrid = $("spGrid");
 const spMetrics = $("spMetrics");
+const spHint = $("spHint");
+const spFluid = $("spFluid");
+const spDecodedRow = $("spDecodedRow");
+const spDecodedText = $("spDecodedText");
+const spSpeak = $("spSpeak");
 
 const sound = createSound();
 const fx = createFx();
@@ -226,6 +248,7 @@ let spellAnchor = null; // wrist position at the last commit — for "moved" re-
 let spellClipboard = ""; // last text "grabbed" in spell mode (for the paste gesture)
 let spellWrist = []; // short wrist-position history — a "hand is still" gate
 let spellSuppressUntil = 0; // block letter commits briefly after a gesture
+let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + decode + speak
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -486,8 +509,11 @@ function setMode(next) {
     spellStab?.reset(); // don't commit a letter left latched from before
     swipe.reset();
     twohand.reset();
+    transition.reset();
     spellWrist = [];
     spellAnchor = null;
+    spDecodedRow.hidden = !fluidMode;
+    if (spDecodedText) spDecodedText.textContent = "…";
     syncSpellText();
   }
   if (mode === "challenge") {
@@ -996,6 +1022,18 @@ function loop() {
       fx.flash("rgba(56, 189, 248, 0.5)");
     }
 
+    // FLUID MODE — letters come from js/transition.js (settle-after-move) instead
+    // of the "held still N frames" stabiliser path
+    if (fluidMode) {
+      transition.push(hand, lastPred, now);
+      const e = transition.read();
+      if (e && now >= spellSuppressUntil) {
+        speller.addLetter(e.letter, e.conf);
+        sound.lock?.();
+        buzz(8);
+      }
+    }
+
     // "hand is still" gate — a held letter barely moves; a hand mid-transition
     // or mid-swipe moves a lot and used to register a string of junk letters
     spellWrist.push({ t: now, x: hand?.[0]?.x ?? 0, y: hand?.[0]?.y ?? 0, has: hasHand });
@@ -1013,7 +1051,8 @@ function loop() {
 
     const cand = spellStab.candidate;
     const cur = spellStab.current;
-    const holding = still && spellStab.progress >= 1 && !!cand && cand === cur;
+    // in fluid mode the stabiliser never drives a commit — transition.js does
+    const holding = !fluidMode && still && spellStab.progress >= 1 && !!cand && cand === cur;
 
     // a notable wrist shift since the last commit lets a deliberate bounce
     // re-arm a doubled letter (LL, SS) without waiting for the full pause
@@ -1043,12 +1082,29 @@ function loop() {
     }
 
     syncSpellText();
-    const building = cand && /^[A-Z]$/.test(cand) ? cand : "";
-    spPending.textContent = building || "–";
+    const building = !fluidMode && cand && /^[A-Z]$/.test(cand) ? cand : "";
+    spPending.textContent = fluidMode
+      ? (transition.metrics().held || "–")
+      : building || "–";
     spRing.style.setProperty(
       "--p",
       building ? spellStab.progress.toFixed(2) : "0"
     );
+
+    // fluid mode: decode the raw letter stream -> a clean, speakable sentence
+    if (fluidMode) {
+      spDecodedRow.hidden = false;
+      if (decoder && speller.raw.length && now - lastDecodeAt > 350) {
+        lastDecodeAt = now;
+        const d = decoder.decode(speller.raw);
+        spDecodedText.textContent = d.text || "…";
+        spDecodedText.dataset.fallback = d.fallback ? "1" : "";
+      } else if (!speller.raw.length) {
+        spDecodedText.textContent = "…";
+      }
+    } else {
+      spDecodedRow.hidden = true;
+    }
 
     // live gesture readout — so a gesture that won't register can be tuned.
     // swipe wants sideways ≥ 1.1 (and > up/down); copy/paste want the two-hand
@@ -1354,7 +1410,42 @@ const syncSpellText = () => {
 };
 spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
 spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); });
-spClear.addEventListener("click", () => { speller?.clear(); syncSpellText(); });
+spClear.addEventListener("click", () => {
+  speller?.clear();
+  syncSpellText();
+  spDecodedText.textContent = "…";
+});
+
+// fluid mode: transition.js letters + decoder + speech
+function applyFluid() {
+  fluidMode = spFluid.checked;
+  savePref("fluid", fluidMode ? "1" : "0");
+  transition.reset();
+  spellStab?.reset();
+  spellWrist = [];
+  spDecodedRow.hidden = !fluidMode;
+  spellPanel.classList.toggle("fluid", fluidMode);
+  spHint.textContent = fluidMode
+    ? "Sign at a natural pace — each settled shape is a letter, a pause finishes a word. Tap 🔊 to hear it."
+    : "Spell a word (shown dashed) — pause a second and it's saved. Swipe to scrap it.";
+}
+spFluid.checked = fluidMode;
+applyFluid();
+spFluid.addEventListener("change", applyFluid);
+
+function speak(text) {
+  const t = (text || "").trim();
+  if (!t || !window.speechSynthesis) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t);
+    u.rate = 0.95;
+    speechSynthesis.speak(u);
+  } catch {}
+}
+spSpeak.addEventListener("click", () =>
+  speak(spDecodedText.textContent !== "…" ? spDecodedText.textContent : speller?.display)
+);
 
 async function doSpellCopy() {
   const out = speller?.display?.trim();

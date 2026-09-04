@@ -708,6 +708,25 @@ function mkHand() {
       sp.clear();
       return sp.text === "" && sp.pending === "" && sp.display === "";
     })());
+    ok("speller: addLetter() feeds the pending word + the raw stream (fluid mode)", (() => {
+      const sp = spMod.createSpeller();
+      sp.addLetter("H", 0.8); sp.addLetter("I", 0.7);
+      return sp.pending === "HI" &&
+        sp.raw.map((r) => r.letter).join("") === "HI" &&
+        sp.raw[0].conf === 0.8;
+    })());
+    ok("speller: raw[] tracks backspace / clearPending / clear", (() => {
+      const sp = spMod.createSpeller();
+      "CAT".split("").forEach((L) => sp.addLetter(L, 0.9));
+      sp.backspace();                       // -> "CA"
+      const afterBack = sp.raw.length === 2;
+      sp.space();                           // commit "CA", rawWordStart moves
+      sp.addLetter("D", 0.9); sp.addLetter("X", 0.9);
+      sp.clearPending();                    // drop "DX"
+      const afterCP = sp.raw.length === 2 && sp.pending === "";
+      sp.clear();
+      return afterBack && afterCP && sp.raw.length === 0;
+    })());
 
     // ---- decode.js (Stage 8 lexicon decoder) ----
     const dcMod = await import("../js/decode.js");
