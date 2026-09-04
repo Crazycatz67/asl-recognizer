@@ -293,6 +293,25 @@ function mkHand() {
         const o = ref.orient(cN, "N");
         return typeof o.mirrored === "boolean" && typeof o.deg === "number";
       })());
+    // the hand-orientation chain the on-camera guide depends on: a canonical
+    // (right-hand-normalised) shape must resolve un-mirrored; its x-flip must
+    // resolve mirrored; a small tilt must come back as a same-sign correction.
+    ok("reference: orient() distinguishes canonical vs mirrored vs tilted (G/H/P)",
+      ["G", "H", "P"].every((L) => {
+        const c = ref.centroid(L);
+        const oC = ref.orient(c, L);
+        const m = c.slice(); for (let j = 0; j < 21; j++) m[j * 3] = -m[j * 3];
+        const oM = ref.orient(m, L);
+        const t = c.slice();
+        const a = (12 * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
+        for (let j = 0; j < 21; j++) {
+          const x = t[j * 3], y = t[j * 3 + 1];
+          t[j * 3] = x * cs - y * sn; t[j * 3 + 1] = x * sn + y * cs;
+        }
+        const oT = ref.orient(t, L);
+        return oC.mirrored === false && oM.mirrored === true &&
+          oT.mirrored === false && Math.round(oT.deg) === -12;
+      }));
     ok("reference: hint() on the centroid says it's right",
       /hold it steady/i.test(ref.hint(cN, "N")), JSON.stringify(ref.hint(cN, "N")));
     ok("reference: hint() on a wrong hand gives an instruction",

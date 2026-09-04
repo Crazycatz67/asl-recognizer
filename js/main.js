@@ -807,11 +807,14 @@ function loop() {
 
   const hasHand = result.landmarks?.length > 0;
   const mpLabel = hasHand ? result.handedness?.[0]?.[0]?.categoryName : null;
-  // On the FRONT (selfie) camera MediaPipe's label matches the real hand and the
-  // classifier pipeline is calibrated to it. The BACK camera feed is the mirror
-  // image of that, so every hand-side reading flips.
+  // MediaPipe classifies handedness from the raw pixels — it doesn't know which
+  // camera produced them — and its label was validated against the real hand on
+  // the front camera, so we read it the SAME way for both cameras. The back
+  // camera only differs in *display*: the stage isn't CSS-mirrored (see the
+  // [data-facing] rule), applyHand() flips the reference for the other hand, and
+  // reward() places the burst without the selfie flip. Nothing here inverts.
   const rawLeft = mpLabel === "Left";
-  const isLeftHand = facingMode === "user" ? rawLeft : !rawLeft;
+  const isLeftHand = rawLeft;
   const left = isLeftHand; // drives the classification mirror (mirrorX)
   const realHand = mpLabel ? (isLeftHand ? "left" : "right") : null;
   const motionTarget = MOTION.has(targetLetter); // J / Z — traced, no shape match
@@ -966,13 +969,16 @@ function loop() {
           ? "Little finger up in a fist — then hook it down and back toward you"
           : "Index finger out — draw a big Z in the air: across, down-slash, across"
         : "Show your hand, then trace the letter in the air";
-      // live tuning readout
-      letterStat.textContent =
-        hasHand && mt
-          ? targetLetter === "J"
+      // while a hand is mid-stroke show the live metric readout; otherwise fall
+      // back to this letter's practice stats ("done 3× · best 2.1s")
+      if (hasHand && mt) {
+        letterStat.textContent =
+          targetLetter === "J"
             ? `move ${mt.pinkyMove}/1.2 · drop ${mt.pinkyDrop}/0.7`
-            : `move ${mt.indexMove}/1.2 · ↔ ${mt.indexX}/1.6 · turns ${mt.rev}/1`
-          : "";
+            : `move ${mt.indexMove}/1.2 · ↔ ${mt.indexX}/1.6 · turns ${mt.rev}/1`;
+      } else {
+        updateLetterStat();
+      }
     }
 
     if (stroke === targetLetter && !rewarded) {
