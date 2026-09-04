@@ -93,6 +93,17 @@ export function createSpeller({
       spaced = true;
       return true;
     },
+    // drop a chunk of text in as-is (paste). Keeps within maxLen.
+    insert(str) {
+      if (typeof str !== "string" || !str) return false;
+      const room = maxLen - text.length;
+      if (room <= 0) return false;
+      text += str.slice(0, room);
+      last = /[A-Z]$/.test(text) ? text.at(-1) : null;
+      armed = true;
+      spaced = text.endsWith(" ");
+      return true;
+    },
     backspace() {
       if (!text.length) return false;
       text = text.slice(0, -1);

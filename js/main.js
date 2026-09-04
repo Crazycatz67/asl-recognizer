@@ -26,6 +26,7 @@ import { createChallenge } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
 import { createSpeller } from "./speller.js";
 import { createSwipeMatcher } from "./swipe.js";
+import { createTwoHandMatcher } from "./twohand.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -44,6 +45,7 @@ import {
 const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
 const motion = createMotionMatcher();
 const swipe = createSwipeMatcher(); // spell mode: open-hand sideways sweep = delete
+const twohand = createTwoHandMatcher(); // spell mode: hands together = copy, apart = paste
 
 const $ = (id) => document.getElementById(id);
 const workspace = $("workspace");
@@ -115,6 +117,7 @@ const spSpace = $("spSpace");
 const spBack = $("spBack");
 const spClear = $("spClear");
 const spCopy = $("spCopy");
+const spPaste = $("spPaste");
 const spGrid = $("spGrid");
 
 const sound = createSound();
@@ -219,6 +222,7 @@ let pendingChallengeStart = false; // start the game as soon as the camera is up
 let speller = null; // spell mode: continuous fingerspelling -> transcript
 let spellStab = null; // its own (faster) stabilizer so held letters commit sooner
 let spellAnchor = null; // wrist position at the last commit — for "moved" re-arm
+let spellClipboard = ""; // last text "grabbed" in spell mode (for the paste gesture)
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let targetLetter = null;
@@ -478,6 +482,7 @@ function setMode(next) {
   if (mode === "spell") {
     spellStab?.reset(); // don't commit a letter left latched from before
     swipe.reset();
+    twohand.reset();
     spellAnchor = null;
     spText.textContent = speller.text;
   }
@@ -870,6 +875,7 @@ function loop() {
   motion.push(hand, now);
   const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
   swipe.push(hand, now); // spell mode: open-hand sideways sweep = delete
+  twohand.push(result.landmarks, now); // spell mode: two-hand copy / paste
 
   // normalize once; reused by the classifier, the practice meter, and the guide
   let vec = null;
@@ -935,6 +941,8 @@ function loop() {
         reveal: guideAmt,
         settled: m?.bucket === "correct", // don't nag once it already counts
       });
+    } else if (mode === "spell" && result.landmarks?.length > 1) {
+      overlay.drawHands(result.landmarks); // show both hands for the copy/paste gesture
     } else {
       overlay.drawHands([hand]);
     }
@@ -966,6 +974,18 @@ function loop() {
       spellAnchor = null;
       buzz([0, 25, 45, 25]);
       fx.flash("rgba(248, 113, 113, 0.4)");
+    }
+
+    // two open hands together -> copy;  pulled apart -> paste it back
+    const two = twohand.match(now);
+    if (two === "copy") {
+      doSpellCopy();
+      spellStab.reset();
+    } else if (two === "paste" && spellClipboard && speller.insert(spellClipboard)) {
+      syncSpellText();
+      spellStab.reset();
+      buzz([0, 12, 22, 12, 22]);
+      fx.flash("rgba(56, 189, 248, 0.5)");
     }
 
     const cand = spellStab.candidate;
@@ -1285,16 +1305,27 @@ const syncSpellText = () => {
 spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
 spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); });
 spClear.addEventListener("click", () => { speller?.clear(); syncSpellText(); });
-spCopy.addEventListener("click", async () => {
+
+async function doSpellCopy() {
   if (!speller?.text) return;
+  spellClipboard = speller.text; // remembered for the paste gesture
+  let okIcon = "Copied ✓";
   try {
     await navigator.clipboard.writeText(speller.text);
-    spCopy.textContent = "Copied ✓";
-    setTimeout(() => (spCopy.textContent = "Copy"), 1200);
   } catch {
-    spCopy.textContent = "Copy failed";
-    setTimeout(() => (spCopy.textContent = "Copy"), 1200);
+    okIcon = "Copied (local)"; // clipboard API blocked — the paste gesture still works
   }
+  spCopy.textContent = okIcon;
+  setTimeout(() => (spCopy.textContent = "Copy"), 1200);
+  fx.flash("rgba(34, 197, 94, 0.35)");
+  buzz([0, 18, 28, 18]);
+}
+spCopy.addEventListener("click", doSpellCopy);
+spPaste.addEventListener("click", async () => {
+  let t = "";
+  try { t = await navigator.clipboard.readText(); } catch {}
+  if (!t) t = spellClipboard;
+  if (t && speller?.insert(t)) syncSpellText();
 });
 
 // spell mode: an A–Z reference chart in the panel; tap a letter to enlarge it

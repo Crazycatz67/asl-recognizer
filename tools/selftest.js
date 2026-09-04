@@ -482,6 +482,51 @@ function mkHand() {
     ok("swipe: push(null) / reset() don't throw",
       (() => { try { const sw = swMod.createSwipeMatcher(); sw.push(null, 0); sw.reset(); return sw.match(1) === null; } catch { return false; } })());
 
+    // ---- twohand.js (spell-mode copy / paste) ----
+    const thMod = await import("../js/twohand.js");
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const runTwoHand = (axFrom, axTo, bxFrom, bxTo, handFn = openHand, n = 9) => {
+      const th = thMod.createTwoHandMatcher();
+      let out = null;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        th.push([handFn(lerp(axFrom, axTo, t), 0.55), handFn(lerp(bxFrom, bxTo, t), 0.55)], i * 40);
+        out = th.match(i * 40) || out;
+      }
+      return out;
+    };
+    ok("twohand: two open hands coming together -> 'copy'",
+      runTwoHand(0.22, 0.46, 0.80, 0.56) === "copy");
+    ok("twohand: two open hands pulling apart -> 'paste'",
+      runTwoHand(0.46, 0.20, 0.56, 0.82) === "paste");
+    ok("twohand: one hand only -> nothing", (() => {
+      const th = thMod.createTwoHandMatcher();
+      let out = null;
+      for (let i = 0; i < 9; i++) { th.push([openHand(0.3 + i * 0.03, 0.55)], i * 40); out = th.match(i * 40) || out; }
+      return out === null;
+    })());
+    ok("twohand: a fist + an open hand coming together -> nothing",
+      runTwoHand(0.22, 0.46, 0.80, 0.56, (wx, wy) => (wx < 0.5 ? fistHand(wx, wy) : openHand(wx, wy))) === null);
+    ok("twohand: two open hands held at a fixed gap -> nothing",
+      runTwoHand(0.30, 0.30, 0.70, 0.70) === null);
+    ok("twohand: fires once, then a cooldown", (() => {
+      const th = thMod.createTwoHandMatcher();
+      let hits = 0;
+      for (let i = 0; i < 24; i++) {
+        // oscillate together/apart continuously
+        const phase = Math.sin(i * 0.6);
+        const ax = 0.5 - 0.2 - 0.08 * phase;
+        const bx = 0.5 + 0.2 + 0.08 * phase;
+        // sweep fully together every ~8 frames
+        const together = i % 8 >= 4;
+        th.push([openHand(together ? 0.45 : ax, 0.55), openHand(together ? 0.55 : bx, 0.55)], i * 40);
+        if (th.match(i * 40)) hits++;
+      }
+      return hits <= 2; // at most one per cooldown window over ~960 ms
+    })());
+    ok("twohand: push(null) / reset() don't throw",
+      (() => { try { const th = thMod.createTwoHandMatcher(); th.push(null, 0); th.push([], 40); th.reset(); return th.match(1) === null; } catch { return false; } })());
+
     // ---- challenge.js (speed game) ----
     const gameMod = await import("../js/challenge.js");
     ok("challenge: study -> go -> play -> win, then 3 misses -> over", (() => {
@@ -591,6 +636,17 @@ function mkHand() {
       sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t }); t += 200;
       sp.feed({ holding: false, letter: null, stroke: "Z", handPresent: true, moved: false, now: t });
       return sp.text === "JAZZ";
+    })());
+    ok("speller: insert() pastes a chunk back in", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "H", 0);
+      t = gap(sp, t, 120); ({ t } = hold(sp, "I", t));
+      const grabbed = sp.text; // "HI"
+      sp.clear();
+      sp.insert(grabbed);
+      // a fresh letter after a paste still registers
+      t = gap(sp, t, 120); ({ t } = hold(sp, "A", t));
+      return sp.text === "HIA";
     })());
     ok("speller: backspace / clear / manual space", (() => {
       const sp = spMod.createSpeller();
