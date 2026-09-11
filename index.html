@@ -145,7 +145,10 @@
     <aside class="reference" id="refPanel" hidden>
       <div class="ref-head">Make this shape: <b id="refLetter">–</b><span class="ref-hand" id="refHand"></span></div>
       <p class="ref-desc" id="refDesc"></p>
-      <img class="ref-photo" id="refImg" alt="reference hand photo" />
+      <button class="ref-photo-wrap" id="refPhotoBtn" type="button" aria-label="enlarge the reference photo">
+        <img class="ref-photo" id="refImg" alt="reference hand photo" />
+        <span class="zoom-icon" aria-hidden="true">⤢</span>
+      </button>
       <button class="ref-canvas-wrap" id="demoZoomBtn" type="button" aria-label="enlarge the demo">
         <canvas class="ref-canvas" id="refCanvas" width="320" height="320"></canvas>
         <span class="zoom-icon" aria-hidden="true">⤢</span>
@@ -251,9 +254,10 @@
     </section>
   </main>
 
-  <!-- enlarged demo (mobile: tap the panel canvas) -->
+  <!-- enlarged demo (mobile: tap the panel canvas or reference photo) -->
   <div class="demo-zoom" id="demoZoom" hidden>
-    <canvas id="demoZoomCanvas" width="600" height="600"></canvas>
+    <canvas id="demoZoomCanvas" width="600" height="600" hidden></canvas>
+    <img id="demoZoomImg" class="demo-zoom-img" alt="reference hand photo" hidden />
     <p>Tap anywhere to close</p>
   </div>
 
@@ -269,13 +273,17 @@
   <!-- first-visit walkthrough -->
   <div class="intro" id="intro" hidden>
     <div class="intro-inner">
+      <p class="intro-privacy">
+        🔒 <b>Private by design.</b> Everything runs in your browser, on your device.
+        Your camera feed is never recorded, saved, or sent anywhere — not even to us.
+      </p>
       <h2>How it works</h2>
       <ol>
-        <li><b>Turn on your camera.</b> Everything runs on your device — nothing is uploaded.</li>
-        <li><b>Pick a letter</b> to learn, walk the whole alphabet with <b>A→Z run</b>, or test yourself in <b>Challenge</b>.</li>
-        <li><b>Match the shape.</b> The on-camera guide points to the finger to fix; hold it steady to lock it in.</li>
+        <li><b>Turn on your camera</b>, pick a letter, and match the shape shown — the guide points to the finger to fix; hold it steady to lock it in.</li>
+        <li><b>Practice</b> one letter, run the whole alphabet in <b>A→Z run</b>, or beat the clock in <b>Challenge</b>.</li>
+        <li><b>Spell</b> strings letters into whole words as you sign continuously. <b>Read</b> shows you a word to fingerspell back.</li>
       </ol>
-      <button class="cta" id="introClose" type="button">Got it</button>
+      <button class="cta" id="introClose" type="button" disabled>Got it — let's start<span id="introCloseTimer"></span></button>
     </div>
   </div>
 

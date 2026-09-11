@@ -15,7 +15,19 @@
 // confidence — that averaged posterior is what feeds js/decode.js.
 
 const WIN_MS = 110; // motion is measured over this trailing window
-const SETTLE_MS = 90; // must be still this long after a move to commit
+// 90ms was too quick to tell a real settle from a hand just slowing down
+// mid-transition — a fast fingerspeller's hand can dip under stillThr for a
+// beat between two letters without actually landing on either one, and that
+// was enough to lock in whatever shape it happened to be passing through.
+// Bumped to 115ms + a tighter stillThr + a higher confidence floor per a
+// sweep against tools/replay-lab.html-style sequence data: this cuts
+// spurious commits noticeably while only trimming a little recall (still
+// well under half a second, so it doesn't feel sticky at real signing speed).
+// Went as high as 140ms first but that missed a 7-frame (~230ms) still hold
+// in the selftest fixture once the post-move settle-start delay is counted —
+// 115ms leaves enough slack for a normal-speed hold while still being
+// meaningfully stricter than the old 90ms.
+const SETTLE_MS = 115; // must be still this long after a move to commit
 const TIPS = [0, 8, 12, 16]; // wrist + 3 fingertips — enough to catch a transition
 
 function spanOf(lm) {
@@ -27,8 +39,8 @@ function spanOf(lm) {
 
 export function createTransitionMatcher(opts = {}) {
   const moveThr = opts.moveThr ?? 0.55; // span-units of tracked-point travel over WIN_MS
-  const stillThr = opts.stillThr ?? 0.30; // below this = still
-  const minConf = opts.minConf ?? 0.5;
+  const stillThr = opts.stillThr ?? 0.27; // below this = still
+  const minConf = opts.minConf ?? 0.6;
 
   let buf = []; // { t, pts:[[x,y]×TIPS], span }
   let state = "moving"; // "moving" | "settling" | "settled"

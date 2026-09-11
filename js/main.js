@@ -127,11 +127,14 @@ const letterStat = $("letterStat");
 const demoZoomBtn = $("demoZoomBtn");
 const demoZoom = $("demoZoom");
 const demoZoomCanvas = $("demoZoomCanvas");
+const demoZoomImg = $("demoZoomImg");
+const refPhotoBtn = $("refPhotoBtn");
 const runCard = $("runCard");
 const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
 const intro = $("intro");
 const introClose = $("introClose");
+const introCloseTimer = $("introCloseTimer");
 const spellPanel = $("spellPanel");
 const spText = $("spText");
 const spPending = $("spPending");
@@ -207,9 +210,28 @@ const buzz = (p) => {
   } catch {}
 };
 
-// first-visit walkthrough
-if (loadPref("seen-intro") !== "1") intro.hidden = false;
+// first-visit walkthrough. The "Got it" button stays disabled for a couple
+// seconds — people were tapping straight through without reading the privacy
+// line or the per-feature rundown, so the popup wasn't actually informing
+// anyone. A short forced pause, not a wall, fixes that.
+const INTRO_READ_MS = 2500;
+if (loadPref("seen-intro") !== "1") {
+  intro.hidden = false;
+  let left = Math.ceil(INTRO_READ_MS / 1000);
+  introCloseTimer.textContent = ` (${left})`;
+  const tick = setInterval(() => {
+    left--;
+    if (left <= 0) {
+      clearInterval(tick);
+      introClose.disabled = false;
+      introCloseTimer.textContent = "";
+    } else {
+      introCloseTimer.textContent = ` (${left})`;
+    }
+  }, 1000);
+}
 introClose.addEventListener("click", () => {
+  if (introClose.disabled) return;
   intro.hidden = true;
   savePref("seen-intro", "1");
 });
@@ -1882,15 +1904,30 @@ if (spGrid) {
     const L = cell.dataset.letter;
     if (MOTION.has(L)) demoZoomPlayer?.setMotion?.(L);
     else demoZoomPlayer?.setTarget(reference.centroid(L));
-    demoZoom.hidden = false;
+    openDemoZoom("anim");
   });
+}
+
+// the enlarge overlay shows either the live demo-hand animation or a static
+// reference photo, never both — swap which element is visible per open()
+function openDemoZoom(kind) {
+  demoZoomCanvas.hidden = kind !== "anim";
+  demoZoomImg.hidden = kind !== "photo";
+  demoZoom.hidden = false;
 }
 
 // enlarge the demo (tap the panel canvas)
 demoZoomBtn.addEventListener("click", () => {
   if (!reference || !targetLetter) return;
   demoZoomPlayer?.setTarget(reference.centroid(targetLetter));
-  demoZoom.hidden = false;
+  openDemoZoom("anim");
+});
+// enlarge the reference photo (tap the panel photo — was previously not
+// tappable at all, and the inline photo is too small to read finger detail)
+refPhotoBtn?.addEventListener("click", () => {
+  if (!refImg.src) return;
+  demoZoomImg.src = refImg.src;
+  openDemoZoom("photo");
 });
 demoZoom.addEventListener("click", () => {
   demoZoom.hidden = true;
