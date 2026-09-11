@@ -8,3 +8,5 @@ kaggle-fs/
 # managed-agent local state (IDs + downloaded session outputs)
 tools/agent/.ids.json
 tools/agent/outputs/
+__pycache__/
+*.pyc
