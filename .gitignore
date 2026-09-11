@@ -4,3 +4,7 @@ data/_src/
 
 # local Kaggle download (huge, do not commit)
 kaggle-fs/
+
+# managed-agent local state (IDs + downloaded session outputs)
+tools/agent/.ids.json
+tools/agent/outputs/
