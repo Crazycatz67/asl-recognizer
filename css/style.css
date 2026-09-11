@@ -71,6 +71,65 @@ body {
   border-radius: 8px;
 }
 .topbar-link:hover { color: var(--fg); background: #0b1220; }
+/* two right-aligned topbar items (progress + About) — only the first needs the
+   auto margin that pushes the group right; .topbar's own `gap` spaces the rest */
+.topbar-link ~ .topbar-link { margin-left: 0; }
+.progress-btn {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.progress-btn:hover { border-color: var(--line); }
+
+/* ---- practice progress: mastery grid + streak --------------- */
+
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+  background: rgba(2, 6, 23, 0.86);
+  backdrop-filter: blur(6px);
+}
+.progress-inner {
+  max-width: 26rem;
+  width: 100%;
+  background: linear-gradient(180deg, #1e293b, #16202f);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.2rem 1.4rem 1.4rem;
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+}
+.progress-head { display: flex; align-items: center; justify-content: space-between; }
+.progress-head h2 { margin: 0; font-size: 1.1rem; }
+.progress-streak { margin: 0.2rem 0 0.9rem; color: var(--muted); font-size: 0.85rem; }
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+.pg-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font: 700 0.85rem system-ui, sans-serif;
+  background: #1f2b3d;
+  color: var(--muted);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+.pg-cell.started { background: rgba(56, 189, 248, 0.28); color: #e0f2fe; border-color: rgba(56, 189, 248, 0.4); }
+.pg-cell.mastered { background: #22c55e; color: #04140a; border-color: #22c55e; }
+.progress-legend { margin: 0; font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.pg-dot { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; margin-left: 0.6rem; }
+.pg-dot:first-child { margin-left: 0; }
+.pg-dot.pg-mastered { background: #22c55e; }
+.pg-dot.pg-started { background: rgba(56, 189, 248, 0.5); }
+.pg-dot.pg-none { background: #1f2b3d; border: 1px solid rgba(148, 163, 184, 0.18); }
 @media (max-width: 520px) { .topbar-link { margin-left: 0; } }
 
 /* segmented toggles — Practice/Challenge (header) and Free pick/A→Z (learn bar) */

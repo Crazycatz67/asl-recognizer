@@ -129,6 +129,12 @@ const demoZoom = $("demoZoom");
 const demoZoomCanvas = $("demoZoomCanvas");
 const demoZoomImg = $("demoZoomImg");
 const refPhotoBtn = $("refPhotoBtn");
+const progressBtn = $("progressBtn");
+const progressCount = $("progressCount");
+const progressPanel = $("progressPanel");
+const progressClose = $("progressClose");
+const progressStreak = $("progressStreak");
+const progressGrid = $("progressGrid");
 const runCard = $("runCard");
 const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
@@ -238,6 +244,67 @@ introClose.addEventListener("click", () => {
 
 const HARD_LETTERS = new Set(["M", "N", "D"]); // recogniser is weaker on these
 const statsMap = loadJSON("stats", {});
+const MASTERY_DONE = 3; // completions before a letter counts as "mastered"
+
+// ---- practice progress: mastery grid + daily streak ---------------
+// statsMap already tracked {done, bestMs} per letter for the small
+// "done 3x . best 2.1s" line, but nothing ever summed it up into something
+// you could look at and feel good about. This is that view.
+
+function masteryCounts() {
+  let mastered = 0, started = 0;
+  for (const L of ALL_LETTERS) {
+    const d = statsMap[L]?.done || 0;
+    if (d >= MASTERY_DONE) mastered++;
+    else if (d > 0) started++;
+  }
+  return { mastered, started, total: ALL_LETTERS.length };
+}
+
+function renderProgressCount() {
+  const { mastered, total } = masteryCounts();
+  progressCount.textContent = `${mastered}/${total}`;
+}
+
+function renderProgressPanel() {
+  progressGrid.innerHTML = "";
+  for (const L of ALL_LETTERS) {
+    const d = statsMap[L]?.done || 0;
+    const cell = document.createElement("div");
+    cell.className = "pg-cell" + (d >= MASTERY_DONE ? " mastered" : d > 0 ? " started" : "");
+    cell.textContent = L;
+    cell.title = d ? `${L}: done ${d}×` : `${L}: not practiced yet`;
+    progressGrid.appendChild(cell);
+  }
+  const streak = Number(loadPref("streak", "0"));
+  progressStreak.textContent = streak >= 2 ? `🔥 ${streak}-day streak` : "Practice today to start a streak";
+  renderProgressCount();
+}
+
+// call once per completed rep. Local calendar day, not UTC, so it lines up
+// with when the user actually feels like their "day" is.
+function touchStreak() {
+  const today = new Date();
+  const key = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  if (loadPref("last-practice-day") === key) return; // already counted today
+  const prevDay = loadPref("last-practice-day");
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yKey = `${yesterday.getFullYear()}-${yesterday.getMonth()}-${yesterday.getDate()}`;
+  const streak = prevDay === yKey ? Number(loadPref("streak", "0")) + 1 : 1;
+  savePref("streak", String(streak));
+  savePref("last-practice-day", key);
+}
+
+progressBtn.addEventListener("click", () => {
+  renderProgressPanel();
+  progressPanel.hidden = false;
+});
+progressClose.addEventListener("click", () => { progressPanel.hidden = true; });
+progressPanel.addEventListener("click", (e) => {
+  if (e.target === progressPanel) progressPanel.hidden = true; // click the backdrop to close
+});
+renderProgressCount(); // show a real count on load, not the "0/26" placeholder
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
@@ -931,6 +998,8 @@ function reward(originLandmark) {
     if (ms < s.bestMs) s.bestMs = ms;
     saveJSON("stats", statsMap);
     updateLetterStat();
+    renderProgressCount();
+    touchStreak();
   }
   buzz([0, 35, 25, 55]);
   const r = viewport.getBoundingClientRect();
@@ -1952,6 +2021,7 @@ document.addEventListener("keydown", (e) => {
   // Escape closes whatever overlay is open
   if (e.key === "Escape") {
     if (!demoZoom.hidden) { demoZoom.hidden = true; demoZoomPlayer?.setTarget(null); return; }
+    if (!progressPanel.hidden) { progressPanel.hidden = true; return; }
     if (!intro.hidden) { introClose.click(); return; }
     if (!runCard.hidden) { runCardClose.click(); return; }
   }

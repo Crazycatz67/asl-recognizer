@@ -27,6 +27,9 @@
       <button class="mode-btn" type="button" data-mode="spell" aria-pressed="false">Spell</button>
       <button class="mode-btn" type="button" data-mode="read" aria-pressed="false">Read</button>
     </div>
+    <button class="topbar-link progress-btn" id="progressBtn" type="button" aria-label="View your practice progress">
+      🏆 <span id="progressCount">0/26</span>
+    </button>
     <a class="topbar-link" href="about.html">About</a>
   </header>
   <div class="learn" id="learnRow" hidden data-run="off">
@@ -267,6 +270,23 @@
       <p class="run-card-title">Alphabet complete! 🎉</p>
       <p class="run-card-body" id="runCardBody"></p>
       <button class="cta" id="runCardClose" type="button">Nice</button>
+    </div>
+  </div>
+
+  <!-- practice progress: mastery grid + streak -->
+  <div class="progress-overlay" id="progressPanel" hidden>
+    <div class="progress-inner">
+      <div class="progress-head">
+        <h2>Your progress</h2>
+        <button class="icon-btn" id="progressClose" type="button" aria-label="close">✕</button>
+      </div>
+      <p class="progress-streak" id="progressStreak"></p>
+      <div class="progress-grid" id="progressGrid" role="group" aria-label="Letter mastery"></div>
+      <p class="progress-legend">
+        <span class="pg-dot pg-mastered" aria-hidden="true"></span> mastered
+        <span class="pg-dot pg-started" aria-hidden="true"></span> practicing
+        <span class="pg-dot pg-none" aria-hidden="true"></span> not started yet
+      </p>
     </div>
   </div>
 

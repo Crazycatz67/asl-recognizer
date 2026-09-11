@@ -7,13 +7,17 @@ export async function startCamera(video, { facingMode = "user" } = {}) {
   }
 
   // `ideal` (not `exact`) so a device with only one camera still starts
-  // instead of throwing OverconstrainedError.
+  // instead of throwing OverconstrainedError, and so a camera that can't hit
+  // 1280x720 just falls back to its best rather than failing outright.
+  // Was 640x480 — too little detail for MediaPipe's hand landmarks once the
+  // hand is smaller in frame (arm's length, or the back camera), which is
+  // exactly the case that needs the most precision, not the least.
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       facingMode: { ideal: facingMode },
-      width: { ideal: 640 },
-      height: { ideal: 480 },
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
     },
   });
 
