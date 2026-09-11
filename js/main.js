@@ -762,6 +762,11 @@ function setMode(next) {
   setTarget(null); // drop any practice target
   challenge.stop();
   clearChallengeHud();
+  // a Start click in Challenge that's still waiting on the camera (denied,
+  // still prompting, etc.) leaves this armed; without clearing it here, a
+  // camera that comes up later in a DIFFERENT mode auto-starts Challenge's
+  // HUD/timer on top of whatever mode the user is actually in.
+  pendingChallengeStart = false;
   learnRow.hidden = mode !== "practice";
   ghostToggleWrap.hidden = true;
   spellPanel.hidden = mode !== "spell";
@@ -996,12 +1001,19 @@ function setState(next, detail) {
       challenge.stop();
       clearChallengeHud();
     }
+    // camera failed (denied, no device, etc.) while a Challenge Start click
+    // was waiting on it — don't leave it armed, or a camera that succeeds
+    // later in a different mode will silently auto-start Challenge's HUD.
+    pendingChallengeStart = false;
   }
   // camera just came up while waiting to start a challenge
-  if ((next === "searching" || next === "tracking") && pendingChallengeStart) {
+  if (mode === "challenge" && (next === "searching" || next === "tracking") && pendingChallengeStart) {
     pendingChallengeStart = false;
     startChallenge();
-  } else if (live && mode === "challenge" && challenge && !challenge.active && !chCard.hidden) {
+  } else if (
+    live && mode === "challenge" && challenge && !challenge.active && !chCard.hidden &&
+    !pendingChallengeStart // don't stomp "Starting camera..." while a Start click is in flight
+  ) {
     chCardTitle.textContent = "Challenge";
     chCardSub.textContent = "A random letter, a shrinking timer. How far can you get?";
   }
