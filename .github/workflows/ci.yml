@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci-check:
+    # Free for public repos (GitHub Actions unlimited minutes on public repos).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # No `npm install` — the project and this check are deliberately
+      # dependency-free. See tools/ci-check.mjs.
+      - run: node tools/ci-check.mjs
