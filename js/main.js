@@ -135,6 +135,7 @@ const progressPanel = $("progressPanel");
 const progressClose = $("progressClose");
 const progressStreak = $("progressStreak");
 const progressGrid = $("progressGrid");
+const contrastBtn = $("contrastBtn");
 const runCard = $("runCard");
 const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
@@ -305,6 +306,29 @@ progressPanel.addEventListener("click", (e) => {
   if (e.target === progressPanel) progressPanel.hidden = true; // click the backdrop to close
 });
 renderProgressCount(); // show a real count on load, not the "0/26" placeholder
+
+// ---- high contrast: in-app toggle, on top of the OS-level preference ------
+// Was prefers-contrast:more only — no way to turn it on regardless of system
+// setting. loadPref("contrast") holds an explicit user override ("1"/"0");
+// with no override, follow the OS media query and keep following it live.
+const contrastQuery = window.matchMedia?.("(prefers-contrast: more)");
+function applyContrast(on) {
+  document.documentElement.classList.toggle("high-contrast", on);
+  contrastBtn.setAttribute("aria-pressed", String(on));
+}
+function currentContrastPref() {
+  const stored = loadPref("contrast");
+  return stored === null ? null : stored === "1";
+}
+applyContrast(currentContrastPref() ?? contrastQuery?.matches ?? false);
+contrastQuery?.addEventListener?.("change", (e) => {
+  if (currentContrastPref() === null) applyContrast(e.matches); // no override — keep following the OS
+});
+contrastBtn.addEventListener("click", () => {
+  const next = !document.documentElement.classList.contains("high-contrast");
+  savePref("contrast", next ? "1" : "0");
+  applyContrast(next);
+});
 
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter

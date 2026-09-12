@@ -1528,22 +1528,29 @@ summary:focus-visible,
 .mode-btn:focus-visible { outline-offset: -1px; }
 
 /* stronger palette when the OS asks for more contrast */
-@media (prefers-contrast: more) {
-  :root {
-    --line: #64748b;
-    --muted: #cbd5e1;
-  }
-  .chip, .mode-btn, .rd-cat, .sp-controls button, .sp-fold, .sp-decoded,
-  #stopBtn, #flipBtn, .controls, .reference, .speller, .reader {
-    border-color: #94a3b8;
-  }
-  .sp-pending { color: #cbd5e1; border-bottom-color: #94a3b8; }
-  .rd-len { color: #94a3b8; }
-  .rd-mode, .rd-step { border-color: #94a3b8; }
-  .sp-drill, .sp-drill-toggle select { border-color: #94a3b8; }
-  .sp-drill-word .ltr { color: #cbd5e1; }
-  .dim, .g-note, .sp-fluid-hint, .sp-decoded-label, .sp-drill-label { color: #cbd5e1 !important; }
+/* High contrast: was OS-preference-only (prefers-contrast: more). Now also a
+   manual in-app toggle (#contrastBtn) — main.js applies/removes this same
+   class on <html> based on either signal, so there's one set of overrides
+   instead of two copies to keep in sync. */
+:root.high-contrast {
+  --line: #64748b;
+  --muted: #cbd5e1;
 }
+.high-contrast .chip, .high-contrast .mode-btn, .high-contrast .rd-cat,
+.high-contrast .sp-controls button, .high-contrast .sp-fold, .high-contrast .sp-decoded,
+.high-contrast #stopBtn, .high-contrast #flipBtn, .high-contrast .controls,
+.high-contrast .reference, .high-contrast .speller, .high-contrast .reader {
+  border-color: #94a3b8;
+}
+.high-contrast .sp-pending { color: #cbd5e1; border-bottom-color: #94a3b8; }
+.high-contrast .rd-len { color: #94a3b8; }
+.high-contrast .rd-mode, .high-contrast .rd-step { border-color: #94a3b8; }
+.high-contrast .sp-drill, .high-contrast .sp-drill-toggle select { border-color: #94a3b8; }
+.high-contrast .sp-drill-word .ltr { color: #cbd5e1; }
+.high-contrast .dim, .high-contrast .g-note, .high-contrast .sp-fluid-hint,
+.high-contrast .sp-decoded-label, .high-contrast .sp-drill-label { color: #cbd5e1 !important; }
+
+.contrast-btn[aria-pressed="true"] { color: var(--accent); }
 
 /* a visually-hidden helper for screen-reader-only text */
 .visually-hidden {
