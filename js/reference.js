@@ -11,7 +11,7 @@
 // as a typical training example does — not "closer to the mean than 99% of
 // them", which is what the old fixed threshold demanded (and why it never hit).
 
-import { drawHandShape, vectorToPixels } from "./skeleton.js";
+import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
 
@@ -365,7 +365,10 @@ export function createCanonicalPlayer(canvasEl) {
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ctx = canvasEl.getContext("2d");
   let target = null; // 21 [x,y] from the centroid
-  let stroke = null; // for J/Z: { path:[[x,y]...], pose:[21 x,y], tip:idx }
+  let stroke = null; // for J/Z: { path:[[x,y]...], pose:[21 x,y], tip:idx, poseAt0 }
+  let fit = null; // cached [x,y] -> [px,py] closure — rebuilt only on
+                   // setTarget/setMotion/resize, never per animation frame
+                   // (see skeleton.js's makeFit for why that matters)
   let raf = 0;
   let t0 = 0;
 
@@ -414,6 +417,26 @@ export function createCanonicalPlayer(canvasEl) {
     return ([x, y]) => [x * s + ox, y * s + oy];
   }
 
+  // Rebuild the cached `fit` closure from whichever bounds are currently
+  // relevant — called on setTarget/setMotion and on resize (redraw()), never
+  // from inside the animation loop. Static poses anchor the wrist so it stays
+  // planted as the hand curls (kills the swell/drift — see makeFit); a J/Z
+  // stroke keeps the old centered whole-path fit (the "wrist" moves along the
+  // path, so anchoring it to a fixed canvas point would be wrong), just
+  // computed once instead of every frame.
+  function rebuildFit() {
+    if (stroke) {
+      fit = fitFor(stroke.path.concat(stroke.poseAt0));
+    } else if (target) {
+      fit = makeFit(NEUTRAL_HAND.concat(target), canvasEl.width, canvasEl.height, {
+        pad: 0.18,
+        anchorAt: [0.5, 0.82],
+      });
+    } else {
+      fit = null;
+    }
+  }
+
   // sample a polyline at fraction f (0..1) of its arc length
   function along(pts, f) {
     let total = 0;
@@ -443,13 +466,8 @@ export function createCanonicalPlayer(canvasEl) {
   function paintStroke(prog) {
     const w = canvasEl.width;
     ctx.clearRect(0, 0, w, canvasEl.height);
-    const { path, pose, tip } = stroke;
-    // the hand's fingertip should land on path[0] at the start, so the bounds
-    // we must fit = the path + the pose shifted so pose[tip] == path[0]
-    const off = [path[0][0] - pose[tip][0], path[0][1] - pose[tip][1]];
-    const poseAt0 = pose.map(([x, y]) => [x + off[0], y + off[1]]);
-    const fit = fitFor(path.concat(poseAt0));
-
+    if (!fit) return;
+    const { path, poseAt0, tip } = stroke;
     const px = path.map(fit);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -484,20 +502,31 @@ export function createCanonicalPlayer(canvasEl) {
     ctx.fill();
   }
 
+  // poseAt(frac) -> pixel points through the cached `fit`, so the ghost trail
+  // and the solid hand share the exact same anchor/scale instead of each
+  // refitting its own bbox (that mismatch was D3 — the ghost drifting
+  // separately from the hand it's supposed to be trailing).
+  function poseAtPixels(frac) {
+    const flat = poseAt(frac);
+    const pts = [];
+    for (let i = 0; i < 21; i++) pts.push(fit([flat[i * 3], flat[i * 3 + 1]]));
+    return pts;
+  }
+
   function paint(frac) {
     if (stroke) { paintStroke(frac); return; }
     const w = canvasEl.width;
     const h = canvasEl.height;
     ctx.clearRect(0, 0, w, h); // full clear every frame — no after-image
-    if (!target) return;
+    if (!target || !fit) return;
     // one faint trailing hand so you read the movement, then the solid hand
     if (!reduce) {
-      drawHandShape(ctx, vectorToPixels(poseAt(Math.max(0, frac - 0.09)), w, h, { pad: 0.18 }), {
+      drawHandShape(ctx, poseAtPixels(Math.max(0, frac - 0.09)), {
         alpha: 0.18,
         nails: false,
       });
     }
-    drawHandShape(ctx, vectorToPixels(poseAt(frac), w, h, { pad: 0.18 }));
+    drawHandShape(ctx, poseAtPixels(frac));
   }
 
   function loop(ts) {
@@ -511,6 +540,7 @@ export function createCanonicalPlayer(canvasEl) {
       stroke = null;
       if (!vec) {
         target = null;
+        fit = null;
         cancelAnimationFrame(raf);
         raf = 0;
         ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
@@ -518,6 +548,7 @@ export function createCanonicalPlayer(canvasEl) {
       }
       target = [];
       for (let i = 0; i < 21; i++) target.push([vec[i * 3], vec[i * 3 + 1]]);
+      rebuildFit();
       t0 = 0;
       if (reduce) {
         cancelAnimationFrame(raf);
@@ -531,19 +562,30 @@ export function createCanonicalPlayer(canvasEl) {
     setMotion(letter) {
       target = null;
       const p = STROKE[letter], pose = MOTION_POSE[letter];
-      stroke = p && pose ? { path: p, pose: pose.hand, tip: pose.tip } : null;
+      if (p && pose) {
+        // the hand's fingertip should land on path[0] at the start, so the
+        // bounds to fit = the path + the pose shifted so pose[tip] == path[0]
+        const off = [p[0][0] - pose.hand[pose.tip][0], p[0][1] - pose.hand[pose.tip][1]];
+        const poseAt0 = pose.hand.map(([x, y]) => [x + off[0], y + off[1]]);
+        stroke = { path: p, pose: pose.hand, tip: pose.tip, poseAt0 };
+      } else {
+        stroke = null;
+      }
       if (!stroke) {
+        fit = null;
         cancelAnimationFrame(raf);
         raf = 0;
         ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
         return;
       }
+      rebuildFit();
       t0 = 0;
       if (reduce) { cancelAnimationFrame(raf); raf = 0; paint(1); }
       else if (!raf) raf = requestAnimationFrame(loop);
     },
     // re-draw after a canvas resize without restarting the cycle
     redraw() {
+      rebuildFit();
       if (reduce) paint(1);
     },
     stop() {

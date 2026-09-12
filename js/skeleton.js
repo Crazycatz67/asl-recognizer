@@ -259,6 +259,41 @@ export function drawHandShape(ctx, pts, {
   ctx.restore();
 }
 
+// A fit computed ONCE from a set of bounds points, returned as a closure that
+// maps further [x,y] pairs the same way — instead of vectorToPixels' approach
+// of refitting a bbox to every single frame's current pose. That per-frame
+// refit is why the animated reference hand used to swell/shrink/drift as
+// fingers moved: each frame's bbox is a different size, and nothing anchors
+// the wrist, so the whole hand appears to breathe rather than stay put.
+//
+// `boundsPts` should be the UNION of everything that will ever be drawn
+// through the returned closure (e.g. the neutral pose + the target pose) so
+// the scale never has to change mid-animation. `anchorAt` pins the point at
+// `boundsPts[anchorIdx]` (default: the first pose's wrist, which is always
+// [0,0] in this normalized frame) to that fraction of the canvas, rather than
+// centering the bbox — so the wrist stays visually planted instead of the
+// whole hand drifting as its silhouette changes shape.
+export function makeFit(boundsPts, w, h, { pad = 0.16, mirror = false, anchorIdx = 0, anchorAt = [0.5, 0.82] } = {}) {
+  const sx = mirror ? -1 : 1;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of boundsPts) {
+    const px = x * sx;
+    if (px < minX) minX = px;
+    if (px > maxX) maxX = px;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const spanX = (maxX - minX) || 1e-6;
+  const spanY = (maxY - minY) || 1e-6;
+  const scale = Math.min((w * (1 - 2 * pad)) / spanX, (h * (1 - 2 * pad)) / spanY);
+  const anchor = boundsPts[anchorIdx] || [0, 0];
+  const ax = anchor[0] * sx;
+  const ay = anchor[1];
+  const ox = w * anchorAt[0] - ax * scale;
+  const oy = h * anchorAt[1] - ay * scale;
+  return ([x, y]) => [x * sx * scale + ox, y * scale + oy];
+}
+
 // Map a normalized/engineered vector's first 63 values (21 * x,y,z, wrist at
 // origin, ~unit radius) into canvas pixels that fit `w`x`h` with `pad` margin.
 // `mirror` flips x (centroids are right-hand canonical). Returns [x,y][21].
