@@ -154,10 +154,16 @@ export function drawHandShape(ctx, pts, {
   outlineWidth,
   alpha = 1,
   nails = true,
+  // optional: { z: number[21] } of per-landmark relative depth (MediaPipe
+  // convention: smaller z = closer to the camera). Rendering-only — never
+  // changes geometry, only paint order, stroke width, nail visibility, and
+  // the light gradient's axis. null reproduces exactly today's behavior.
+  depth = null,
 } = {}) {
   if (!pts || pts.length < 21) return;
   for (const p of pts) if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
 
+  const z = depth && depth.z;
   const span = handSpan(pts);
   const fingerW = span * 0.115;
   const thumbW = span * 0.15;
@@ -189,7 +195,23 @@ export function drawHandShape(ctx, pts, {
     (() => {
       let minY = Infinity, maxY = -Infinity;
       for (const [, y] of pts) { if (y < minY) minY = y; if (y > maxY) maxY = y; }
-      const g = ctx.createLinearGradient(0, minY - span * 0.15, 0, maxY + span * 0.15);
+      let x0 = 0, y0 = minY - span * 0.15, x1 = 0, y1 = maxY + span * 0.15;
+      // With depth, tilt the "light from above" axis to follow the palm
+      // normal's 2D projection instead of staying screen-locked vertical —
+      // as the hand turns, the shading turns with it.
+      if (z) {
+        const v1 = [pts[5][0] - pts[0][0], pts[5][1] - pts[0][1], z[5] - z[0]];
+        const v2 = [pts[17][0] - pts[0][0], pts[17][1] - pts[0][1], z[17] - z[0]];
+        const nx = v1[1] * v2[2] - v1[2] * v2[1];
+        const ny = v1[2] * v2[0] - v1[0] * v2[2];
+        const nlen = Math.hypot(nx, ny);
+        if (nlen > 1e-6) {
+          const dx = nx / nlen, dy = ny / nlen;
+          x0 = centre[0] - dx * span * 0.5; y0 = centre[1] - dy * span * 0.5;
+          x1 = centre[0] + dx * span * 0.5; y1 = centre[1] + dy * span * 0.5;
+        }
+      }
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
       g.addColorStop(0, "#f1f4f8");
       g.addColorStop(1, "#bcc7d6");
       return g;
@@ -212,9 +234,8 @@ export function drawHandShape(ctx, pts, {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // palm first (outline then fill), then each digit as its own outlined shape so
-  // neighbours always show a seam; pinky -> index -> thumb, so the thumb reads
-  // on top and the index over the pinky
+  // palm first (outline then fill), then each digit as its own outlined shape
+  // so neighbours always show a seam.
   blobPath(ctx, palm);
   ctx.lineWidth = ol * 2;
   ctx.strokeStyle = outline;
@@ -222,11 +243,32 @@ export function drawHandShape(ctx, pts, {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  digit(FINGERS[3], fingerW); // pinky
-  digit(FINGERS[2], fingerW); // ring
-  digit(FINGERS[1], fingerW); // middle
-  digit(FINGERS[0], fingerW); // index
-  digit(THUMB, thumbW);
+  // Digit paint order: without depth, the old fixed pinky -> ring -> middle
+  // -> index -> thumb (thumb always reads on top). With depth, sort
+  // back-to-front by each digit's own mean z instead, so a nearer finger
+  // correctly occludes one crossing behind it — occlusion is the depth cue
+  // people actually read, more than any shading trick.
+  const meanZ = (idxs) => idxs.reduce((s, i) => s + z[i], 0) / idxs.length;
+  const digits = [
+    { chain: FINGERS[3], w: fingerW },
+    { chain: FINGERS[2], w: fingerW },
+    { chain: FINGERS[1], w: fingerW },
+    { chain: FINGERS[0], w: fingerW },
+    { chain: THUMB, w: thumbW },
+  ];
+  let zAvg = 0;
+  if (z) {
+    for (const d of digits) d.z = meanZ(d.chain);
+    zAvg = meanZ([...Array(21).keys()]);
+    digits.sort((a, b) => b.z - a.z); // larger z = farther (MediaPipe convention) -> drawn first
+  }
+  for (const d of digits) {
+    // Perspective width: a digit nearer than the hand's average depth reads
+    // a touch fatter, one farther a touch thinner — real perspective, not
+    // just occlusion order.
+    const w = z ? d.w * (1 + 0.25 * (zAvg - d.z)) : d.w;
+    digit(d.chain, w);
+  }
 
   // knuckle creases — a short darker line across each finger base
   ctx.strokeStyle = "rgba(31, 43, 61, 0.35)";
@@ -243,16 +285,33 @@ export function drawHandShape(ctx, pts, {
   }
 
   if (nails) {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
     for (const t of TIP_IDX) {
       const dir = norm(sub(pts[t], pts[t - 1]));
       const c = add(pts[t], mul(dir, -fingerW * 0.28));
+      // Conditional nails: draw a nail only when the tip reads farther from
+      // camera than its own DIP joint (the finger's back is toward you) —
+      // otherwise the pad faces the camera, so a nail would be wrong; draw a
+      // soft crease instead. This is the honest, per-finger, data-derived
+      // answer to "can't tell front from back of hand": the project already
+      // proved a single global front/back label isn't derivable from this
+      // dataset, but a *local* cue per finger, from real z, is.
+      const showNail = z ? z[t] > z[t - 1] : true;
       ctx.save();
       ctx.translate(c[0], c[1]);
       ctx.rotate(Math.atan2(dir[1], dir[0]));
-      ctx.beginPath();
-      ctx.ellipse(0, 0, fingerW * 0.3, fingerW * 0.2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (showNail) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, fingerW * 0.3, fingerW * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = "rgba(31, 43, 61, 0.28)";
+        ctx.lineWidth = Math.max(1, span * 0.006);
+        ctx.beginPath();
+        ctx.moveTo(-fingerW * 0.22, 0);
+        ctx.lineTo(fingerW * 0.22, 0);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }

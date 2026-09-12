@@ -375,6 +375,11 @@ export function createCanonicalPlayer(canvasEl) {
                           // interpolating bone angles instead of raw x,y is what
                           // makes a curling finger sweep an arc instead of
                           // cutting a straight chord through space)
+  let targetZ = null; // 21 raw z values from the centroid, or null. NEUTRAL_HAND
+                       // has no z of its own (a flat/frontal placeholder pose,
+                       // z=0 for every landmark), so depth is a plain per-landmark
+                       // lerp from 0 up to the target's real z — rendering-only,
+                       // never touches posekin's 2D geometry.
   let raf = 0;
   let t0 = 0;
 
@@ -505,6 +510,16 @@ export function createCanonicalPlayer(canvasEl) {
     return poseInterp(frac).map(fit);
   }
 
+  // Depth at a given progress — a plain per-landmark lerp from the implicit
+  // flat neutral (z=0) up to the target's real z (see skeleton.js's
+  // drawHandShape `depth` option for what this actually drives: paint order,
+  // perspective width, conditional nails, gradient axis).
+  function zAt(frac) {
+    if (!targetZ) return null;
+    const e = Math.max(0, Math.min(1, frac));
+    return targetZ.map((tz) => tz * e);
+  }
+
   function paint(frac) {
     if (stroke) { paintStroke(frac); return; }
     const w = canvasEl.width;
@@ -513,12 +528,16 @@ export function createCanonicalPlayer(canvasEl) {
     if (!target || !fit || !poseInterp) return;
     // one faint trailing hand so you read the movement, then the solid hand
     if (!reduce) {
-      drawHandShape(ctx, poseAtPixels(Math.max(0, frac - 0.09)), {
+      const gFrac = Math.max(0, frac - 0.09);
+      drawHandShape(ctx, poseAtPixels(gFrac), {
         alpha: 0.18,
         nails: false,
+        depth: targetZ ? { z: zAt(gFrac) } : null,
       });
     }
-    drawHandShape(ctx, poseAtPixels(frac));
+    drawHandShape(ctx, poseAtPixels(frac), {
+      depth: targetZ ? { z: zAt(frac) } : null,
+    });
   }
 
   function loop(ts) {
@@ -533,6 +552,7 @@ export function createCanonicalPlayer(canvasEl) {
       if (!vec) {
         target = null;
         poseInterp = null;
+        targetZ = null;
         fit = null;
         cancelAnimationFrame(raf);
         raf = 0;
@@ -540,7 +560,11 @@ export function createCanonicalPlayer(canvasEl) {
         return;
       }
       target = [];
-      for (let i = 0; i < 21; i++) target.push([vec[i * 3], vec[i * 3 + 1]]);
+      targetZ = [];
+      for (let i = 0; i < 21; i++) {
+        target.push([vec[i * 3], vec[i * 3 + 1]]);
+        targetZ.push(vec[i * 3 + 2] ?? 0);
+      }
       poseInterp = makeInterpolator(NEUTRAL_HAND, target);
       rebuildFit();
       t0 = 0;
@@ -556,6 +580,7 @@ export function createCanonicalPlayer(canvasEl) {
     setMotion(letter) {
       target = null;
       poseInterp = null;
+      targetZ = null;
       const p = STROKE[letter], pose = MOTION_POSE[letter];
       if (p && pose) {
         // the hand's fingertip should land on path[0] at the start, so the
