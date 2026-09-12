@@ -137,6 +137,7 @@ const progressStreak = $("progressStreak");
 const progressGrid = $("progressGrid");
 const contrastBtn = $("contrastBtn");
 const runCard = $("runCard");
+const runCardTitle = $("runCardTitle");
 const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
 const intro = $("intro");
@@ -377,10 +378,27 @@ let reference = null;
 let refPlayer = null; // animates the canonical shape in the panel
 let demoZoomPlayer = null; // the enlarged demo
 let challenge = null; // the speed game
-let azRun = false; // practice: walk A -> Z, auto-advancing on each completion
+let azRun = false; // practice: walk a bounded queue (A->Z or Review), auto-advancing on each completion
+let runKind = null; // "az" | "review" | null (mirrors which queue azRun is walking)
+let runQueue = ALL_LETTERS; // the queue azRun walks — ALL_LETTERS for A->Z, a picked subset for Review
 let azAdvancing = false; // guards the "next: X" bridge
 const azDone = new Set();
 let azTimes = []; // {letter, ms} per completion in the current run
+const REVIEW_SIZE = 10; // a review session is a defined length, not open-ended grinding
+
+// Spaced-repetition-ish priority: never-practiced letters first, HARD_LETTERS
+// weighted up (the recogniser is weaker on them, so they need more reps), then
+// whichever you haven't touched in the longest. Lower score = reviewed sooner.
+function reviewPriority(L) {
+  const s = statsMap[L];
+  const done = s?.done || 0;
+  const hardBonus = HARD_LETTERS.has(L) ? 2 : 0;
+  const daysSince = s?.last ? (Date.now() - s.last) / 86400000 : 999; // never seen -> very stale
+  return done - hardBonus - Math.min(daysSince, 10) * 0.3;
+}
+function buildReviewQueue(n) {
+  return [...ALL_LETTERS].sort((a, b) => reviewPriority(a) - reviewPriority(b)).slice(0, n);
+}
 let firstHandAt = 0; // when a hand first appeared for the current target
 let stuckSince = 0; // when the current (uncompleted) attempt began
 let stuckShown = false;
@@ -581,29 +599,34 @@ function setTarget(letter) {
   refHint.textContent = "";
 }
 
-// ---- A -> Z run: pass every letter once, auto-advancing --------------
+// ---- bounded runs: A -> Z (all 26, in order) or Review (a spaced-repetition
+// subset), both auto-advancing on each completion and ending at a defined
+// finish line instead of open-ended free-pick grinding ------------------
 
-function setAzRun(on) {
+function setAzRun(on, kind = "az") {
   if (!reference) return;
   azRun = on;
+  runKind = on ? kind : null;
+  runQueue = kind === "review" ? buildReviewQueue(REVIEW_SIZE) : ALL_LETTERS;
   azAdvancing = false;
   azNext.hidden = true;
   learnRow.dataset.run = on ? "on" : "off";
   azProgress.hidden = !on;
-  for (const b of subMode.children) b.classList.toggle("on", (b.dataset.sub === "az") === on);
+  for (const b of subMode.children)
+    b.classList.toggle("on", on ? b.dataset.sub === kind : b.dataset.sub === "free");
   for (const b of letterPicker.children) b.classList.remove("done");
   if (on) {
     azDone.clear();
     azTimes = [];
     updateAzProgress();
-    setTarget(ALL_LETTERS[0]);
+    setTarget(runQueue[0]);
   } else {
     setTarget(null);
   }
 }
 
 function updateAzProgress() {
-  azProgress.textContent = `${azDone.size} / ${ALL_LETTERS.length}`;
+  azProgress.textContent = `${azDone.size} / ${runQueue.length}`;
 }
 
 function advanceAz() {
@@ -616,7 +639,7 @@ function advanceAz() {
     if (b.textContent === done) b.classList.add("done");
   }
   updateAzProgress();
-  const next = ALL_LETTERS.find((L) => !azDone.has(L));
+  const next = runQueue.find((L) => !azDone.has(L));
   if (next) {
     azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
     azNext.hidden = false;
@@ -635,8 +658,10 @@ function showRunCard() {
   const fmt = (t) => `${t.letter} ${(t.ms / 1000).toFixed(1)}s`;
   const fast = times.slice(0, 3).map(fmt).join(" · ") || "—";
   const tricky = times.filter((t) => t.ms > 8000).map((t) => t.letter);
+  const isReview = runKind === "review";
+  if (runCardTitle) runCardTitle.textContent = isReview ? "Review complete! 🎉" : "Alphabet complete! 🎉";
   runCardBody.innerHTML =
-    `You signed all ${azDone.size} letters.<br>` +
+    (isReview ? `You reviewed ${azDone.size} letters.<br>` : `You signed all ${azDone.size} letters.<br>`) +
     `<br><b>Fastest:</b> ${fast}` +
     (tricky.length ? `<br><b>Took a while:</b> ${tricky.join(" ")}` : "");
   runCard.hidden = false;
@@ -1018,6 +1043,7 @@ function reward(originLandmark) {
   if (targetLetter) {
     const s = (statsMap[targetLetter] ||= { done: 0, bestMs: Infinity });
     s.done++;
+    s.last = Date.now(); // feeds the Review queue's "longest since practiced" ranking
     const ms = firstHandAt ? performance.now() - firstHandAt : Infinity;
     if (ms < s.bestMs) s.bestMs = ms;
     saveJSON("stats", statsMap);
@@ -1775,7 +1801,9 @@ modeToggle.addEventListener("click", (e) => {
 });
 subMode.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-sub]");
-  if (b) setAzRun(b.dataset.sub === "az");
+  if (!b) return;
+  if (b.dataset.sub === "free") setAzRun(false);
+  else setAzRun(true, b.dataset.sub); // "az" | "review"
 });
 const stepLetter = (dir) => {
   if (!reference || !targetLetter || azRun) return;

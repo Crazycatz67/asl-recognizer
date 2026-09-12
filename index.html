@@ -37,6 +37,7 @@
     <div class="submode" id="subMode" role="group" aria-label="Practice mode">
       <button type="button" data-sub="free" class="on">Free pick</button>
       <button type="button" data-sub="az">A→Z run</button>
+      <button type="button" data-sub="review" id="reviewBtn">Review</button>
     </div>
     <button class="step-btn" id="prevLetter" type="button" hidden aria-label="previous letter">‹</button>
     <b class="learn-current" id="learnCurrent"></b>
@@ -265,10 +266,10 @@
     <p>Tap anywhere to close</p>
   </div>
 
-  <!-- A→Z run results -->
+  <!-- A→Z run / Review run results -->
   <div class="run-card" id="runCard" hidden>
     <div class="run-card-inner">
-      <p class="run-card-title">Alphabet complete! 🎉</p>
+      <p class="run-card-title" id="runCardTitle">Alphabet complete! 🎉</p>
       <p class="run-card-body" id="runCardBody"></p>
       <button class="cta" id="runCardClose" type="button">Nice</button>
     </div>
