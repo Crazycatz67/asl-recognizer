@@ -14,6 +14,7 @@
 import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
+import { makeInterpolator } from "./posekin.js";
 
 // A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
 // to a letter we let it rotate up to this much to sit at the letter's own tilt.
@@ -369,6 +370,11 @@ export function createCanonicalPlayer(canvasEl) {
   let fit = null; // cached [x,y] -> [px,py] closure — rebuilt only on
                    // setTarget/setMotion/resize, never per animation frame
                    // (see skeleton.js's makeFit for why that matters)
+  let poseInterp = null; // cached t -> 21 [x,y] from posekin.js — built once
+                          // per setTarget() call, not per frame (see posekin.js:
+                          // interpolating bone angles instead of raw x,y is what
+                          // makes a curling finger sweep an arc instead of
+                          // cutting a straight chord through space)
   let raf = 0;
   let t0 = 0;
 
@@ -384,19 +390,6 @@ export function createCanonicalPlayer(canvasEl) {
     if (t < FORM + HOLD) return 1;
     if (t < FORM + HOLD + BACK) return 1 - easeInOut((t - FORM - HOLD) / BACK);
     return 0;
-  }
-
-  // interpolated pose (flat x,y,z) at a given progress 0..1
-  function poseAt(frac) {
-    const out = [];
-    for (let i = 0; i < 21; i++) {
-      out.push(
-        NEUTRAL_HAND[i][0] + (target[i][0] - NEUTRAL_HAND[i][0]) * frac,
-        NEUTRAL_HAND[i][1] + (target[i][1] - NEUTRAL_HAND[i][1]) * frac,
-        0
-      );
-    }
-    return out;
   }
 
   // a transform mapping normalised [x,y] (wrist ~origin) into canvas px so that
@@ -502,15 +495,14 @@ export function createCanonicalPlayer(canvasEl) {
     ctx.fill();
   }
 
-  // poseAt(frac) -> pixel points through the cached `fit`, so the ghost trail
-  // and the solid hand share the exact same anchor/scale instead of each
-  // refitting its own bbox (that mismatch was D3 — the ghost drifting
-  // separately from the hand it's supposed to be trailing).
+  // poseInterp(frac) -> pixel points through the cached `fit`, so the ghost
+  // trail and the solid hand share the exact same anchor/scale instead of
+  // each refitting its own bbox (that mismatch was D3 — the ghost drifting
+  // separately from the hand it's supposed to be trailing). poseInterp
+  // itself comes from posekin.js: bone-angle interpolation, not raw x,y lerp
+  // (D1) — a curling finger sweeps an arc instead of cutting a chord.
   function poseAtPixels(frac) {
-    const flat = poseAt(frac);
-    const pts = [];
-    for (let i = 0; i < 21; i++) pts.push(fit([flat[i * 3], flat[i * 3 + 1]]));
-    return pts;
+    return poseInterp(frac).map(fit);
   }
 
   function paint(frac) {
@@ -518,7 +510,7 @@ export function createCanonicalPlayer(canvasEl) {
     const w = canvasEl.width;
     const h = canvasEl.height;
     ctx.clearRect(0, 0, w, h); // full clear every frame — no after-image
-    if (!target || !fit) return;
+    if (!target || !fit || !poseInterp) return;
     // one faint trailing hand so you read the movement, then the solid hand
     if (!reduce) {
       drawHandShape(ctx, poseAtPixels(Math.max(0, frac - 0.09)), {
@@ -540,6 +532,7 @@ export function createCanonicalPlayer(canvasEl) {
       stroke = null;
       if (!vec) {
         target = null;
+        poseInterp = null;
         fit = null;
         cancelAnimationFrame(raf);
         raf = 0;
@@ -548,6 +541,7 @@ export function createCanonicalPlayer(canvasEl) {
       }
       target = [];
       for (let i = 0; i < 21; i++) target.push([vec[i * 3], vec[i * 3 + 1]]);
+      poseInterp = makeInterpolator(NEUTRAL_HAND, target);
       rebuildFit();
       t0 = 0;
       if (reduce) {
@@ -561,6 +555,7 @@ export function createCanonicalPlayer(canvasEl) {
     // J / Z: loop the start handshape tracing the letter's stroke
     setMotion(letter) {
       target = null;
+      poseInterp = null;
       const p = STROKE[letter], pose = MOTION_POSE[letter];
       if (p && pose) {
         // the hand's fingertip should land on path[0] at the start, so the
