@@ -11,7 +11,12 @@ Each phase below reflects what real companies/projects/papers have already tried
 
 ## Phase 1 — Letters/fingerspelling (current, in progress)
 
-**Status:** MVP plan locked (see `asl-letter-recognition-plan.md`), no code written yet.
+**Status (updated 2026-09-11 — was stale, said "no code written yet"):** far past MVP.
+Four full modes shipped (Practice, Challenge, Spell, Read + Course), PWA/offline,
+an accessibility pass, and a full audit pass (bug hunt + free CI). Live status,
+the full backlog, and revision history are in `asl-letter-recognition-plan.md`
+— that file is the actual source of truth for Phase 1; this doc stays at the
+research-rationale level and doesn't try to track day-to-day status.
 
 **Validated by research:** MediaPipe landmarks → lightweight in-browser classifier is a well-trodden path (fingerpose, multiple 2025 papers), not just our own idea. kNN → small neural net is a legitimate, commonly-used upgrade ladder — nothing suggests we need to skip straight to a heavier model.
 
