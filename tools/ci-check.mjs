@@ -217,27 +217,80 @@ await check("sw.js: VERSION bumped vs origin/main when core files changed", () =
   return oldV && newV ? `${oldV} -> ${newV}` : "VERSION pattern not found in one of the two revisions";
 });
 
-// ---- 10. pure-module math invariants (scaffolding) --------------------
-// js/posekin.js (bone-length-preserving interpolation, stage S2b) and
-// js/orient.js (palm-orientation cue, stage S7) don't exist yet — this is
-// forward-compatible scaffolding, not a failure, until those stages land.
-// When they do, this is where their pure-Node invariants get asserted (bone
-// lengths constant across a lerp, wrap() staying in (-pi, pi], sign stability
-// under the 4 augmentation rotations, etc.) so the math has *enforced*
-// coverage rather than relying on tools/selftest.html alone.
-{
-  const pending = ["posekin.js", "orient.js"].filter(
-    (f) => !fs.existsSync(path.join(ROOT, "js", f))
-  );
-  if (pending.length) {
-    console.log(`SKIP pure-module invariants — not yet added: ${pending.join(", ")}`);
-  } else {
-    await check("pure-module invariants: js/posekin.js and js/orient.js load", async () => {
-      await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
-      await import(pathToFileURL(path.join(ROOT, "js", "orient.js")));
-      return "present — add real math assertions here as they're built";
-    });
+// ---- 10. js/posekin.js — bone-length-preserving interpolation (S2b) -------
+// A pure math module (no DOM), so its actual invariants can be *enforced*
+// here rather than just eyeballed in tools/demo-lab.html: wrap() never
+// leaves (-pi, pi]; every bone's length stays pinned to the target pose's
+// length at every sampled t (the whole point of the module — a hand that
+// never resizes mid-clip); poseAt(1) reproduces the target exactly; and no
+// NaN/Infinity leaks out for a synthetic open-hand -> loose-fist clip.
+await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints exact, no NaN", async () => {
+  const pk = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
+  const { decompose, makeInterpolator, wrap } = pk;
+
+  for (const d of [0, Math.PI, -Math.PI, 3.5, -3.5, 10, -10, 1e-4]) {
+    const w = wrap(d);
+    if (w <= -Math.PI - 1e-9 || w > Math.PI + 1e-9) {
+      throw new Error(`wrap(${d}) = ${w} outside (-pi, pi]`);
+    }
   }
+
+  // synthetic open-hand -> loose-fist pair, 21 [x,y] pairs, wrist at origin.
+  const neutral = [
+    [0, 0], [-0.16, -0.09], [-0.31, -0.2], [-0.42, -0.31], [-0.52, -0.41],
+    [-0.1, -0.42], [-0.12, -0.63], [-0.13, -0.77], [-0.14, -0.9],
+    [0.02, -0.45], [0.02, -0.67], [0.02, -0.82], [0.02, -0.96],
+    [0.14, -0.42], [0.16, -0.62], [0.17, -0.76], [0.18, -0.88],
+    [0.25, -0.36], [0.29, -0.52], [0.31, -0.63], [0.33, -0.73],
+  ];
+  // same wrist-relative directions, scaled in toward a fist — deliberately
+  // NOT the same bone lengths as `neutral`, so this also proves the pin is
+  // to the TARGET's lengths, not just "whatever the first pose has".
+  const target = neutral.map(([x, y], i) => (i === 0 ? [0, 0] : [x * 0.3, y * 0.3]));
+
+  const poseAt = makeInterpolator(neutral, target);
+  const targetBones = decompose(target);
+  const ts = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+
+  for (const t of ts) {
+    const pose = poseAt(t);
+    for (const [x, y] of pose) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`non-finite landmark at t=${t}`);
+    }
+    const d = decompose(pose);
+    for (let i = 0; i < d.palm.length; i++) {
+      if (Math.abs(d.palm[i].len - targetBones.palm[i].len) > 1e-9) {
+        throw new Error(`palm bone ${i} length drifted from target at t=${t}`);
+      }
+    }
+    for (let fi = 0; fi < d.chains.length; fi++) {
+      for (let bi = 0; bi < d.chains[fi].length; bi++) {
+        if (Math.abs(d.chains[fi][bi].len - targetBones.chains[fi][bi].len) > 1e-9) {
+          throw new Error(`chain ${fi} bone ${bi} length drifted from target at t=${t}`);
+        }
+      }
+    }
+  }
+
+  const p1 = poseAt(1);
+  for (let i = 0; i < 21; i++) {
+    const err = Math.hypot(p1[i][0] - target[i][0], p1[i][1] - target[i][1]);
+    if (err > 1e-6) throw new Error(`poseAt(1) landmark ${i} off target by ${err}`);
+  }
+  return `${ts.length} t-samples x 20 bones length-checked, poseAt(1) exact, wrap() range verified`;
+});
+
+// ---- 11. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
+// Doesn't exist yet. When it lands, this is where its invariants get
+// asserted (sign stability under the 4 augmentation rotations, |area|
+// monotonic in a synthetic rotation sweep — see the plan's S7 section).
+if (!fs.existsSync(path.join(ROOT, "js", "orient.js"))) {
+  console.log("SKIP orient.js invariants — not yet added (stage S7)");
+} else {
+  await check("orient.js loads", async () => {
+    await import(pathToFileURL(path.join(ROOT, "js", "orient.js")));
+    return "present — add real math assertions here as they're built";
+  });
 }
 
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
