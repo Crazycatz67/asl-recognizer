@@ -53,6 +53,25 @@ Deploy: `git push` to `main` deploys to GitHub Pages. **Bump `VERSION` in
 `sw.js` on every deploy** or existing installs keep serving the old cached
 shell (the service worker precaches the whole app for offline use).
 
+## Skills & automation
+
+This repo has two project-scoped Claude Code skills (`.claude/skills/`) that
+package the workflows above so they don't get re-derived by hand each time —
+they fire automatically when a request matches their intent (no need to recall
+exact names; typing `/` also lists everything available with descriptions):
+
+- **`asl-verify`** — runs `ci-check.mjs` → `selftest.html` (164 checks) →
+  checks the `sw.js` VERSION bump → commits → (with confirmation) pushes and
+  confirms CI green. Triggers on "verify/ship/test/deploy this."
+- **`asl-resume`** — reconstructs exactly where a prior session left off (plan
+  doc + memory + live git state) when picking this project back up cold.
+  Triggers on "where did we leave off" / session start.
+
+There's also a **`Stop` hook** in `.claude/settings.json`: on every session
+end in this directory, if the working tree is dirty it makes a silent local
+`git add -A && git commit -m "WIP checkpoint (auto)"` — never pushes — purely
+so an abrupt crash/close never loses uncommitted work.
+
 ## Architecture
 
 **Everything funnels through one state machine, `js/main.js`** (~2000 lines).

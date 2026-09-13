@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "cd \"C:\\Users\\maila\\Asl Claude Code\"; $s = git status --porcelain 2>$null; if ($s) { git add -A 2>$null; git commit -m \"WIP checkpoint (auto)\" --quiet 2>$null }; exit 0",
+            "statusMessage": "Checkpointing uncommitted work...",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
