@@ -43,13 +43,21 @@ body {
   color: var(--fg);
   -webkit-text-size-adjust: 100%;
   background: transparent; /* the animated <canvas> from js/bg.js shows through */
-  /* the app owns exactly one screen: header + workspace + controls, no page
-     scroll on any device. dvh tracks mobile browser chrome. */
+  /* the app owns exactly one screen: topbar / stage / dock, no page scroll on
+     any device. dvh tracks mobile browser chrome. */
   height: 100vh;
   height: 100dvh;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
+  /* S4 shell (was flex-column): a grid track can't be pushed to 0 by an
+     oversized sibling the way a flex:1 item can be squeezed by flex:none
+     siblings — the structural fix for the whole "camera collapses" bug
+     family, and what lets `.app-stage` safely claim exactly the room
+     that's left after the topbar and the dock, no more and no less.
+     Only 3 elements are ever real grid children — everything else in the
+     body (toasts, the intro, progress/demo-zoom overlays) is
+     `position:fixed`, which takes it out of grid flow entirely. */
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto; /* topbar / stage / dock */
 }
 
 /* ---- top bar: title + letter picker ------------------------------- */
@@ -61,6 +69,7 @@ body {
   gap: 1rem;
   flex-wrap: wrap;
   padding: 0.6rem 1rem;
+  padding-top: max(0.6rem, env(safe-area-inset-top)); /* S4: notch/status-bar clearance */
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
@@ -177,6 +186,22 @@ body {
 }
 @media (max-width: 400px) {
   .mode-btn { padding: 0.36rem 0.62rem; font-size: 0.8rem; }
+}
+
+/* S4 shell: the grid's single "stage" row (topbar and dock are the other
+   two) — wraps the Practice letter picker (.learn) and .workspace so BOTH
+   fit inside exactly the room the grid track gives this row. `min-height:0`
+   is what lets a grid item shrink below its content size at all (grid items
+   default to `min-height:auto`, same trap flex items have); without it a
+   tall .learn (many wrapped chips) could still force this row taller than
+   the track and squeeze .workspace from the bottom, undoing the whole point
+   of the grid rewrite one level down. Same flex-column shape body itself
+   used to be, just nested one level deeper now that body is the grid. */
+.app-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .learn {
@@ -1401,6 +1426,7 @@ body {
   max-width: 1180px;
   margin: 0.5rem auto 0.6rem;
   padding: 0.4rem 0.7rem;
+  padding-bottom: max(0.4rem, env(safe-area-inset-bottom)); /* S4: home-indicator clearance */
   display: flex;
   align-items: center;
   gap: 0.7rem;
