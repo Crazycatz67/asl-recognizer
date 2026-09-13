@@ -28,6 +28,15 @@ export const TARGET_FPS = 30;
 // detection dropouts.
 export const LOST_HAND_FRAMES = 6;
 
+// This same hysteresis idea didn't originally extend to the overlay DRAWING
+// itself — a single missed-detection frame (e.g. fingers briefly occluding
+// the palm) cleared the skeleton outright that frame, a real reported bug
+// ("the skeletal overlay snaps off and on"). OVERLAY_GRACE_FRAMES bridges a
+// momentary miss by holding the last known pose on screen — short enough
+// that a genuine hand-leaves-frame is still noticed quickly (well under
+// LOST_HAND_FRAMES, which still governs the "searching" state label).
+export const OVERLAY_GRACE_FRAMES = 3;
+
 // ---- classification (Stages 3-4) --------------------------------------
 
 // Where the live app loads training vectors from. Produced by

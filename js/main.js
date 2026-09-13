@@ -35,6 +35,7 @@ import { createCourse } from "./curriculum.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
+  OVERLAY_GRACE_FRAMES,
   DATASET_URL,
   LETTERS,
   ALL_LETTERS,
@@ -375,6 +376,8 @@ let rafId = 0;
 let facingMode = "user";
 let lastDetectAt = 0;
 let missStreak = 0;
+let lastGoodHand = null; // raw landmarks, held briefly through a momentary detection miss
+let overlayGrace = 0;
 let detCount = 0;
 let detStamp = performance.now();
 let fps = 0;
@@ -1183,6 +1186,8 @@ async function start() {
 
     flipBtn.hidden = (await countCameras()) < 2;
     missStreak = LOST_HAND_FRAMES;
+    lastGoodHand = null;
+    overlayGrace = 0;
     detCount = 0;
     detStamp = performance.now();
     setState("searching");
@@ -1410,6 +1415,18 @@ function loop() {
     }
     missStreak = 0;
     if (state !== "tracking") setState("tracking");
+    lastGoodHand = result.landmarks[0];
+    overlayGrace = OVERLAY_GRACE_FRAMES;
+  } else if (overlayGrace > 0 && lastGoodHand) {
+    // bridge a momentary detection miss (e.g. fingers briefly occluding the
+    // palm) so the skeleton doesn't visibly snap off for one frame and back
+    // on the next — just the plain last-known pose, no guide/scoring, since
+    // hasHand is genuinely false this frame (classification/motion/sound
+    // above already correctly saw "no hand" — this is purely cosmetic).
+    overlay.drawHands([lastGoodHand]);
+    overlayGrace--;
+    missStreak++;
+    if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
   } else {
     missStreak++;
     if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");

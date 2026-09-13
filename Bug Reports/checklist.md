@@ -24,10 +24,23 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    resolution adaptive (try 1280, measure, fall back). Cannot be verified in
    this environment — no real webcam.
 3. **Skeletal overlay snaps off/on when fingers overlap the palm.**
-   `OPEN`, architecture gap confirmed. `main.js`'s `hasHand` gate hides the
-   overlay the instant a single frame's detection misses; `LOST_HAND_FRAMES`
-   only delays the "searching" state label, not the draw itself. Fix = a
-   short hold-last-good-pose buffer before hiding. Not yet implemented.
+   `FIXED (needs live confirm)`. `main.js`'s `hasHand` gate was clearing the
+   overlay the instant a single frame's detection missed, while
+   `LOST_HAND_FRAMES` only delayed the "searching" state label, not the draw.
+   Fix: a new `OVERLAY_GRACE_FRAMES=3` (`config.js`) holds the last known pose
+   on screen for a few missed frames — mirrors the existing
+   `LOST_HAND_FRAMES`/`missStreak` hysteresis pattern already proven for the
+   state label, applied to the draw itself; purely cosmetic (classification/
+   motion/sound still correctly see the real "no hand" that frame). `node
+   tools/ci-check.mjs` and `tools/selftest.html` (166/166) both unaffected —
+   `main.js`'s `loop()` isn't unit-tested by either (same boundary as every
+   other live-camera-only behavior in this project). Attempted live proof via
+   `tools/testHarness.js`'s `noHand()` was inconclusive: the automation tab
+   would not hold true foreground state even immediately after real clicks
+   (`document.hidden` stayed `true`), which throttles the ~100ms grace window
+   below what's testable here — a genuine environment limitation, not a code
+   or harness flaw. Needs a real device/session where the tab stays naturally
+   focused to fully confirm the visual fix.
 
 ## Practice Mode & Letter Recognition
 
