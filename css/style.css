@@ -234,6 +234,17 @@ body {
   border-radius: 999px;
   background: rgba(56, 189, 248, 0.14);
 }
+/* only shown during a bounded run (A→Z or Review) — free-pick is meant to
+   teach, so hiding help there would defeat its point. */
+.blind-toggle {
+  flex: none;
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
 .learn[data-run="on"] .chip.done {
   background: linear-gradient(180deg, #22c55e, #15803d);
   border-color: #22c55e;

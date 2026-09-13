@@ -101,6 +101,8 @@ const meterLabel = $("meterLabel");
 const refHint = $("refHint");
 const ghostToggle = $("ghostToggle");
 const ghostToggleWrap = $("ghostToggleWrap");
+const blindToggle = $("blindToggle");
+const blindToggleWrap = $("blindToggleWrap");
 const handPick = $("handPick");
 const muteBtn = $("muteBtn");
 const controls = document.querySelector(".controls");
@@ -556,7 +558,7 @@ function setTarget(letter) {
   clearTargetBtn.hidden = !letter;
   prevLetterBtn.hidden = !letter;
   nextLetterBtn.hidden = !letter;
-  refPanel.hidden = !letter;
+  refPanel.hidden = !letter || blindToggle.checked;
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
   // collapse the letter grid to a compact strip once one's chosen
@@ -612,6 +614,8 @@ function setAzRun(on, kind = "az") {
   azNext.hidden = true;
   learnRow.dataset.run = on ? "on" : "off";
   azProgress.hidden = !on;
+  blindToggleWrap.hidden = !on; // free-pick is meant to teach — no blind option there
+  if (!on) blindToggle.checked = false; // don't leave free-pick accidentally blind
   for (const b of subMode.children)
     b.classList.toggle("on", on ? b.dataset.sub === kind : b.dataset.sub === "free");
   for (const b of letterPicker.children) b.classList.remove("done");
@@ -1278,9 +1282,15 @@ function loop() {
   const left = isLeftHand; // drives the classification mirror (mirrorX)
   const realHand = mpLabel ? (isLeftHand ? "left" : "right") : null;
   const motionTarget = MOTION.has(targetLetter); // J / Z — traced, no shape match
-  // guide is a practice-mode thing only — and not for the motion letters
+  // guide is a practice-mode thing only — and not for the motion letters.
+  // "Test blind" (bounded runs only) suppresses it regardless of ghostToggle.
   const guiding =
-    mode === "practice" && reference && targetLetter && !motionTarget && ghostToggle.checked;
+    mode === "practice" &&
+    reference &&
+    targetLetter &&
+    !motionTarget &&
+    ghostToggle.checked &&
+    !blindToggle.checked;
 
   // which hand is signing — follows whatever's on camera in near real time, so
   // you can swap hands mid-session (A→Z run, practice, challenge) and the
@@ -1357,7 +1367,7 @@ function loop() {
 
   let guideInfo = null; // { part } for the worst-off joint — named in the hint
   if (hasHand) {
-    if (mode === "practice" && motionTarget && ghostToggle.checked) {
+    if (mode === "practice" && motionTarget && ghostToggle.checked && !blindToggle.checked) {
       // J / Z: show the swoosh to trace on the live hand
       overlay.drawMotionGuide(hand, targetLetter, { mirror: facingMode === "user" });
     } else if (guiding) {
@@ -1601,6 +1611,8 @@ function loop() {
       lastHintAt = now;
       refHint.textContent = rewarded
         ? `Nailed ${targetLetter}! ✓  — do it again whenever you're ready`
+        : blindToggle.checked
+        ? "" // "Test blind" — no instructions, just the meter and the eventual reward
         : hasHand
         ? targetLetter === "J"
           ? "Little finger up in a fist — then hook it down and back toward you"
@@ -1705,10 +1717,14 @@ function loop() {
         }
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         const prefix = stuckShown && !complete ? "Still tricky? " : "";
+        // "Test blind" keeps the pass/fail state (Nailed it / Hold it…) — that's
+        // the test — but drops the tip text, which is the "how" it's meant to hide.
         refHint.textContent = rewarded
           ? `Nailed it — that's ${targetLetter} ✓`
           : complete
           ? `Hold it…  ${dots}`
+          : blindToggle.checked
+          ? ""
           : misread
           ? `${prefix}${tip}  ·  (reading as ${lastPred.label})`
           : `${prefix}${tip}`;
@@ -1792,6 +1808,11 @@ startBtn.addEventListener("click", start); // "Turn on camera" and "Try again"
 stopBtn.addEventListener("click", stop);
 flipBtn.addEventListener("click", flip);
 clearTargetBtn.addEventListener("click", () => setTarget(null));
+blindToggle.addEventListener("change", () => {
+  // guiding/hint text re-evaluate every frame from blindToggle.checked directly;
+  // the reference panel doesn't, so it needs an explicit refresh on toggle.
+  refPanel.hidden = !targetLetter || blindToggle.checked;
+});
 muteBtn.addEventListener("click", () => {
   sound.setMuted(!sound.muted);
   syncMuteBtn();
