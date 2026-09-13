@@ -1,0 +1,34 @@
+ASL APP - QA / BUG REPORT
+
+=== General & Performance Issues ===
+
+- Frame Rate & Delay: Averaging 22 FPS on Mac; hand tracking is noticeably delayed with visible ghosting.
+- UI & Text Display: On-screen suggestion text (e.g., instructions to move thumb or fingers) is rendered backwards/mirrored.
+- Tracking Glitches: Hand tracking occasionally gets confused when fingers overlap with the palm, causing the skeletal overlay to snap off and on.
+
+=== Practice Mode & Letter Recognition ===
+
+- Threshold Tuning: Letter registration triggers too quickly and easily. Shapes for letters like D, J, and G register as correct even with imprecise hand positioning.
+- Letter-Specific Bugs:
+  - J & Z: Dynamic/motion-based letters are severely bugged. J registers without requiring real movement. Z fails to track properly, features messy movement detection, and triggers a loud audio buzz artifact.
+  - I & J Confusion: Forming I repeatedly triggers J accidentally.
+  - Inaccurate Animations: Skeletal video guides for dynamic letters (J, W, R, X, K, V, Z) show anatomically impossible hand/finger movements (e.g., pinky bending backwards).
+- Overlay Visuals: The white ghost overlay is helpful for positioning, but needs to be rendered more prominently and consistently. Yellow correction lines appear frequently even when shapes are marked correct.
+
+=== Review & Challenge Modes ===
+
+- Review Mode Settings: Request to add an option to disable helper diagrams and tips so users can test themselves blindly.
+- Challenge Mode:
+  - Runs well overall, but Z continues to fail tracking.
+  - Scoring updates properly (achieved score of 256, best 56, reached round 15).
+
+=== Spell Mode ===
+
+- UI Design: The user interface feels overly text-heavy and cluttered; needs more clean, animated visual guides.
+- Sound Bug: Correct-letter chime/buzz triggers constantly on individual letter inputs.
+- Usability: Accidental letter triggers make spelling words difficult. The wipe/erase gesture works but requires repetitive actions to trigger deletion.
+- Audio Playback: Text-to-speech auto-play ("speak") functions as expected once a word is spelled.
+
+=== Read Mode ===
+
+- Guide Accuracy: Blocked by incorrect skeletal video animations where finger joints and angles display unnaturally.

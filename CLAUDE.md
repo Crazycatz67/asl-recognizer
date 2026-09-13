@@ -55,17 +55,22 @@ shell (the service worker precaches the whole app for offline use).
 
 ## Skills & automation
 
-This repo has two project-scoped Claude Code skills (`.claude/skills/`) that
+This repo has three project-scoped Claude Code skills (`.claude/skills/`) that
 package the workflows above so they don't get re-derived by hand each time —
 they fire automatically when a request matches their intent (no need to recall
 exact names; typing `/` also lists everything available with descriptions):
 
-- **`asl-verify`** — runs `ci-check.mjs` → `selftest.html` (164 checks) →
+- **`asl-verify`** — runs `ci-check.mjs` → `selftest.html` (164+ checks) →
   checks the `sw.js` VERSION bump → commits → (with confirmation) pushes and
   confirms CI green. Triggers on "verify/ship/test/deploy this."
 - **`asl-resume`** — reconstructs exactly where a prior session left off (plan
   doc + memory + live git state) when picking this project back up cold.
   Triggers on "where did we leave off" / session start.
+- **`asl-bugwatch`** — maintains `Bug Reports/checklist.md`, the persistent
+  bug tracker (a task-clipboard, not a one-off report), picks the next
+  highest-priority open item, and enforces the same verify-before-`FIXED`
+  discipline as `asl-verify`. Triggers on "check for bugs," "what's still
+  open," or "update the bug list."
 
 There's also a **`Stop` hook** in `.claude/settings.json`: on every session
 end in this directory, if the working tree is dirty it makes a silent local
