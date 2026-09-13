@@ -353,6 +353,7 @@ let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
 let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you can repeat it
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
+let motionChargeAmt = 0; // eased J/Z charge-tone input — see the charge() call below
 let handVote = 0; // frames the on-camera hand has disagreed with trackedHand
 let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
 let handOverride = "auto"; // "auto" | "right" | "left" — the Hand control
@@ -1127,6 +1128,7 @@ function setState(next, detail) {
     rewarded = false;
     smoothPts = null;
     guideAmt = 0;
+    motionChargeAmt = 0;
     viewport.style.setProperty("--hold", "0");
     sound.charge(0);
     bg.setMatch(null);
@@ -1641,7 +1643,17 @@ function loop() {
     const shownProg = rewarded ? 1 : prog;
     updateMeter(shownProg, rewarded ? "correct" : prog > 0.55 ? "close" : null);
     viewport.style.setProperty("--hold", shownProg.toFixed(3));
-    if (!rewarded) sound.charge(prog > 0.15 ? 0.05 + 0.95 * prog : 0);
+    // prog is a live geometric metric (indexMove/indexX/rev for Z, a rolling-
+    // window reversal count that jumps around during a genuine zigzag) — for
+    // a static-letter hold, charge()'s input is a smooth elapsed-time
+    // fraction, but here it can swing frame to frame, and charge() restarts a
+    // fresh 90ms pitch ramp on every call. Feeding it raw produced a warbling
+    // "buzz" artifact, worst on Z (reported live QA) since Z's back-and-forth
+    // motion is the noisiest input of the two. Ease it the same way guideAmt
+    // is eased above — the on-screen meter/text still show the raw prog.
+    const chargeTarget = prog > 0.15 ? 0.05 + 0.95 * prog : 0;
+    motionChargeAmt += (chargeTarget - motionChargeAmt) * 0.25;
+    if (!rewarded) sound.charge(motionChargeAmt);
 
     if (now - lastHintAt >= HINT_INTERVAL) {
       lastHintAt = now;

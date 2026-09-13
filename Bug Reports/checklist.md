@@ -56,8 +56,25 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    replay numbers are known-unreliable in absolute terms (Holistic vs
    HandLandmarker domain gap).
 6. **Z fails to track, messy detection, triggers a loud audio-buzz artifact.**
-   `OPEN`, not yet investigated — the audio-buzz root cause specifically
-   still needs a look at `js/sound.js` and its Z-related call sites.
+   Two separate problems bundled in one report:
+   - **The audio-buzz artifact: `FIXED (verified offline)`.** Root cause
+     found: the J/Z practice charge-tone (`sound.charge()`) was fed the raw
+     live stroke-progress metric every frame — for Z that's
+     `min(indexMove, indexX, rev)`, and `rev` (a reversal count over a
+     rolling window) genuinely jumps around during a real zigzag. `charge()`
+     restarts a 90ms pitch ramp on every call, so a jumpy input frame-to-frame
+     warbles/buzzes; J's smoother pinky-drop metric mostly avoided it, which
+     is why the report singled out Z. Fixed by easing a separate
+     `motionChargeAmt` toward the target (same pattern as the existing
+     `guideAmt` ease) and feeding *that* to `charge()`, while the on-screen
+     meter/text still show the raw, precise metric. `ci-check`/`selftest`
+     (166/166) unaffected — not unit-tested, same live-only boundary as
+     other per-frame `main.js` behavior.
+   - **"Fails to track / messy movement detection": still `OPEN`.** No coding
+     bug found in `motion.js`'s Z thresholds on inspection — this looks like
+     it needs actual threshold retuning against real signing, which needs
+     live data (`fs_sequences.json` replay numbers are known-unreliable per
+     the project's domain-gap caveat).
 7. **Anatomically impossible demo-hand animations for J, W, R, X, K, V, Z.**
    `OPEN`, two distinct root causes, not one:
    - J/Z use a separate motion-stroke system (`MOTION_POSE`/`paintStroke`) —
