@@ -76,12 +76,20 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
      live data (`fs_sequences.json` replay numbers are known-unreliable per
      the project's domain-gap caveat).
 7. **Anatomically impossible demo-hand animations for J, W, R, X, K, V, Z.**
-   `OPEN`, two distinct root causes, not one:
-   - J/Z use a separate motion-stroke system (`MOTION_POSE`/`paintStroke`) —
-     already the planned **S2d** stage in the active plan doc, not a quick fix.
-   - W/R/X/K/V are static letters going through `posekin.js`'s shortest-arc
-     interpolation, which may lack anatomical joint-angle clamping — plausible
-     but not yet confirmed with concrete angle-delta evidence.
+   Two distinct root causes, not one — now split:
+   - **J/Z: `FIXED (verified offline + live)`** — commit `1a54c68` (S2d part
+     2, pushed). J's motion-stroke system (`MOTION_POSE`/`paintStroke` in
+     `js/reference.js`) rebuilt: the rigid "I" handshape now rotates around
+     its own gliding wrist (new `js/strokekin.js`) instead of a hand-plotted
+     fingertip polyline, so the hook is a real consequence of the rotation.
+     Z kept its translation, gained a wrist cock/arrowhead/waypoints.
+     Verified live in Practice for both letters (trail overlays the guide
+     exactly, hold→crossfade→restart still has no reverse retrace).
+   - **W/R/X/K/V: still `OPEN`.** Unrelated root cause — these are static
+     letters going through `posekin.js`'s shortest-arc interpolation, which
+     may lack anatomical joint-angle clamping — plausible but not yet
+     confirmed with concrete angle-delta evidence. Not touched by the S2d
+     work above.
 8. **Yellow correction lines shown even when the shape is marked correct.**
    `FIXED (verified offline)` — commit `2f75e95` (local, not yet pushed).
    Root cause: overlay colored joints green only within the tight tolerance,
@@ -116,7 +124,8 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
 ## Read Mode
 
 15. **Guide accuracy blocked by incorrect skeletal animations.** Same root
-    cause as item 7 — not a separate bug, tracked together.
+    cause as item 7 — not a separate bug, tracked together. The J/Z portion
+    is fixed alongside item 7; the W/R/X/K/V portion is still open.
 
 ---
 
