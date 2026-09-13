@@ -280,7 +280,74 @@ await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints 
   return `${ts.length} t-samples x 20 bones length-checked, poseAt(1) exact, wrap() range verified`;
 });
 
-// ---- 11. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
+// ---- 11. js/strokekin.js — rigid rotation + spline math for J (S2d pt 2) --
+// Pure math (no DOM), so its invariants are enforced here rather than
+// eyeballed: rotate2D preserves vector length and composes additively;
+// catmullRom2D passes through every control point exactly at its own
+// t-fraction and never returns non-finite values off the ends; rigidPoseAt
+// rotating a pose back onto itself (theta=0, wristAt=basePose[0]) is the
+// identity; arcFractions is monotonic 0->1 and lands each original point
+// exactly at its own cumulative-length fraction.
+await check("strokekin.js: rotate2D/catmullRom2D/rigidPoseAt/arcFractions invariants", async () => {
+  const sk = await import(pathToFileURL(path.join(ROOT, "js", "strokekin.js")));
+  const { rotate2D, catmullRom2D, delayedEase, rigidPoseAt, bump, arcFractions } = sk;
+
+  // rotate2D: length-preserving, and two half-turns == one full turn
+  for (const v of [[1, 0], [0.3, -0.7], [-2, 5]]) {
+    const r = rotate2D(v, 1.234);
+    const lenBefore = Math.hypot(v[0], v[1]);
+    const lenAfter = Math.hypot(r[0], r[1]);
+    if (Math.abs(lenBefore - lenAfter) > 1e-9) throw new Error(`rotate2D changed length: ${lenBefore} -> ${lenAfter}`);
+  }
+  const half1 = rotate2D(rotate2D([1, 0], Math.PI / 2), Math.PI / 2);
+  const full = rotate2D([1, 0], Math.PI);
+  if (Math.hypot(half1[0] - full[0], half1[1] - full[1]) > 1e-9) {
+    throw new Error("rotate2D(rotate2D(v, a), a) != rotate2D(v, 2a)");
+  }
+
+  // catmullRom2D: passes through every control point at its own t; no NaN
+  const pts = [[0, 0], [1, 2], [3, 1], [4, 4]];
+  for (let i = 0; i < pts.length; i++) {
+    const t = i / (pts.length - 1);
+    const p = catmullRom2D(pts, t);
+    if (Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]) > 1e-6) {
+      throw new Error(`catmullRom2D(${t}) = ${p} != control point ${pts[i]}`);
+    }
+  }
+  for (const t of [-1, 0, 0.5, 1, 2]) {
+    const [x, y] = catmullRom2D(pts, t);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`catmullRom2D(${t}) non-finite`);
+  }
+
+  // delayedEase: 0 up to `start`, reaches ease(1)=1 at t=1
+  if (delayedEase(0.3, 0.5, (x) => x) !== 0) throw new Error("delayedEase should be 0 before start");
+  if (Math.abs(delayedEase(1, 0.5, (x) => x) - 1) > 1e-9) throw new Error("delayedEase(1) should reach ease(1)");
+
+  // rigidPoseAt: theta=0 with wristAt=basePose[0] is the identity
+  const base = [[0, 0], [1, 0], [0, 1]];
+  const identity = rigidPoseAt(base, 0, base[0]);
+  for (let i = 0; i < base.length; i++) {
+    if (Math.hypot(identity[i][0] - base[i][0], identity[i][1] - base[i][1]) > 1e-9) {
+      throw new Error(`rigidPoseAt identity case moved point ${i}`);
+    }
+  }
+
+  // bump: 1 at center, 0 at/after width
+  if (Math.abs(bump(0.5, 0.5, 0.1) - 1) > 1e-9) throw new Error("bump(center) should be 1");
+  if (bump(0.7, 0.5, 0.1) !== 0) throw new Error("bump beyond width should be 0");
+
+  // arcFractions: monotonic 0->1, one entry per point
+  const fracs = arcFractions(pts);
+  if (fracs.length !== pts.length) throw new Error("arcFractions length mismatch");
+  if (fracs[0] !== 0 || Math.abs(fracs.at(-1) - 1) > 1e-9) throw new Error("arcFractions should run 0 -> 1");
+  for (let i = 1; i < fracs.length; i++) {
+    if (fracs[i] < fracs[i - 1]) throw new Error("arcFractions not monotonic");
+  }
+
+  return "rotate2D length/composition, catmullRom2D control-point pass-through, delayedEase/rigidPoseAt/bump/arcFractions all verified";
+});
+
+// ---- 12. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
 // monotonic in a synthetic rotation sweep — see the plan's S7 section).

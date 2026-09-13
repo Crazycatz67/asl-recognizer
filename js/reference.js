@@ -15,6 +15,7 @@ import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
 import { makeInterpolator } from "./posekin.js";
+import { catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions } from "./strokekin.js";
 
 // A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
 // to a letter we let it rotate up to this much to sit at the letter's own tilt.
@@ -373,6 +374,52 @@ const MOTION_POSE = { J: { hand: I_HAND, tip: 20 }, Z: { hand: POINT_HAND, tip: 
 
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
+// --- J: a wrist rotation, not a translating fingertip (S2d part 2) --------
+// Real J holds the rigid "I" handshape and moves it via the wrist: a short
+// glide (the downstroke) while the wrist stays roughly unrotated, then a
+// supination twist (the hook) as the glide curves left. Modelled directly as
+// that — I_HAND rotated around its own wrist while the wrist follows
+// J_WRIST_ARC — so the fingertip's hook is READ OFF the motion, never
+// hand-plotted as a polyline (contrast with STROKE.J in motion.js, which is
+// a live-detection heuristic path used by the on-camera guide in overlay.js
+// and is unrelated to this demo).
+const J_THETA_TO = (-95 * Math.PI) / 180; // supination sweep, 0 -> here
+const J_ROT_START = 0.5; // rotation stays ~0 until halfway; starting it
+                          // immediately makes the downstroke read as a
+                          // diagonal instead of a straight line
+const J_WRIST_ARC = [
+  [0, 0], [0.01, 0.45], [0.0, 0.75], [-0.2, 0.8],
+]; // the wrist's own path: straight down, then hooks left
+
+function jPoseAt(f) {
+  const e = Math.max(0, Math.min(1, f));
+  const theta = J_THETA_TO * delayedEase(e, J_ROT_START, easeInOut);
+  const wrist = catmullRom2D(J_WRIST_ARC, e);
+  return rigidPoseAt(I_HAND, theta, wrist);
+}
+
+// Sample a `poseAt(f)` motion's fingertip once (pure function of f, no
+// per-frame cost) into a plain polyline — this trail IS the derived path,
+// used for the faint dashed guide and the bright progress trail.
+function sampleTrail(poseAt, tip, n = 40) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) pts.push(poseAt(i / n)[tip]);
+  return pts;
+}
+
+// --- Z: stays a translation, plus a wrist cock at each corner (S2d) -------
+// A real wrist visibly flicks at each direction change; STROKE.Z's three
+// waypoints are converted to arc-length fractions once (module load) so the
+// cock lands exactly at each corner regardless of segment length.
+const Z_FRACS = arcFractions(STROKE.Z);
+const Z_COCK_DEG = 8;
+const Z_COCK_WIDTH = 0.1;
+function zCockRad(prog) {
+  const c1 = bump(prog, Z_FRACS[1], Z_COCK_WIDTH) * Z_COCK_DEG;
+  const c2 = bump(prog, Z_FRACS[2], Z_COCK_WIDTH) * Z_COCK_DEG;
+  return ((c1 - c2) * Math.PI) / 180;
+}
+
 // Plays a short looping animation in a panel canvas: the hand eases from a
 // relaxed open pose into the target letter, holds, then resets — a "how they
 // did it" clip instead of a static picture. Falls back to a still diagram when
@@ -465,7 +512,11 @@ export function createCanonicalPlayer(canvasEl) {
   // path, so anchoring it to a fixed canvas point would be wrong), just
   // computed once instead of every frame.
   function rebuildFit() {
-    if (stroke) {
+    if (stroke && stroke.kind === "rotate") {
+      // trail already sweeps the fingertip's full extent; the two endpoint
+      // poses cover the rest of the hand at min/max rotation
+      fit = fitFor(stroke.trail.concat(jPoseAt(0)).concat(jPoseAt(1)));
+    } else if (stroke) {
       fit = fitFor(stroke.path.concat(stroke.poseAt0));
     } else if (target) {
       fit = makeFit(NEUTRAL_HAND.concat(target), canvasEl.width, canvasEl.height, {
@@ -501,17 +552,11 @@ export function createCanonicalPlayer(canvasEl) {
     return pts.at(-1).slice();
   }
 
-  // J/Z: the START handshape traced along the stroke — faint dashed full path,
-  // a bright fingertip trail, and the hand skeleton doing the movement.
-  function paintStroke(prog) {
+  // shared faint dashed guide line, used by both stroke kinds
+  function drawGhostPath(px) {
     const w = canvasEl.width;
-    ctx.clearRect(0, 0, w, canvasEl.height);
-    if (!fit) return;
-    const { path, poseAt0, tip } = stroke;
-    const px = path.map(fit);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // faint full path
     ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
     ctx.lineWidth = Math.max(2.5, w * 0.022);
     ctx.setLineDash([w * 0.045, w * 0.045]);
@@ -519,8 +564,55 @@ export function createCanonicalPlayer(canvasEl) {
     px.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
     ctx.stroke();
     ctx.setLineDash([]);
+  }
 
-    // fingertip trail up to prog
+  // numbered waypoints at Z's hand-authored corners — learners mirror Z
+  // constantly, so showing the stroke order (not just its shape) helps.
+  function drawWaypoints(px) {
+    const w = canvasEl.width;
+    px.forEach((p, i) => {
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], Math.max(6, w * 0.028), 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.7)";
+      ctx.lineWidth = Math.max(1, w * 0.006);
+      ctx.stroke();
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = `${Math.max(9, Math.round(w * 0.035))}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), p[0], p[1]);
+    });
+  }
+
+  // a small triangle at `at`, pointing along the path's current direction of
+  // travel — Z's corners are easy to mirror backward without this
+  function drawArrowhead(at, dir) {
+    const w = canvasEl.width;
+    const len = Math.max(9, w * 0.045);
+    ctx.save();
+    ctx.translate(at[0], at[1]);
+    ctx.rotate(dir);
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.moveTo(len, 0);
+    ctx.lineTo(-len * 0.5, len * 0.45);
+    ctx.lineTo(-len * 0.5, -len * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // J: the rigid "I" hand rotating around its gliding wrist. The dashed
+  // guide + bright trail are `stroke.trail`, sampled once from the same
+  // motion this draws — a derived path, not an authored one (S2d part 2).
+  function paintRotateStroke(prog) {
+    const w = canvasEl.width;
+    const { trail, tip } = stroke;
+    const px = trail.map(fit);
+    drawGhostPath(px);
+
     ctx.strokeStyle = "#38bdf8";
     ctx.lineWidth = Math.max(3, w * 0.03);
     ctx.beginPath();
@@ -530,9 +622,57 @@ export function createCanonicalPlayer(canvasEl) {
     }
     ctx.stroke();
 
-    // the solid hand, shifted so its fingertip is at the current point
+    const pose = stroke.getPose(prog).map(fit);
+    drawHandShape(ctx, pose);
+    const tipNow = pose[tip];
+    ctx.fillStyle = "#e2e8f0";
+    ctx.beginPath();
+    ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function paintRotateCrossfade(outAlpha, inAlpha) {
+    const w = canvasEl.width;
+    const { trail, tip } = stroke;
+    drawGhostPath(trail.map(fit));
+    const drawAt = (prog, alpha) => {
+      if (alpha <= 0.01) return;
+      const pose = stroke.getPose(prog).map(fit);
+      drawHandShape(ctx, pose, { alpha });
+      const tipNow = pose[tip];
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+    drawAt(1, outAlpha);
+    drawAt(0, inAlpha);
+  }
+
+  // Z: the START handshape translated along STROKE.Z, plus a small wrist
+  // cock at each corner and a direction arrowhead (S2d).
+  function paintTranslateStroke(prog) {
+    const w = canvasEl.width;
+    const { path, poseAt0, tip } = stroke;
+    const px = path.map(fit);
+    drawGhostPath(px);
+    drawWaypoints(px);
+
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = Math.max(3, w * 0.03);
+    ctx.beginPath();
+    for (let s = 0; s <= 24; s++) {
+      const p = along(px, (s / 24) * prog);
+      s ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
+    ctx.stroke();
+
     const tipNow = along(px, prog);
-    const poseFit = poseAt0.map(fit);
+    const cock = stroke.cockAt ? stroke.cockAt(prog) : 0;
+    const cocked = cock ? rigidPoseAt(poseAt0, cock, poseAt0[0]) : poseAt0;
+    const poseFit = cocked.map(fit);
     const dx = tipNow[0] - poseFit[tip][0];
     const dy = tipNow[1] - poseFit[tip][1];
     drawHandShape(ctx, poseFit.map(([x, y]) => [x + dx, y + dy]));
@@ -540,27 +680,19 @@ export function createCanonicalPlayer(canvasEl) {
     ctx.beginPath();
     ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
     ctx.fill();
+
+    if (prog > 0.02 && prog < 0.98) {
+      const ahead = along(px, Math.min(1, prog + 0.04));
+      const behind = along(px, Math.max(0, prog - 0.04));
+      drawArrowhead(tipNow, Math.atan2(ahead[1] - behind[1], ahead[0] - behind[0]));
+    }
   }
 
-  // The S_FADE phase: no path retrace, just the finished-stroke hand fading
-  // out at prog=1 while the about-to-restart hand fades in at prog=0, both
-  // held perfectly still. Same faint dashed guide path stays put throughout
-  // for orientation.
-  function paintStrokeCrossfade(outAlpha, inAlpha) {
-    const w = canvasEl.width;
-    ctx.clearRect(0, 0, w, canvasEl.height);
-    if (!fit) return;
+  function paintTranslateCrossfade(outAlpha, inAlpha) {
     const { path, poseAt0, tip } = stroke;
     const px = path.map(fit);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
-    ctx.lineWidth = Math.max(2.5, w * 0.022);
-    ctx.setLineDash([w * 0.045, w * 0.045]);
-    ctx.beginPath();
-    px.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
-    ctx.stroke();
-    ctx.setLineDash([]);
+    drawGhostPath(px);
+    drawWaypoints(px);
 
     const poseFit = poseAt0.map(fit);
     const drawAt = (prog, alpha) => {
@@ -572,12 +704,32 @@ export function createCanonicalPlayer(canvasEl) {
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#e2e8f0";
       ctx.beginPath();
-      ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
+      ctx.arc(tipNow[0], tipNow[1], Math.max(4, canvasEl.width * 0.035), 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     };
     drawAt(1, outAlpha); // the just-finished hand, fading out
     drawAt(0, inAlpha); // the about-to-restart hand, fading in
+  }
+
+  // J/Z: dispatches to the rotate (J) or translate (Z) kind — see each
+  // paint*Stroke above.
+  function paintStroke(prog) {
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    if (!fit) return;
+    if (stroke.kind === "rotate") paintRotateStroke(prog);
+    else paintTranslateStroke(prog);
+  }
+
+  // The S_FADE phase: no path retrace, just the finished-stroke hand fading
+  // out at prog=1 while the about-to-restart hand fades in at prog=0, both
+  // held perfectly still. Same faint dashed guide path stays put throughout
+  // for orientation.
+  function paintStrokeCrossfade(outAlpha, inAlpha) {
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    if (!fit) return;
+    if (stroke.kind === "rotate") paintRotateCrossfade(outAlpha, inAlpha);
+    else paintTranslateCrossfade(outAlpha, inAlpha);
   }
 
   // poseInterp(frac) -> pixel points through the cached `fit`, so the ghost
@@ -663,20 +815,27 @@ export function createCanonicalPlayer(canvasEl) {
         raf = requestAnimationFrame(loop);
       }
     },
-    // J / Z: loop the start handshape tracing the letter's stroke
+    // J / Z: loop the letter's stroke — J as a rotation, Z as a translation
     setMotion(letter) {
       target = null;
       poseInterp = null;
       targetZ = null;
-      const p = STROKE[letter], pose = MOTION_POSE[letter];
-      if (p && pose) {
-        // the hand's fingertip should land on path[0] at the start, so the
-        // bounds to fit = the path + the pose shifted so pose[tip] == path[0]
-        const off = [p[0][0] - pose.hand[pose.tip][0], p[0][1] - pose.hand[pose.tip][1]];
-        const poseAt0 = pose.hand.map(([x, y]) => [x + off[0], y + off[1]]);
-        stroke = { path: p, pose: pose.hand, tip: pose.tip, poseAt0 };
+      if (letter === "J") {
+        stroke = { kind: "rotate", getPose: jPoseAt, tip: MOTION_POSE.J.tip, trail: sampleTrail(jPoseAt, MOTION_POSE.J.tip) };
       } else {
-        stroke = null;
+        const p = STROKE[letter], pose = MOTION_POSE[letter];
+        if (p && pose) {
+          // the hand's fingertip should land on path[0] at the start, so the
+          // bounds to fit = the path + the pose shifted so pose[tip] == path[0]
+          const off = [p[0][0] - pose.hand[pose.tip][0], p[0][1] - pose.hand[pose.tip][1]];
+          const poseAt0 = pose.hand.map(([x, y]) => [x + off[0], y + off[1]]);
+          stroke = {
+            kind: "translate", path: p, pose: pose.hand, tip: pose.tip, poseAt0,
+            cockAt: letter === "Z" ? zCockRad : null,
+          };
+        } else {
+          stroke = null;
+        }
       }
       if (!stroke) {
         fit = null;
