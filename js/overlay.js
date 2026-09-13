@@ -173,7 +173,19 @@ export function createOverlay(canvas) {
     drawGuide(
       live,
       target,
-      { aspect = 1, mirror = false, tol = 0.06, align = 0, reveal = 1, settled = false } = {}
+      {
+        aspect = 1,
+        mirror = false,
+        tol = 0.06,
+        align = 0,
+        reveal = 1,
+        settled = false,
+        // Is the canvas itself displayed CSS-mirrored (front camera)? This is
+        // NOT the same thing as `mirror` above — that one flips the TARGET
+        // ghost to match a left hand / a mirrored orientation fit. This one
+        // only controls the on-screen text counter-flip, below.
+        screenMirror = false,
+      } = {}
     ) {
       if (!live?.length || !target) return null;
       const w = canvas.width;
@@ -331,18 +343,34 @@ export function createOverlay(canvas) {
         ctx.arc(p1[0], p1[1], rr, 0, Math.PI * 2);
         ctx.stroke();
 
-        // label: "ring" near the destination
+        // label: "ring" near the destination. For the front camera, the
+        // whole stage (video + this canvas) is CSS-mirrored — `.stage {
+        // transform: scaleX(-1) }` in style.css — so the skeleton lines
+        // drawn here in plain canvas coordinates line up with the mirrored
+        // video. But that same outer flip makes any TEXT drawn in plain
+        // coordinates render backwards on screen (a real bug reported live:
+        // "the suggestion text is backwards"). Counter-flip just the text
+        // draw around its own anchor point so it reads normally once the
+        // CSS mirror is applied on top.
         if (f >= 0) {
           const fs = Math.max(11, baseW * 2.1);
           ctx.font = `700 ${fs}px system-ui, sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           const ly = p1[1] - rr - fs * 0.7;
+          ctx.save();
+          if (screenMirror) {
+            ctx.translate(p1[0], ly);
+            ctx.scale(-1, 1);
+          } else {
+            ctx.translate(p1[0], ly);
+          }
           ctx.lineWidth = 4;
           ctx.strokeStyle = "rgba(2, 6, 23, 0.85)";
-          ctx.strokeText(FINGER_NAME[f], p1[0], ly);
+          ctx.strokeText(FINGER_NAME[f], 0, 0);
           ctx.fillStyle = "#fde047";
-          ctx.fillText(FINGER_NAME[f], p1[0], ly);
+          ctx.fillText(FINGER_NAME[f], 0, 0);
+          ctx.restore();
         }
         ctx.globalAlpha = 1;
       }

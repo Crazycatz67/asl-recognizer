@@ -1372,6 +1372,7 @@ function loop() {
         align: o.deg,
         reveal: guideAmt,
         settled: m?.bucket === "correct", // don't nag once it already counts
+        screenMirror: facingMode === "user", // the stage is CSS-mirrored for the front camera
       });
     } else if (mode === "spell" && result.landmarks?.length > 1) {
       overlay.drawHands(result.landmarks); // show both hands for the copy/paste gesture
