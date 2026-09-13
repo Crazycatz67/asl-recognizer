@@ -383,6 +383,26 @@ function mkHand() {
           return typeof p.setTarget === "function";
         } catch (e) { return false; }
       })());
+    ok("reference: createCanonicalPlayer setWord (S2e) doesn't throw — plain run, a doubled letter, empty/null", () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = 160; c.height = 160;
+        const p = refm.createCanonicalPlayer(c);
+        // "CAT" — a plain coarticulated run
+        p.setWord(
+          ["C", "A", "T"].map((L) => ({ letter: L, vec: ref.centroid(L) })),
+          { holdMs: 500 }
+        );
+        p.redraw();
+        // "BOO" — a doubled letter (O-O) mid-run needs the wrist-bounce path,
+        // not a bone-space blend toward an identical pose
+        p.setWord(["B", "O", "O"].map((L) => ({ letter: L, vec: ref.centroid(L) })));
+        p.setWord([]); // empty clears cleanly, same as setTarget(null)
+        p.setWord(null);
+        p.stop();
+        return true;
+      } catch (e) { return false; }
+    });
 
     // ---- sound.js + fx.js (juice) ----
     const snd = (await import("../js/sound.js")).createSound();

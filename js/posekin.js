@@ -66,12 +66,20 @@ export function decompose(pose) {
 // hand-authored NEUTRAL_HAND placeholder), t=0 reproduces poseA's ANGLES at
 // poseB's LENGTHS rather than poseA exactly — a real tradeoff, not a bug: a
 // hand that never resizes mid-clip is the whole point of this module.
+// `t` is NOT clamped to [0,1] here — every existing caller already only ever
+// passes a value in that range (their own easing functions are bounded), so
+// this changes nothing for them. It's deliberate: S2e's word-mode arrival
+// dynamics use an easing curve (`strokekin.js`'s `easeOutBack`) that briefly
+// overshoots past 1 before settling, e.g. t=1.06 meaning "6% past the target
+// angle/position, still opening toward it" — a real overshoot-and-settle, not
+// a bug. Clamping here would silently flatten that back to the target and
+// erase the effect.
 export function makeInterpolator(poseA, poseB) {
   const a = decompose(poseA);
   const b = decompose(poseB);
 
   return function poseAt(t) {
-    const e = Math.max(0, Math.min(1, t));
+    const e = t;
     const root = [
       a.root[0] + (b.root[0] - a.root[0]) * e,
       a.root[1] + (b.root[1] - a.root[1]) * e,
@@ -109,4 +117,29 @@ export function makeInterpolator(poseA, poseB) {
 
     return out;
   };
+}
+
+// Normalized RMS joint-angle distance between two poses — how big a
+// reconfiguration poseA -> poseB actually is, in the same bone-angle space
+// makeInterpolator moves through. Used by S2e (js/reference.js `setWord`) to
+// derive each letter-to-letter transition's duration from the shapes
+// themselves: A -> B is a big reconfiguration and should take longer, U -> V
+// is a flick and shouldn't. Root position is deliberately excluded — this
+// measures HANDSHAPE change, not where the hand happens to sit.
+export function angleDistance(poseA, poseB) {
+  const a = decompose(poseA);
+  const b = decompose(poseB);
+  let sumSq = 0;
+  let n = 0;
+  for (let i = 0; i < a.palm.length; i++) {
+    sumSq += wrap(b.palm[i].theta - a.palm[i].theta) ** 2;
+    n++;
+  }
+  for (let fi = 0; fi < a.chains.length; fi++) {
+    for (let bi = 0; bi < a.chains[fi].length; bi++) {
+      sumSq += wrap(b.chains[fi][bi].phi - a.chains[fi][bi].phi) ** 2;
+      n++;
+    }
+  }
+  return Math.sqrt(sumSq / n) / Math.PI; // ~0 (no change) .. ~1 (avg bone flips pi)
 }

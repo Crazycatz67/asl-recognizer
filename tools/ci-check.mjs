@@ -226,7 +226,7 @@ await check("sw.js: VERSION bumped vs origin/main when core files changed", () =
 // NaN/Infinity leaks out for a synthetic open-hand -> loose-fist clip.
 await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints exact, no NaN", async () => {
   const pk = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
-  const { decompose, makeInterpolator, wrap } = pk;
+  const { decompose, makeInterpolator, angleDistance, wrap } = pk;
 
   for (const d of [0, Math.PI, -Math.PI, 3.5, -3.5, 10, -10, 1e-4]) {
     const w = wrap(d);
@@ -277,7 +277,24 @@ await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints 
     const err = Math.hypot(p1[i][0] - target[i][0], p1[i][1] - target[i][1]);
     if (err > 1e-6) throw new Error(`poseAt(1) landmark ${i} off target by ${err}`);
   }
-  return `${ts.length} t-samples x 20 bones length-checked, poseAt(1) exact, wrap() range verified`;
+
+  // angleDistance (S2e): 0 for identical poses, symmetric, finite for a real
+  // pair, and unclamped `poseAt` still lands exactly on target beyond t=1's
+  // usual range check above (already covers that poseAt(1) is exact; here we
+  // additionally confirm overshoot t doesn't throw or go non-finite, since
+  // S2e's word-mode arrival dynamics rely on that).
+  if (angleDistance(neutral, neutral) !== 0) throw new Error("angleDistance(x,x) should be 0");
+  const dAB = angleDistance(neutral, target);
+  const dBA = angleDistance(target, neutral);
+  if (Math.abs(dAB - dBA) > 1e-9) throw new Error(`angleDistance not symmetric: ${dAB} vs ${dBA}`);
+  if (!Number.isFinite(dAB) || dAB < 0) throw new Error(`angleDistance out of range: ${dAB}`);
+  for (const t of [-0.1, 1.06, 1.2]) {
+    const pose = poseAt(t);
+    for (const [x, y] of pose) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`poseAt(${t}) (overshoot) non-finite`);
+    }
+  }
+  return `${ts.length} t-samples x 20 bones length-checked, poseAt(1) exact, overshoot t stays finite, angleDistance symmetric/zero-at-identity, wrap() range verified`;
 });
 
 // ---- 11. js/strokekin.js — rigid rotation + spline math for J (S2d pt 2) --
@@ -288,9 +305,9 @@ await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints 
 // rotating a pose back onto itself (theta=0, wristAt=basePose[0]) is the
 // identity; arcFractions is monotonic 0->1 and lands each original point
 // exactly at its own cumulative-length fraction.
-await check("strokekin.js: rotate2D/catmullRom2D/rigidPoseAt/arcFractions invariants", async () => {
+await check("strokekin.js: rotate2D/catmullRom2D/rigidPoseAt/arcFractions/translatePose/easeOutBack invariants", async () => {
   const sk = await import(pathToFileURL(path.join(ROOT, "js", "strokekin.js")));
-  const { rotate2D, catmullRom2D, delayedEase, rigidPoseAt, bump, arcFractions } = sk;
+  const { rotate2D, catmullRom2D, delayedEase, rigidPoseAt, bump, arcFractions, translatePose, easeOutBack } = sk;
 
   // rotate2D: length-preserving, and two half-turns == one full turn
   for (const v of [[1, 0], [0.3, -0.7], [-2, 5]]) {
@@ -344,10 +361,118 @@ await check("strokekin.js: rotate2D/catmullRom2D/rigidPoseAt/arcFractions invari
     if (fracs[i] < fracs[i - 1]) throw new Error("arcFractions not monotonic");
   }
 
-  return "rotate2D length/composition, catmullRom2D control-point pass-through, delayedEase/rigidPoseAt/bump/arcFractions all verified";
+  // translatePose (S2e doubled-letter bounce): a pure per-point shift
+  const shifted = translatePose(base, [0.5, -0.25]);
+  for (let i = 0; i < base.length; i++) {
+    if (Math.abs(shifted[i][0] - (base[i][0] + 0.5)) > 1e-9 || Math.abs(shifted[i][1] - (base[i][1] - 0.25)) > 1e-9) {
+      throw new Error(`translatePose didn't shift point ${i} correctly`);
+    }
+  }
+
+  // easeOutBack (S2e arrival dynamics): f(0)=0, f(1)=1 exactly, and it
+  // actually overshoots past 1 somewhere in between (the whole point) by
+  // roughly the plan's ~6% at the default overshoot constant.
+  if (Math.abs(easeOutBack(0)) > 1e-9) throw new Error("easeOutBack(0) should be 0");
+  if (Math.abs(easeOutBack(1) - 1) > 1e-9) throw new Error("easeOutBack(1) should be exactly 1");
+  let peak = -Infinity;
+  for (let t = 0; t <= 1; t += 0.01) peak = Math.max(peak, easeOutBack(t));
+  if (peak < 1.03 || peak > 1.1) throw new Error(`easeOutBack peak overshoot ${peak} outside the expected ~6% band`);
+
+  return "rotate2D length/composition, catmullRom2D control-point pass-through, delayedEase/rigidPoseAt/bump/arcFractions/translatePose/easeOutBack all verified";
 });
 
-// ---- 12. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
+// ---- 12. js/reference.js — word-level coarticulation timeline (S2e) -------
+// The interesting invariant here isn't the pose math (posekin.js already
+// covers that) — it's the TIMING CONTRACT: main.js's `playWord` schedules
+// each run with plain `runStartIndex * holdMs` timers and has no idea what
+// buildWordSpans does internally, so a run's total duration must come out to
+// EXACTLY `entries.length * holdMs` (the first letter's neutral entry has to
+// fit inside its own budget, not add extra time — see the comment on
+// buildWordSpans) or every letter after a multi-letter run drifts out of
+// sync with its own timer. Also checks the span list is gapless/ordered,
+// sampling past the end freezes rather than throwing, and a doubled letter's
+// bounce actually returns to (not past) its own pose.
+await check("reference.js: buildWordSpans/sampleWordSpans timing contract + doubled-letter bounce", async () => {
+  const refm = await import(pathToFileURL(path.join(ROOT, "js", "reference.js")));
+  const { buildWordSpans, sampleWordSpans, wordTransDur } = refm;
+
+  // three distinct synthetic poses + z, shaped like a real centroid's parsed
+  // pose/z pair (21 [x,y] + 21 numbers) — an open hand fanned by varying
+  // amounts, so consecutive poses are neither identical nor wildly far apart.
+  const mkPose = (spread) => {
+    const pose = [[0, 0]];
+    const z = [0];
+    for (let i = 1; i < 21; i++) {
+      pose.push([Math.cos(i) * spread, Math.sin(i) * spread - 0.5]);
+      z.push(Math.sin(i * spread) * 0.1);
+    }
+    return { pose, z };
+  };
+  const letterA = mkPose(0.3);
+  const letterB = mkPose(0.5);
+  const letterC = mkPose(0.7);
+
+  const holdMs = 500;
+
+  // plain 3-letter run, no doubles
+  {
+    const { spans, totalMs } = buildWordSpans([letterA, letterB, letterC], [false, false], holdMs);
+    if (Math.abs(totalMs - 3 * holdMs) > 1e-6) {
+      throw new Error(`total duration ${totalMs} != 3*holdMs (${3 * holdMs}) — would desync main.js's timers`);
+    }
+    if (spans[0].startMs !== 0) throw new Error("first span should start at 0");
+    for (let i = 1; i < spans.length; i++) {
+      if (spans[i].startMs !== spans[i - 1].endMs) throw new Error(`gap/overlap between span ${i - 1} and ${i}`);
+    }
+    if (spans.at(-1).endMs !== totalMs) throw new Error("last span should end at totalMs");
+
+    const atEnd = sampleWordSpans(spans, totalMs);
+    const wellPast = sampleWordSpans(spans, totalMs + 5000);
+    for (let i = 0; i < 21; i++) {
+      if (Math.hypot(atEnd.pose[i][0] - wellPast.pose[i][0], atEnd.pose[i][1] - wellPast.pose[i][1]) > 1e-9) {
+        throw new Error("sampling past totalMs should freeze on the last frame, not keep changing");
+      }
+    }
+    // the run should land exactly on the last letter (no residual blend —
+    // isLast has no "next" to anticipate)
+    for (let i = 0; i < 21; i++) {
+      const err = Math.hypot(atEnd.pose[i][0] - letterC.pose[i][0], atEnd.pose[i][1] - letterC.pose[i][1]);
+      if (err > 1e-6) throw new Error(`final frame landmark ${i} off the last letter's raw pose by ${err}`);
+    }
+  }
+
+  // doubled letter (A-A-B): the A-A transition must be a bounce that RETURNS
+  // to A's own pose, not a bone-space blend toward an identical pose (which
+  // would be a no-op — the actual bug this fixes)
+  {
+    const { spans, totalMs } = buildWordSpans([letterA, letterA, letterB], [true, false], holdMs);
+    if (Math.abs(totalMs - 3 * holdMs) > 1e-6) throw new Error(`doubled-letter run duration ${totalMs} != 3*holdMs`);
+    const bounce = spans.find((s) => s.kind === "bounce");
+    if (!bounce) throw new Error("A-A should produce a bounce span, not a blend");
+
+    const mid = sampleWordSpans(spans, (bounce.startMs + bounce.endMs) / 2);
+    const end = sampleWordSpans(spans, bounce.endMs);
+    let midMoved = false;
+    for (let i = 0; i < 21; i++) {
+      if (Math.hypot(mid.pose[i][0] - letterA.pose[i][0], mid.pose[i][1] - letterA.pose[i][1]) > 1e-3) midMoved = true;
+      const endErr = Math.hypot(end.pose[i][0] - letterA.pose[i][0], end.pose[i][1] - letterA.pose[i][1]);
+      if (endErr > 1e-6) throw new Error(`bounce should return exactly to A's pose, landmark ${i} off by ${endErr}`);
+    }
+    if (!midMoved) throw new Error("bounce midpoint should visibly move away from A's pose (that's the whole point)");
+  }
+
+  // wordTransDur clamps into [90, 340]ms regardless of how far apart the
+  // poses are (an identical pair and a maximally different synthetic pair)
+  const dSame = wordTransDur(letterA.pose, letterA.pose);
+  const dFar = wordTransDur(letterA.pose, letterC.pose);
+  if (dSame < 90 || dSame > 340 || dFar < 90 || dFar > 340) {
+    throw new Error(`wordTransDur out of the plan's [90,340]ms band: same=${dSame} far=${dFar}`);
+  }
+
+  return "3-letter run totals exactly 3*holdMs, spans gapless, freezes past totalMs, lands exactly on the last letter; a doubled letter bounces and returns to its own pose; wordTransDur stays in [90,340]ms";
+});
+
+// ---- 13. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
 // monotonic in a synthetic rotation sweep — see the plan's S7 section).

@@ -14,8 +14,11 @@
 import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
-import { makeInterpolator } from "./posekin.js";
-import { catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions } from "./strokekin.js";
+import { makeInterpolator, angleDistance } from "./posekin.js";
+import {
+  catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions,
+  translatePose, easeOutBack,
+} from "./strokekin.js";
 
 // A casual wrist tilt isn't a spelling mistake, so before comparing a live hand
 // to a letter we let it rotate up to this much to sit at the letter's own tilt.
@@ -420,6 +423,126 @@ function zCockRad(prog) {
   return ((c1 - c2) * Math.PI) / 180;
 }
 
+// --- Word-level coarticulation (S2e) --------------------------------------
+// Spelling a whole word by replaying the single-letter FORM->HOLD->BACK cycle
+// per letter (the old approach) forces every letter through NEUTRAL_HAND, so
+// a fast word looks like a neutral-hand flicker rather than one hand moving
+// letter to letter. `setWord` instead chains letters directly in bone space
+// (posekin.js's `makeInterpolator`, already built for S2b) with no neutral
+// detour, timing each transition from how big a reconfiguration it actually
+// is rather than a fixed duration.
+//
+// Scope: this only ever receives runs of STATIC letters — main.js splits a
+// word at any J/Z (see `playWord`) since a stroke letter has no single target
+// shape to chain through in bone space. Those letters keep today's existing
+// single-letter treatment; only the naturalness of multi-static-letter runs
+// changes here (the common case — most fingerspelling is static letters).
+const WORD_MIN_TRANS_MS = 90;
+const WORD_MAX_TRANS_MS = 340;
+const WORD_TRANS_BASE_MS = 90;
+const WORD_TRANS_SCALE_MS = 260; // added per unit of angleDistance
+const WORD_BLEND_BETA = 0.15; // how far a hold anticipates the next letter
+const WORD_MIN_HOLD_MS = 60;
+const WORD_BOUNCE_MS = 140; // a doubled letter's wrist-bounce duration
+const WORD_BOUNCE_AMT = 0.07; // ~7% of hand span, per the plan's 6-8%
+
+// A→B is a big reconfiguration and should take longer to read; U→V is a
+// flick and shouldn't — derived from the shapes, not guessed.
+export function wordTransDur(poseA, poseB) {
+  const d = angleDistance(poseA, poseB);
+  return Math.max(WORD_MIN_TRANS_MS, Math.min(WORD_MAX_TRANS_MS, WORD_TRANS_BASE_MS + WORD_TRANS_SCALE_MS * d));
+}
+
+// Build the span timeline for a run of static letters. `entries` is
+// [{pose, z}, ...] for the letters themselves (NOT including the neutral
+// lead-in — that's added here as entries[-1]); `doubled[i]` is true when
+// entries[i] and entries[i+1] are the same letter (needs a bounce, not a
+// bone-space blend, since blending a pose toward itself is a no-op that
+// would otherwise make a doubled letter visually indistinguishable from a
+// single one — a correctness bug in Read mode, not polish).
+// Every letter (including the first) gets exactly `holdMs` of total time —
+// so a run's total duration is always `entries.length * holdMs`, matching
+// the caller's own per-letter timer spacing (main.js's `playWord`) with no
+// extra bookkeeping on its side. The first letter's `holdMs` additionally
+// has to pay for easing in from neutral, so its own hold portion shrinks by
+// that amount instead of the entry being extra time tacked on top.
+export function buildWordSpans(entries, doubled, holdMs) {
+  const n = entries.length;
+  const withNeutral = [{ pose: NEUTRAL_HAND, z: null }, ...entries];
+  const spans = [];
+  let clock = 0;
+
+  for (let i = 0; i < n; i++) {
+    const to = withNeutral[i + 1];
+    const isLast = i === n - 1;
+    const isDouble = !isLast && doubled[i];
+
+    let entryInterp = null, entryDur = 0;
+    if (i === 0) {
+      entryInterp = makeInterpolator(withNeutral[0].pose, to.pose);
+      entryDur = wordTransDur(withNeutral[0].pose, to.pose);
+    }
+
+    const transDur = isLast ? 0 : isDouble ? WORD_BOUNCE_MS : wordTransDur(to.pose, withNeutral[i + 2].pose);
+    const holdDur = Math.max(WORD_MIN_HOLD_MS, holdMs - entryDur - transDur);
+
+    if (i === 0) {
+      // NEUTRAL_HAND has no z of its own — lerp depth in from flat (all 0),
+      // same as a single static letter's own FORM phase (see `zAt` above).
+      const zFrom = to.z ? to.z.map(() => 0) : null;
+      spans.push({ kind: "move", startMs: clock, endMs: clock + entryDur, interp: entryInterp, from: 0, to: 1, zFrom, zTo: to.z });
+      clock += entryDur;
+    }
+
+    let holdInterp = null;
+    if (!isLast && !isDouble) holdInterp = makeInterpolator(to.pose, withNeutral[i + 2].pose);
+    spans.push({
+      kind: "hold", startMs: clock, endMs: clock + holdDur,
+      pose: to.pose, z: to.z, interp: holdInterp, beta: holdInterp ? WORD_BLEND_BETA : 0,
+    });
+    clock += holdDur;
+
+    if (!isLast) {
+      if (isDouble) {
+        spans.push({ kind: "bounce", startMs: clock, endMs: clock + transDur, pose: to.pose, z: to.z });
+      } else {
+        spans.push({
+          kind: "move", startMs: clock, endMs: clock + transDur,
+          interp: holdInterp, from: WORD_BLEND_BETA, to: 1, zFrom: to.z, zTo: withNeutral[i + 2].z,
+        });
+      }
+      clock += transDur;
+    }
+  }
+  return { spans, totalMs: clock };
+}
+
+// Sample the timeline at `elapsedMs` -> { pose: 21[x,y], z: 21-number[]|null }.
+export function sampleWordSpans(spans, elapsedMs) {
+  const last = spans[spans.length - 1];
+  const e = Math.max(0, Math.min(elapsedMs, last.endMs));
+  let span = last;
+  for (const s of spans) {
+    if (e >= s.startMs && e <= s.endMs) { span = s; break; }
+  }
+  const len = span.endMs - span.startMs || 1;
+  const localT = Math.max(0, Math.min(1, (e - span.startMs) / len));
+
+  if (span.kind === "hold") {
+    return { pose: span.interp ? span.interp(span.beta) : span.pose, z: span.z };
+  }
+  if (span.kind === "bounce") {
+    const amt = WORD_BOUNCE_AMT * Math.sin(Math.PI * localT);
+    return { pose: translatePose(span.pose, [0, amt]), z: span.z };
+  }
+  // "move"
+  const t = span.from + (span.to - span.from) * easeOutBack(localT);
+  const z = span.zFrom && span.zTo
+    ? span.zFrom.map((z0, i) => z0 + (span.zTo[i] - z0) * Math.max(0, Math.min(1, localT)))
+    : null;
+  return { pose: span.interp(t), z };
+}
+
 // Plays a short looping animation in a panel canvas: the hand eases from a
 // relaxed open pose into the target letter, holds, then resets — a "how they
 // did it" clip instead of a static picture. Falls back to a still diagram when
@@ -430,6 +553,7 @@ export function createCanonicalPlayer(canvasEl) {
   const ctx = canvasEl.getContext("2d");
   let target = null; // 21 [x,y] from the centroid
   let stroke = null; // for J/Z: { path:[[x,y]...], pose:[21 x,y], tip:idx, poseAt0 }
+  let word = null; // for setWord (S2e): { spans, totalMs } from buildWordSpans
   let fit = null; // cached [x,y] -> [px,py] closure — rebuilt only on
                    // setTarget/setMotion/resize, never per animation frame
                    // (see skeleton.js's makeFit for why that matters)
@@ -512,7 +636,14 @@ export function createCanonicalPlayer(canvasEl) {
   // path, so anchoring it to a fixed canvas point would be wrong), just
   // computed once instead of every frame.
   function rebuildFit() {
-    if (stroke && stroke.kind === "rotate") {
+    if (word) {
+      // one fit for the whole word (wrist-anchored, like a single static
+      // letter) so the hand never rescales/re-anchors between letters
+      fit = makeFit(word.bounds, canvasEl.width, canvasEl.height, {
+        pad: 0.18,
+        anchorAt: [0.5, 0.82],
+      });
+    } else if (stroke && stroke.kind === "rotate") {
       // trail already sweeps the fingertip's full extent; the two endpoint
       // poses cover the rest of the hand at min/max rotation
       fit = fitFor(stroke.trail.concat(jPoseAt(0)).concat(jPoseAt(1)));
@@ -772,10 +903,24 @@ export function createCanonicalPlayer(canvasEl) {
     });
   }
 
+  // S2e: one hand moving letter-to-letter, no per-letter ghost trail (the
+  // trail reads as "how THIS letter forms," which doesn't apply once the
+  // hand is already mid-word) — plays once through and freezes on the last
+  // letter (sampleWordSpans clamps past `totalMs`), same as a single static
+  // letter's HOLD; the caller clears it via setTarget/setMotion/setWord(null).
+  function paintWordAt(elapsed) {
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    if (!fit) return;
+    const { pose, z } = sampleWordSpans(word.spans, elapsed);
+    drawHandShape(ctx, pose.map(fit), { depth: z ? { z } : null });
+  }
+
   function loop(ts) {
     if (!t0) t0 = ts;
     const elapsed = ts - t0;
-    if (stroke) {
+    if (word) {
+      paintWordAt(elapsed);
+    } else if (stroke) {
       const ph = strokePhase(elapsed);
       if (ph.mode === "fade") paintStrokeCrossfade(ph.outAlpha, ph.inAlpha);
       else paintStroke(ph.prog);
@@ -788,6 +933,7 @@ export function createCanonicalPlayer(canvasEl) {
   return {
     setTarget(vec) {
       stroke = null;
+      word = null;
       if (!vec) {
         target = null;
         poseInterp = null;
@@ -820,6 +966,7 @@ export function createCanonicalPlayer(canvasEl) {
       target = null;
       poseInterp = null;
       targetZ = null;
+      word = null;
       if (letter === "J") {
         stroke = { kind: "rotate", getPose: jPoseAt, tip: MOTION_POSE.J.tip, trail: sampleTrail(jPoseAt, MOTION_POSE.J.tip) };
       } else {
@@ -849,10 +996,55 @@ export function createCanonicalPlayer(canvasEl) {
       if (reduce) { cancelAnimationFrame(raf); raf = 0; paint(1); }
       else if (!raf) raf = requestAnimationFrame(loop);
     },
+    // S2e: a run of STATIC letters (main.js's `playWord` splits a word at
+    // any J/Z before calling this — see the module comment above
+    // `buildWordSpans`), chained letter-to-letter in bone space instead of
+    // detouring through neutral each time. `items`: [{letter, vec}], where
+    // `vec` is the same flattened 21x3 shape `setTarget` takes.
+    // `opts.holdMs`: the per-letter time budget (old `#rdSpeed`'s role) —
+    // NOT the transition duration, which is derived from the shapes.
+    setWord(items, opts = {}) {
+      stroke = null;
+      target = null;
+      poseInterp = null;
+      targetZ = null;
+      if (!items || !items.length) {
+        word = null;
+        fit = null;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        return;
+      }
+      const holdMs = Math.max(150, opts.holdMs || 700);
+      const entries = items.map((it) => {
+        const pose = [], z = [];
+        for (let i = 0; i < 21; i++) {
+          pose.push([it.vec[i * 3], it.vec[i * 3 + 1]]);
+          z.push(it.vec[i * 3 + 2] ?? 0);
+        }
+        return { pose, z };
+      });
+      const doubled = items.map((it, i) => i < items.length - 1 && it.letter === items[i + 1].letter);
+      const built = buildWordSpans(entries, doubled, holdMs);
+      word = { spans: built.spans, totalMs: built.totalMs, bounds: NEUTRAL_HAND.concat(...entries.map((e) => e.pose)) };
+      rebuildFit();
+      t0 = 0;
+      if (reduce) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        paintWordAt(word.totalMs); // just the finished word, on its last letter
+      } else if (!raf) {
+        raf = requestAnimationFrame(loop);
+      }
+    },
     // re-draw after a canvas resize without restarting the cycle
     redraw() {
       rebuildFit();
-      if (reduce) paint(1);
+      if (reduce) {
+        if (word) paintWordAt(word.totalMs);
+        else paint(1);
+      }
     },
     stop() {
       cancelAnimationFrame(raf);

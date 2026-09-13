@@ -1,5 +1,5 @@
 // js/strokekin.js — pure rigid-motion + spline math for the demo-hand's
-// motion-letter animation (S2d part 2).
+// motion-letter animation (S2d part 2) and word-level coarticulation (S2e).
 //
 // posekin.js interpolates a hand's OWN bone angles between two shapes (a
 // hand reconfiguring itself — right for every static letter). J needs a
@@ -66,6 +66,29 @@ export function bump(t, center, width) {
   const d = Math.abs(t - center);
   if (d >= width) return 0;
   return 0.5 * (1 + Math.cos((Math.PI * d) / width));
+}
+
+// Rigidly translate every landmark of `pose` by [dx, dy] — used for a
+// doubled letter's wrist bounce (S2e): the handshape doesn't change, the
+// whole hand just nudges and returns, so a plain per-point shift is exactly
+// right (no rotation/bone math needed).
+export function translatePose(pose, [dx, dy]) {
+  return pose.map(([x, y]) => [x + dx, y + dy]);
+}
+
+// "Back ease out": eases 0->1 but overshoots past 1 partway through before
+// settling exactly at 1 — a small, deliberate overshoot-and-settle instead of
+// a dead stop, which is what a real arriving hand does and what makes pure
+// easeInOut read as robotic (S2e arrival dynamics). `overshoot` controls how
+// far past 1 it swings; the default (1.3) peaks around t=0.58 at ~1.06, the
+// plan's target ~6% overshoot. Fed straight into posekin.js's `poseAt`
+// (deliberately unclamped) - see that module's comment on why the overshoot
+// survives instead of being flattened back to the target.
+export function easeOutBack(t, overshoot = 1.3) {
+  const c1 = overshoot;
+  const c3 = c1 + 1;
+  const x = t - 1;
+  return 1 + c3 * x * x * x + c1 * x * x;
 }
 
 // Cumulative arc-length fraction (0..1) at each point of a polyline —

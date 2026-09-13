@@ -813,14 +813,31 @@ function playWord(word) {
   const letters = word.toUpperCase().split("");
   rdLen.textContent = "· ".repeat(letters.length).trim();
   readPlayer.setTarget(null);
-  letters.forEach((L, i) => {
+
+  // S2e: chain consecutive STATIC letters through one coarticulated setWord
+  // run (no neutral detour between them, distance-scaled transitions) rather
+  // than retriggering setTarget per letter. J/Z have no single target shape
+  // to chain through in bone space, so they still use setMotion on their own
+  // per-letter timer and split the word into separate runs around them.
+  let i = 0;
+  while (i < letters.length) {
+    if (MOTION.has(letters[i])) {
+      const L = letters[i];
+      readTimers.push(setTimeout(() => readPlayer.setMotion(L), 250 + i * speed));
+      i++;
+      continue;
+    }
+    const runStart = i;
+    const run = [];
+    while (i < letters.length && !MOTION.has(letters[i])) {
+      run.push({ letter: letters[i], vec: reference?.centroid(letters[i]) });
+      i++;
+    }
     readTimers.push(
-      setTimeout(() => {
-        if (MOTION.has(L)) readPlayer.setMotion(L);
-        else readPlayer.setTarget(reference?.centroid(L) || null);
-      }, 250 + i * speed)
+      setTimeout(() => readPlayer.setWord(run, { holdMs: speed }), 250 + runStart * speed)
     );
-  });
+  }
+
   readTimers.push(
     setTimeout(() => readPlayer.setTarget(null), 250 + letters.length * speed + 500)
   );
