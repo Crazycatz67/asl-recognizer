@@ -77,6 +77,12 @@ end in this directory, if the working tree is dirty it makes a silent local
 `git add -A && git commit -m "WIP checkpoint (auto)"` — never pushes — purely
 so an abrupt crash/close never loses uncommitted work.
 
+**Before a planned shutdown or stepping away for a while, ask Claude to push**
+rather than relying on the Stop hook alone. The hook only fires on a *normal*
+Claude Code exit and only commits locally — it protects against "closed
+PowerShell without committing," not against a dead/lost/reformatted machine.
+Only a `git push` gets work off this machine entirely.
+
 ## Architecture
 
 **Everything funnels through one state machine, `js/main.js`** (~2000 lines).
