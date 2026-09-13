@@ -18,7 +18,7 @@ import { loadDataset } from "./dataset.js";
 import { createClassifier } from "./knn.js";
 import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
-import { buildReference, createCanonicalPlayer } from "./reference.js";
+import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
@@ -55,21 +55,10 @@ const twohand = createTwoHandMatcher(); // spell mode: hands together = copy, ap
 const transition = createTransitionMatcher(); // fluid mode: rhythm-based letter segmentation
 let decoder = null; // fluid mode: lexicon decoder — loaded in the background
 let lastDecodeAt = 0;
-
-// word list + measured confusion matrix -> decoder, in the background; fluid
-// mode falls back to the raw transcript until it's ready
-Promise.all([
-  fetch(new URL("../data/words25k.txt", import.meta.url)).then((r) => (r.ok ? r.text() : null)),
-  fetch(new URL("../data/confusion.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-])
-  .then(([txt, conf]) => {
-    if (!txt) return;
-    decoder = createDecoder(buildLexicon(txt), {
-      confusion: conf ? mergeConfusion(conf) : undefined,
-    });
-    console.info(`fluid-mode decoder ready${conf ? " (measured confusion blended)" : ""}`);
-  })
-  .catch(() => {});
+let loadedConfusion = null; // data/confusion.json, blended — shared with reader.js's near-miss diff
+let wordBankFailed = false;
+let curriculumFailed = false;
+let decoderFailed = false;
 
 const $ = (id) => document.getElementById(id);
 const workspace = $("workspace");
@@ -188,16 +177,61 @@ const rdCats = $("rdCats");
 const rdScore = $("rdScore");
 const rdCanvas = $("rdCanvas");
 const rdPlay = $("rdPlay");
+const rdPause = $("rdPause");
+const rdStepBack = $("rdStepBack");
+const rdStepFwd = $("rdStepFwd");
+const rdSeek = $("rdSeek");
+const rdTicks = $("rdTicks");
 const rdSpeed = $("rdSpeed");
 const rdLen = $("rdLen");
 const rdForm = $("rdForm");
 const rdInput = $("rdInput");
 const rdReveal = $("rdReveal");
 const rdFeedback = $("rdFeedback");
+const rdNext = $("rdNext");
+const rdLoadError = $("rdLoadError");
+const spDecodeError = $("spDecodeError");
 
 const sound = createSound();
 const fx = createFx();
 const bg = createBackground();
+
+// ---- couldn't-load banners (S3) ---------------------------------
+// A failed fetch used to fail silently (`.catch(() => {})`) and leave
+// whatever depended on it permanently missing with no sign why — Read mode
+// stuck on "loading word list…" forever, Course tab just empty. This makes
+// the failure visible with a real retry action instead.
+function showLoadError(el, label, retryFn) {
+  if (!el) return;
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = `⚠ ${label}`;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "Retry";
+  btn.addEventListener("click", () => {
+    hideLoadError(el);
+    retryFn();
+  });
+  el.appendChild(span);
+  el.appendChild(btn);
+  el.hidden = false;
+}
+function hideLoadError(el) {
+  if (el) el.hidden = true;
+}
+// Re-checked on mode entry too (not just at fetch time) — a failure that
+// happened while the user was in a different mode must still surface once
+// they actually switch into Read/Spell, not only if they were already there.
+function refreshReadLoadError() {
+  if (wordBankFailed) showLoadError(rdLoadError, "Couldn't load the word list", loadWordBank);
+  else if (curriculumFailed && readStyle === "course") showLoadError(rdLoadError, "Couldn't load lessons", loadCurriculum);
+  else hideLoadError(rdLoadError);
+}
+function refreshSpellLoadError() {
+  if (decoderFailed) showLoadError(spDecodeError, "Couldn't load the sentence decoder — spelling still works", loadDecoderAssets);
+  else hideLoadError(spDecodeError);
+}
 
 // ---- tiny persistence ------------------------------------------
 const PREF = "asl-pref-";
@@ -448,12 +482,16 @@ loadRefiner(new URL("heads.json", import.meta.url).href)
   })
   .catch(() => {});
 
-// read mode's word bank (independent of the dataset)
-fetch(new URL("../data/practice-words.json", import.meta.url))
-  .then((r) => (r.ok ? r.json() : null))
-  .then((bank) => {
-    if (bank) {
-      reader = createReader(bank);
+// read mode's word bank (independent of the dataset) — also feeds the
+// spell-mode drill's starter pool. Retriable + visible on failure (S3):
+// this used to fail silently and leave Read mode stuck on "loading word
+// list…" forever with no way to know why or recover without a page reload.
+function loadWordBank() {
+  fetch(new URL("../data/practice-words.json", import.meta.url))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((bank) => {
+      if (!bank) throw new Error("empty response");
+      reader = createReader(bank, { confusion: loadedConfusion });
       if (rdSpeed) rdSpeed.value = loadPref("read-speed") || rdSpeed.value;
       buildReadCats();
       if (mode === "read") applyReadStyle(); // restored straight into read mode
@@ -464,15 +502,22 @@ fetch(new URL("../data/practice-words.json", import.meta.url))
       drill = createSpellDrill(drillStarter);
       if (spDrillSrc) spDrillSrc.value = drillSrc;
       if (mode === "spell") applyDrill();
-    }
-  })
-  .catch(() => {});
+      wordBankFailed = false;
+      if (mode === "read") refreshReadLoadError();
+    })
+    .catch(() => {
+      wordBankFailed = true;
+      if (mode === "read") refreshReadLoadError();
+    });
+}
+loadWordBank();
 
 // read mode's course spine: letter tiers unlocked in a teaching order
-fetch(new URL("../data/curriculum.json", import.meta.url))
-  .then((r) => (r.ok ? r.json() : null))
-  .then((json) => {
-    if (json) {
+function loadCurriculum() {
+  fetch(new URL("../data/curriculum.json", import.meta.url))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((json) => {
+      if (!json) throw new Error("empty response");
       course = createCourse(json, loadJSON("course", null));
       buildReadPath();
       renderLesson();
@@ -481,9 +526,45 @@ fetch(new URL("../data/curriculum.json", import.meta.url))
         refillDrill();
         nextDrillWord();
       }
-    }
-  })
-  .catch(() => {});
+      curriculumFailed = false;
+      if (mode === "read") refreshReadLoadError();
+    })
+    .catch(() => {
+      curriculumFailed = true;
+      if (mode === "read") refreshReadLoadError();
+    });
+}
+loadCurriculum();
+
+// fluid mode's lexicon decoder + measured confusion matrix, in the
+// background; fluid mode falls back to the raw transcript until it's ready,
+// so a failure here is a lesser degradation than the two above — still
+// surfaced (S3) rather than silently missing forever.
+function loadDecoderAssets() {
+  Promise.all([
+    fetch(new URL("../data/words25k.txt", import.meta.url)).then((r) => (r.ok ? r.text() : null)),
+    fetch(new URL("../data/confusion.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ])
+    .then(([txt, conf]) => {
+      if (!txt) throw new Error("word list failed");
+      loadedConfusion = conf ? mergeConfusion(conf) : null;
+      decoder = createDecoder(buildLexicon(txt), { confusion: loadedConfusion || undefined });
+      // reader.js's near-miss diff (S3) needs this too — it's a separate,
+      // smaller fetch (data/confusion.json alone) that often resolves before
+      // this Promise.all (words25k.txt is much bigger), so `reader` may
+      // already exist by the time we get here; setConfusion() updates it in
+      // place instead of the data silently never reaching it.
+      reader?.setConfusion(loadedConfusion);
+      console.info(`fluid-mode decoder ready${conf ? " (measured confusion blended)" : ""}`);
+      decoderFailed = false;
+      if (mode === "spell") refreshSpellLoadError();
+    })
+    .catch(() => {
+      decoderFailed = true;
+      if (mode === "spell") refreshSpellLoadError();
+    });
+}
+loadDecoderAssets();
 
 // Load once, build the classifier + reference here, then let the raw sample
 // array be garbage-collected (each keeps its own compact copy). Resolves to a
@@ -786,6 +867,7 @@ function renderLesson() {
 }
 
 function applyReadStyle() {
+  refreshReadLoadError();
   if (!reader) return;
   savePref("read-style", readStyle); // remember intent even if the course JSON is still loading
   const onCourse = readStyle === "course" && !!course;
@@ -805,14 +887,109 @@ function applyReadStyle() {
   nextReadWord();
 }
 
+// S3 transport — pause/step/scrub, live-synced to the player's own clock
+// while playing. Scoped to the common case (see playWord): a word with no
+// J/Z, played as one setWord run with a single clean timeline.
+let rdTransportRaf = 0;
+function stopTransportSync() {
+  cancelAnimationFrame(rdTransportRaf);
+  rdTransportRaf = 0;
+}
+function syncSeekBar() {
+  if (!readPlayer) return;
+  const info = readPlayer.wordInfo();
+  if (!info) { stopTransportSync(); return; }
+  rdSeek.value = String(Math.round(readPlayer.elapsedMs()));
+  rdTransportRaf = requestAnimationFrame(syncSeekBar);
+}
+function updatePauseButton() {
+  const p = !!readPlayer?.isPaused();
+  rdPause.innerHTML = `<span aria-hidden="true">${p ? "▶" : "⏸"}</span>`;
+  rdPause.setAttribute("aria-label", p ? "play" : "pause");
+  rdPause.title = p ? "play" : "pause";
+}
+function enableTransport() {
+  const info = readPlayer.wordInfo();
+  if (!info) return;
+  rdPause.hidden = false;
+  rdStepBack.hidden = false;
+  rdStepFwd.hidden = false;
+  rdSeek.hidden = false;
+  rdSeek.max = String(Math.round(info.totalMs));
+  rdSeek.value = "0";
+  rdTicks.innerHTML = info.letterStarts.map((ms) => `<option value="${Math.round(ms)}"></option>`).join("");
+  updatePauseButton();
+  stopTransportSync();
+  rdTransportRaf = requestAnimationFrame(syncSeekBar);
+}
+function disableTransport() {
+  rdPause.hidden = true;
+  rdStepBack.hidden = true;
+  rdStepFwd.hidden = true;
+  rdSeek.hidden = true;
+  stopTransportSync();
+}
+function currentLetterIndex(starts, elapsed) {
+  let idx = 0;
+  for (let k = 0; k < starts.length; k++) if (starts[k] <= elapsed + 0.5) idx = k;
+  return idx;
+}
+function stepReadLetter(dir) {
+  const info = readPlayer?.wordInfo();
+  if (!info) return;
+  readPlayer.pause();
+  const starts = info.letterStarts;
+  const idx = currentLetterIndex(starts, readPlayer.elapsedMs());
+  const target = Math.max(0, Math.min(starts.length - 1, idx + dir));
+  readPlayer.seek(starts[target]);
+  rdSeek.value = String(Math.round(readPlayer.elapsedMs()));
+  stopTransportSync();
+  updatePauseButton();
+}
+function togglePause() {
+  if (!readPlayer) return;
+  if (readPlayer.isPaused()) {
+    readPlayer.resume();
+    stopTransportSync();
+    rdTransportRaf = requestAnimationFrame(syncSeekBar);
+  } else {
+    readPlayer.pause();
+    stopTransportSync();
+  }
+  updatePauseButton();
+}
+
 function playWord(word) {
   readTimers.forEach(clearTimeout);
   readTimers = [];
+  stopTransportSync();
   if (!readPlayer || !word) return;
   const speed = Number(rdSpeed.value) || 900;
   const letters = word.toUpperCase().split("");
   rdLen.textContent = "· ".repeat(letters.length).trim();
   readPlayer.setTarget(null);
+
+  const hasMotion = letters.some((L) => MOTION.has(L));
+  if (!hasMotion) {
+    // S3 transport (pause/step ± letter/scrub) needs one continuous clock
+    // to act on, so the common case — no J/Z — plays as a SINGLE setWord
+    // run instead of S2e's per-run setTimeout ladder below.
+    const items = letters.map((L) => ({ letter: L, vec: reference?.centroid(L) }));
+    readTimers.push(
+      setTimeout(() => {
+        readPlayer.setWord(items, { holdMs: speed });
+        enableTransport();
+      }, 250)
+    );
+    return;
+  }
+
+  // A word containing J/Z has no single clean timeline to scrub — a stroke
+  // is a self-contained animation, not a bone-space pose the transport
+  // clock can seek into — so it falls back to Replay-only, same as before
+  // S3. An explicit scope boundary (checked against real word lists in
+  // S2e), not a silent gap.
+  disableTransport();
 
   // S2e: chain consecutive STATIC letters through one coarticulated setWord
   // run (no neutral detour between them, distance-scaled transitions) rather
@@ -851,25 +1028,91 @@ function nextReadWord() {
   rdInput.disabled = false;
   rdFeedback.textContent = "";
   rdFeedback.className = "rd-feedback";
+  rdNext.hidden = true;
   rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
   playWord(w);
   rdInput.focus();
 }
 
 function enterRead() {
-  if (!reader) { rdFeedback.textContent = "loading word list…"; return; }
+  if (!reader) {
+    refreshReadLoadError();
+    if (!wordBankFailed) rdFeedback.textContent = "loading word list…";
+    return;
+  }
   applyReadStyle();
 }
 function leaveRead() {
   readTimers.forEach(clearTimeout);
   readTimers = [];
+  stopTransportSync();
   readPlayer?.setTarget(null);
+}
+
+// A wrong guess on a fingerspelling test is usually one letter mistaken for
+// a look-alike — the diff + confusable note say exactly which, instead of
+// just "wrong" (S3 near-miss feedback). Builds DOM nodes directly (not
+// innerHTML-with-user-text) since `guess` is untrusted user input.
+function renderDiff(container, diff, answerStr, guessStr) {
+  const line = document.createElement("span");
+  line.className = "rd-diff";
+  for (let i = 0; i < answerStr.length; i++) {
+    const bad = diff.some((d) => d.i === i);
+    const span = document.createElement("span");
+    if (bad) span.className = "bad-ltr";
+    span.textContent = answerStr[i];
+    line.appendChild(span);
+  }
+  container.appendChild(line);
+  if (guessStr) {
+    const you = document.createElement("span");
+    you.textContent = ` — you wrote “${guessStr}”`;
+    container.appendChild(you);
+  }
+}
+
+function renderConfusable(container, c) {
+  const note = document.createElement("span");
+  note.className = "rd-confusable";
+  note.textContent = `${c.expected.toUpperCase()} and ${c.got.toUpperCase()} are easy to mix up.`;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "show me those two";
+  btn.addEventListener("click", () => renderCompare(c.expected.toUpperCase(), c.got.toUpperCase()));
+  note.appendChild(btn);
+  container.appendChild(note);
+}
+
+// Inline side-by-side of the two confused letters' reference photo + how-to
+// text, right under the feedback — "show me those two side by side" (S3).
+function renderCompare(a, b) {
+  const old = rdFeedback.querySelector(".rd-compare");
+  old?.remove();
+  const box = document.createElement("div");
+  box.className = "rd-compare";
+  for (const L of [a, b]) {
+    const fig = document.createElement("figure");
+    const img = document.createElement("img");
+    img.src = REFERENCE_IMG(L);
+    img.alt = `reference hand shape for ${L}`;
+    const cap = document.createElement("figcaption");
+    cap.textContent = L;
+    const p = document.createElement("p");
+    p.textContent = LETTER_GUIDE[L] || "";
+    fig.appendChild(img);
+    fig.appendChild(cap);
+    fig.appendChild(p);
+    box.appendChild(fig);
+  }
+  rdFeedback.appendChild(box);
 }
 
 function judgeRead(revealed) {
   if (!reader || !reader.current) return;
   const answer = reader.current;
-  const ok = !revealed && reader.check(rdInput.value);
+  const guess = rdInput.value;
+  const result = revealed ? { ok: false, diff: [], confusables: [] } : reader.check(guess);
+  const ok = result.ok;
   rdInput.disabled = true;
   rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
   let promo = null;
@@ -879,6 +1122,7 @@ function judgeRead(revealed) {
     buildReadPath();
     renderLesson();
   }
+  rdFeedback.textContent = "";
   if (ok) {
     rdFeedback.textContent = promo && promo.unlocked
       ? `✓ correct — 🔓 new lesson: ${promo.tierName}`
@@ -886,12 +1130,25 @@ function judgeRead(revealed) {
     rdFeedback.className = "rd-feedback good";
     buzz(promo && promo.unlocked ? 40 : 20);
     sound.success?.();
+    setTimeout(nextReadWord, promo && promo.unlocked ? 1400 : 850);
   } else {
-    rdFeedback.textContent = revealed ? `it was “${answer}”` : `✗ that was “${answer}”`;
     rdFeedback.className = "rd-feedback bad";
-    if (!revealed) { buzz(60); sound.fail?.(); }
+    if (revealed) {
+      rdFeedback.textContent = `it was “${answer}”`;
+    } else {
+      renderDiff(rdFeedback, result.diff, answer, guess.trim().toLowerCase());
+      buzz(60);
+      sound.fail?.();
+      // only the single strongest confusable — piling on every mismatched
+      // pair reads as noise, not help
+      const top = result.confusables.slice().sort((x, y) => y.weight - x.weight)[0];
+      if (top) renderConfusable(rdFeedback, top);
+    }
+    // S3: wrong answers persist until dismissed instead of vanishing in
+    // 1.6s — a learner needs time to actually read the diff / confusable
+    // note, not just glimpse it before the next word replaces it.
+    rdNext.hidden = false;
   }
-  setTimeout(nextReadWord, ok ? (promo && promo.unlocked ? 1400 : 850) : 1600);
 }
 
 // ---- challenge mode -------------------------------------------
@@ -933,6 +1190,7 @@ function setMode(next) {
     if (spDecodedText) spDecodedText.textContent = "…";
     syncSpellText();
     applyDrill(); // show / refresh the word-drill row if it's on
+    refreshSpellLoadError();
   }
   if (mode === "challenge") {
     chCardTitle.textContent = "Challenge";
@@ -2053,7 +2311,18 @@ rdForm.addEventListener("submit", (e) => {
   judgeRead(false);
 });
 rdReveal.addEventListener("click", () => { if (!rdInput.disabled) judgeRead(true); });
+rdNext.addEventListener("click", nextReadWord);
 rdPlay.addEventListener("click", () => reader && playWord(reader.current));
+rdPause.addEventListener("click", togglePause);
+rdStepBack.addEventListener("click", () => stepReadLetter(-1));
+rdStepFwd.addEventListener("click", () => stepReadLetter(1));
+rdSeek.addEventListener("input", () => {
+  if (!readPlayer) return;
+  readPlayer.pause();
+  readPlayer.seek(Number(rdSeek.value));
+  stopTransportSync();
+  updatePauseButton();
+});
 rdSpeed.addEventListener("change", () => {
   savePref("read-speed", rdSpeed.value);
   if (mode === "read" && reader) playWord(reader.current);

@@ -416,7 +416,7 @@ await check("reference.js: buildWordSpans/sampleWordSpans timing contract + doub
 
   // plain 3-letter run, no doubles
   {
-    const { spans, totalMs } = buildWordSpans([letterA, letterB, letterC], [false, false], holdMs);
+    const { spans, totalMs, letterStarts } = buildWordSpans([letterA, letterB, letterC], [false, false], holdMs);
     if (Math.abs(totalMs - 3 * holdMs) > 1e-6) {
       throw new Error(`total duration ${totalMs} != 3*holdMs (${3 * holdMs}) — would desync main.js's timers`);
     }
@@ -425,6 +425,26 @@ await check("reference.js: buildWordSpans/sampleWordSpans timing contract + doub
       if (spans[i].startMs !== spans[i - 1].endMs) throw new Error(`gap/overlap between span ${i - 1} and ${i}`);
     }
     if (spans.at(-1).endMs !== totalMs) throw new Error("last span should end at totalMs");
+
+    // letterStarts (S3 transport step targets): one per letter, strictly
+    // increasing, in range, and sampling there lands exactly on that
+    // letter's own raw pose (the right landing point for a "step to this
+    // letter" jump — not the hold's own slightly-anticipatory blend, which
+    // is what you'd get sampling a moment later instead)
+    const letters3 = [letterA, letterB, letterC];
+    if (letterStarts.length !== 3) throw new Error(`letterStarts should have 3 entries, got ${letterStarts.length}`);
+    for (let i = 1; i < letterStarts.length; i++) {
+      if (letterStarts[i] <= letterStarts[i - 1]) throw new Error("letterStarts should strictly increase");
+    }
+    for (let i = 0; i < letterStarts.length; i++) {
+      const ms = letterStarts[i];
+      if (ms < 0 || ms > totalMs) throw new Error(`letterStart ${ms} out of [0, totalMs]`);
+      const { pose } = sampleWordSpans(spans, ms);
+      for (let j = 0; j < 21; j++) {
+        const err = Math.hypot(pose[j][0] - letters3[i].pose[j][0], pose[j][1] - letters3[i].pose[j][1]);
+        if (err > 1e-6) throw new Error(`letterStart ${i} landmark ${j} off that letter's raw pose by ${err}`);
+      }
+    }
 
     const atEnd = sampleWordSpans(spans, totalMs);
     const wellPast = sampleWordSpans(spans, totalMs + 5000);

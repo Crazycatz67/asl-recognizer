@@ -470,6 +470,7 @@ export function buildWordSpans(entries, doubled, holdMs) {
   const n = entries.length;
   const withNeutral = [{ pose: NEUTRAL_HAND, z: null }, ...entries];
   const spans = [];
+  const letterStarts = []; // elapsed ms each letter's own hold begins — S3 transport step targets
   let clock = 0;
 
   for (let i = 0; i < n; i++) {
@@ -494,6 +495,7 @@ export function buildWordSpans(entries, doubled, holdMs) {
       clock += entryDur;
     }
 
+    letterStarts.push(clock);
     let holdInterp = null;
     if (!isLast && !isDouble) holdInterp = makeInterpolator(to.pose, withNeutral[i + 2].pose);
     spans.push({
@@ -514,7 +516,7 @@ export function buildWordSpans(entries, doubled, holdMs) {
       clock += transDur;
     }
   }
-  return { spans, totalMs: clock };
+  return { spans, totalMs: clock, letterStarts };
 }
 
 // Sample the timeline at `elapsedMs` -> { pose: 21[x,y], z: 21-number[]|null }.
@@ -569,6 +571,8 @@ export function createCanonicalPlayer(canvasEl) {
                        // never touches posekin's 2D geometry.
   let raf = 0;
   let t0 = 0;
+  let paused = false; // S3 transport — word mode only; freezes the loop, remembers elapsed
+  let pausedElapsed = 0;
 
   const FORM = 800; // ease in (snappier)
   const HOLD = 1400; // sit at the target
@@ -934,6 +938,7 @@ export function createCanonicalPlayer(canvasEl) {
     setTarget(vec) {
       stroke = null;
       word = null;
+      paused = false;
       if (!vec) {
         target = null;
         poseInterp = null;
@@ -967,6 +972,7 @@ export function createCanonicalPlayer(canvasEl) {
       poseInterp = null;
       targetZ = null;
       word = null;
+      paused = false;
       if (letter === "J") {
         stroke = { kind: "rotate", getPose: jPoseAt, tip: MOTION_POSE.J.tip, trail: sampleTrail(jPoseAt, MOTION_POSE.J.tip) };
       } else {
@@ -1027,9 +1033,13 @@ export function createCanonicalPlayer(canvasEl) {
       });
       const doubled = items.map((it, i) => i < items.length - 1 && it.letter === items[i + 1].letter);
       const built = buildWordSpans(entries, doubled, holdMs);
-      word = { spans: built.spans, totalMs: built.totalMs, bounds: NEUTRAL_HAND.concat(...entries.map((e) => e.pose)) };
+      word = {
+        spans: built.spans, totalMs: built.totalMs, letterStarts: built.letterStarts,
+        bounds: NEUTRAL_HAND.concat(...entries.map((e) => e.pose)),
+      };
       rebuildFit();
       t0 = 0;
+      paused = false;
       if (reduce) {
         cancelAnimationFrame(raf);
         raf = 0;
@@ -1037,6 +1047,50 @@ export function createCanonicalPlayer(canvasEl) {
       } else if (!raf) {
         raf = requestAnimationFrame(loop);
       }
+    },
+    // S3 transport (word mode) — pause/resume/seek so a learner who missed
+    // letter 4 of 7 can go back to exactly that letter instead of rewatching
+    // the whole word. No-ops outside word mode (single-letter practice and
+    // J/Z strokes are short loops with no "missed a spot" problem to solve).
+    pause() {
+      if (!word || paused || !raf) return;
+      pausedElapsed = t0 ? performance.now() - t0 : 0;
+      paused = true;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    },
+    resume() {
+      if (!word || !paused) return;
+      paused = false;
+      raf = requestAnimationFrame((ts) => {
+        t0 = ts - pausedElapsed;
+        loop(ts);
+      });
+    },
+    isPaused() {
+      return paused;
+    },
+    // current position into the word, for a UI scrub bar to sync against
+    // while playing (not just while the user is dragging it)
+    elapsedMs() {
+      if (!word) return 0;
+      if (paused) return pausedElapsed;
+      return raf ? performance.now() - t0 : 0;
+    },
+    // jump to `ms` into the word; works whether playing or paused
+    seek(ms) {
+      if (!word) return;
+      pausedElapsed = Math.max(0, Math.min(ms, word.totalMs));
+      if (paused || !raf) {
+        paintWordAt(pausedElapsed);
+      } else {
+        t0 = performance.now() - pausedElapsed;
+      }
+    },
+    // { totalMs, letterStarts } for the scrub bar / step buttons, or null
+    // outside word mode
+    wordInfo() {
+      return word ? { totalMs: word.totalMs, letterStarts: word.letterStarts.slice() } : null;
     },
     // re-draw after a canvas resize without restarting the cycle
     redraw() {

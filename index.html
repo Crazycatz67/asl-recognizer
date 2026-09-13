@@ -31,6 +31,7 @@
       🏆 <span id="progressCount">0/26</span>
     </button>
     <button class="topbar-link contrast-btn" id="contrastBtn" type="button" aria-pressed="false" aria-label="Toggle high contrast" title="High contrast">◐</button>
+    <button class="topbar-link" id="muteBtn" type="button" aria-label="mute sound" title="sound">🔊</button>
     <a class="topbar-link" href="about.html">About</a>
   </header>
   <div class="learn" id="learnRow" hidden data-run="off">
@@ -72,11 +73,15 @@
         <div class="rd-cats" id="rdCats"></div>
         <span class="rd-score" id="rdScore" aria-live="polite">0</span>
       </div>
+      <p class="load-error" id="rdLoadError" role="alert" hidden></p>
       <div class="rd-stage">
         <canvas id="rdCanvas" width="320" height="320" aria-label="animated fingerspelling"></canvas>
       </div>
       <div class="rd-playbar">
         <button type="button" id="rdPlay"><span aria-hidden="true">▶</span> Replay</button>
+        <button type="button" id="rdPause" aria-label="pause" title="pause" hidden><span aria-hidden="true">⏸</span></button>
+        <button type="button" id="rdStepBack" aria-label="previous letter" title="previous letter" hidden>‹</button>
+        <button type="button" id="rdStepFwd" aria-label="next letter" title="next letter" hidden>›</button>
         <label>speed
           <select id="rdSpeed">
             <option value="1250">slow</option>
@@ -86,6 +91,9 @@
         </label>
         <span class="rd-len" id="rdLen"></span>
       </div>
+      <input type="range" id="rdSeek" class="rd-seek" min="0" max="1000" value="0" step="1"
+        list="rdTicks" aria-label="scrub through the word" hidden />
+      <datalist id="rdTicks"></datalist>
       <form class="rd-answer" id="rdForm" autocomplete="off">
         <input id="rdInput" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
           placeholder="type the word you saw" aria-label="your answer" />
@@ -93,6 +101,7 @@
         <button type="button" id="rdReveal">Reveal</button>
       </form>
       <p class="rd-feedback" id="rdFeedback" role="status" aria-live="polite"></p>
+      <button type="button" id="rdNext" class="rd-next" hidden>Next word →</button>
     </section>
 
     <!-- camera: the hero. .stage is selfie-mirrored; .hud sits on top and isn't -->
@@ -204,6 +213,7 @@
           Fluid + speak <span class="sp-beta">beta</span>
           <span class="sp-fluid-hint">— sign at a natural pace; a pause finishes a word</span>
         </label>
+        <p class="load-error" id="spDecodeError" role="alert" hidden></p>
         <label class="sp-drill-toggle">
           <input type="checkbox" id="spDrill" />
           Practice a word
@@ -324,7 +334,6 @@
     <label class="ghost-toggle" hidden id="ghostToggleWrap">
       <input type="checkbox" id="ghostToggle" checked /> correction guide on camera
     </label>
-    <button id="muteBtn" type="button" class="icon-btn" aria-label="mute sound" title="sound">🔊</button>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

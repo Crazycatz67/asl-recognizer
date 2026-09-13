@@ -403,6 +403,35 @@ function mkHand() {
         return true;
       } catch (e) { return false; }
     });
+    ok("reference: createCanonicalPlayer pause/resume/seek/wordInfo (S3 transport)", () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = 160; c.height = 160;
+        const p = refm.createCanonicalPlayer(c);
+        // no word playing yet — every transport call should be a safe no-op
+        p.pause(); p.resume(); p.seek(100);
+        const noInfo = p.wordInfo() === null && p.isPaused() === false;
+
+        p.setWord(
+          ["C", "A", "T"].map((L) => ({ letter: L, vec: ref.centroid(L) })),
+          { holdMs: 500 }
+        );
+        const info = p.wordInfo();
+        const infoOk = info && info.totalMs === 1500 && info.letterStarts.length === 3 &&
+          info.letterStarts.every((ms, i) => i === 0 || ms > info.letterStarts[i - 1]);
+
+        p.pause();
+        const pausedOk = p.isPaused() === true;
+        p.seek(750); // scrub while paused — should repaint without unpausing
+        const stillPaused = p.isPaused() === true;
+        p.resume();
+        const resumedOk = p.isPaused() === false;
+        p.seek(2000); // past the end — should clamp, not throw
+        const elapsedOk = p.elapsedMs() <= 1500 + 1; // clamped to totalMs, not 2000
+        p.stop();
+        return noInfo && infoOk && pausedOk && stillPaused && resumedOk && elapsedOk;
+      } catch (e) { return false; }
+    });
 
     // ---- sound.js + fx.js (juice) ----
     const snd = (await import("../js/sound.js")).createSound();
@@ -916,16 +945,43 @@ function mkHand() {
     ok("reader: check() scores a correct guess + builds a streak", (() => {
       const r = rdMod.createReader({ short: ["cat"] });
       r.next(); // "cat"
-      const a = r.check("CAT ") === true && r.score >= 1;
-      r.next(); const b = r.check("cat") === true && r.streak === 2;
+      const a = r.check("CAT ").ok === true && r.score >= 1;
+      r.next(); const b = r.check("cat").ok === true && r.streak === 2;
       return a && b;
     })());
     ok("reader: a wrong guess resets the streak, reveal() breaks it too", (() => {
       const r = rdMod.createReader({ short: ["cat"] });
       r.next(); r.check("cat"); r.next(); r.check("cat"); // streak 2
-      r.next(); const wrong = r.check("dog") === false && r.streak === 0;
+      r.next(); const wrong = r.check("dog").ok === false && r.streak === 0;
       r.next(); r.check("cat"); const rev = (r.reveal() === "cat" && r.streak === 0);
       return wrong && rev;
+    })());
+    ok("reader: check() reports a positional diff + known confusables (S3)", (() => {
+      const confusion = { n: { m: 0.13 }, o: { d: 0.07 } };
+      const r = rdMod.createReader({ short: ["name"] }, { confusion });
+      r.next(); // "name"
+      const res = r.check("mame"); // n<->m at position 0 — a real confusable pair
+      const diffOk = res.ok === false && res.diff.length === 1 &&
+        res.diff[0].i === 0 && res.diff[0].expected === "n" && res.diff[0].got === "m";
+      const confOk = res.confusables.length === 1 && res.confusables[0].expected === "n" &&
+        res.confusables[0].got === "m" && res.confusables[0].weight > 0;
+      r.next(); r.check("name"); r.next();
+      const res2 = r.check("zzzz"); // no known confusable pairs at all
+      return diffOk && confOk && res2.confusables.length === 0 && res2.diff.length > 0;
+    })());
+    ok("reader: setConfusion() wires in confusion data that arrives after construction (S3)", (() => {
+      // main.js builds the reader before data/confusion.json is guaranteed
+      // to have loaded (it races a much bigger fetch) — setConfusion must
+      // let the SAME reader instance start reporting confusables once it
+      // does arrive, not require re-creating it.
+      const r = rdMod.createReader({ short: ["name"] }); // no confusion yet
+      r.next();
+      const before = r.check("mame");
+      r.next(); r.check("name"); r.next();
+      r.setConfusion({ n: { m: 0.13 } });
+      const after = r.check("mame");
+      return before.confusables.length === 0 && after.confusables.length === 1 &&
+        after.confusables[0].expected === "n" && after.confusables[0].got === "m";
     })());
     ok("reader: toggleCategory never empties the pool", (() => {
       const r = rdMod.createReader(bank);

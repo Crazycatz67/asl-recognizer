@@ -2,14 +2,46 @@
 // check what the user typed, keep score. Pure — no DOM, no player. The UI glue
 // (driving createCanonicalPlayer, wiring the form) lives in main.js.
 //
-//   const rd = createReader(bank);   // bank: { category: ["word", ...], ... }
+//   const rd = createReader(bank, { confusion });  // bank: { category: ["word", ...], ... }
 //   rd.next()                        -> a fresh word (avoids repeats until the pool is exhausted)
-//   rd.check("sarah")               -> true | false  (+ updates score / streak)
+//   rd.check("sarah")               -> { ok, diff, confusables } (+ updates score / streak)
 //   rd.reveal()                     -> the current word, breaks the streak
 //   rd.toggleCategory("names")      -> add/remove a category from the pool (never empties it)
+//   rd.setConfusion(map)            -> swap in confusion data that arrives after construction
 //   rd.score / rd.streak / rd.current / rd.categories / rd.activeCategories
+//
+// `diff`/`confusables` (S3): a wrong guess on a fingerspelling test is rarely
+// a random miss — it's usually one letter mistaken for one that looks like
+// it (M/N, D/O). `check()` reports exactly which positions diverged and,
+// where `opts.confusion` (the same shape as data/confusion.json: {truth:
+// {observed: weight}}) says a pair is a KNOWN look-alike, flags it — so the
+// UI can say "you read O for D" instead of just "wrong", which is the whole
+// point of practicing a confusable-heavy skill.
+function diffWords(guess, answer, confusion) {
+  const n = Math.max(guess.length, answer.length);
+  const diff = [];
+  const confusables = [];
+  for (let i = 0; i < n; i++) {
+    const expected = answer[i] ?? null;
+    const got = guess[i] ?? null;
+    if (expected === got) continue;
+    diff.push({ i, expected, got });
+    if (expected && got) {
+      const w = confusion?.[expected]?.[got] ?? confusion?.[got]?.[expected] ?? 0;
+      if (w > 0) confusables.push({ expected, got, weight: w });
+    }
+  }
+  return { diff, confusables };
+}
 
-export function createReader(bank = {}) {
+export function createReader(bank = {}, opts = {}) {
+  // `let`, not `const`: main.js loads the word bank and the confusion matrix
+  // as two independent fetches, and on a real network the (much larger)
+  // decoder word list races with (and often loses to) the small practice-
+  // words.json — so this is frequently still null when the reader is built.
+  // setConfusion() lets main.js wire it in later without losing what a
+  // closed-over const would have silently missed forever.
+  let confusion = opts.confusion || null;
   const cats = Object.keys(bank).filter((k) => !k.startsWith("_") && Array.isArray(bank[k]));
   const active = new Set(cats);
   let current = null;
@@ -41,6 +73,10 @@ export function createReader(bank = {}) {
       seen.clear();
     },
 
+    setConfusion(map) {
+      confusion = map || null;
+    },
+
     // next()          -> pick from the active-category pool
     // next(["a","b"]) -> pick from a caller-supplied list (Course mode drives this),
     //                    still avoiding repeats until that list is exhausted
@@ -57,16 +93,17 @@ export function createReader(bank = {}) {
     },
 
     check(guess) {
-      const ok =
-        !!current && String(guess || "").trim().toLowerCase().replace(/\s+/g, "") === current;
+      const clean = String(guess || "").trim().toLowerCase().replace(/\s+/g, "");
+      const ok = !!current && clean === current;
       if (ok) {
         score += 1 + Math.min(streak, 4); // 1..5 per word, faster streak = more
         streak += 1;
         if (streak > best) best = streak;
-      } else {
-        streak = 0;
+        return { ok, diff: [], confusables: [] };
       }
-      return ok;
+      streak = 0;
+      const { diff, confusables } = current ? diffWords(clean, current, confusion) : { diff: [], confusables: [] };
+      return { ok, diff, confusables };
     },
 
     reveal() {
