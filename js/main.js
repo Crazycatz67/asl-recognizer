@@ -1378,7 +1378,7 @@ function loop() {
       guideInfo = overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
         mirror: (MIRROR_LEFT_HAND && left) !== o.mirrored,
-        tol: reference.tolerance(targetLetter),
+        tol: reference.matchTolerance(targetLetter),
         align: o.deg,
         reveal: guideAmt,
         settled: m?.bucket === "correct", // don't nag once it already counts

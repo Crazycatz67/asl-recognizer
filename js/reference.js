@@ -22,6 +22,13 @@ import { makeInterpolator } from "./posekin.js";
 // of degrees off and still reads as wrong.
 const ALIGN_MAX_DEG = 22;
 
+// score()'s "correct" bucket forgives a single joint drifting up to this many
+// times the tight per-joint tolerance (holding a pixel-perfect pose was
+// exhausting for testers). The live guide overlay must colour joints green up
+// to this SAME widened line, or it keeps flagging joints yellow that the meter
+// already calls correct — see matchTolerance() below and its one caller.
+const MATCH_TOL_MULT = 1.8;
+
 // in-plane angle of the palm axis: wrist(0) -> mean of the four finger MCPs
 // (5,9,13,17). Averaging the knuckles is far steadier than a single bone, so a
 // little landmark noise doesn't swing the estimate.
@@ -209,11 +216,20 @@ export function buildReference(samples, letters) {
       return centroids.get(label) || null;
     },
 
-    // per-joint normalized error that reads as "locked on" for the guide
-    // colours. Derived from the letter's spread but clamped to a visually
-    // meaningful range (a fingertip within ~4-12% of hand radius = on target).
+    // tight per-joint normalized error — a fingertip within ~4-12% of hand
+    // radius. This is NOT what the live guide colours green (see
+    // matchTolerance below); it's the raw band score()/matched are built on.
     tolerance(label) {
       return tolFor(bands.get(label));
+    },
+
+    // the actual "locked on" line for the guide overlay: widened by the same
+    // factor score()'s "correct" bucket forgives, so a shape the meter already
+    // calls correct never still shows yellow/red joints. The overlay's ONE
+    // caller for this — main.js's drawGuide `tol` — must use this, not
+    // tolerance(), or the two silently disagree again.
+    matchTolerance(label) {
+      return tolFor(bands.get(label)) * MATCH_TOL_MULT;
     },
 
     // How the on-camera guide should orient the target so it and the meter
@@ -240,7 +256,7 @@ export function buildReference(samples, letters) {
       // ~1.8x the tight "green" tolerance and still count — holding a perfect
       // pose was exhausting. (A truly wrong finger, several x tol, still fails.)
       const worst = worstJoint(v, c);
-      const matched = worst <= tolFor(b) * 1.8;
+      const matched = worst <= tolFor(b) * MATCH_TOL_MULT;
       let bucket = s >= 0.7 ? "correct" : s >= 0.5 ? "close" : "off";
       if (bucket === "correct" && !matched) bucket = "close";
       return { dist: d, score: s, bucket, matched, worst, mirrored };

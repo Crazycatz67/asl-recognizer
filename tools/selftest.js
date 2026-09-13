@@ -259,6 +259,26 @@ function mkHand() {
       })());
     ok("reference: tolerance('N') is a small positive number",
       (() => { const t = ref.tolerance("N"); return t > 0 && t < 0.3; })(), String(ref.tolerance("N")));
+    // regression: the live guide overlay colours a joint green using
+    // matchTolerance(), NOT tolerance() — they must agree with score()'s own
+    // "correct" cutoff (1.8x tolerance) or the guide flags joints yellow that
+    // the meter already calls correct (real bug from user QA).
+    ok("reference: matchTolerance('N') is tolerance('N') widened by score()'s own correct-cutoff factor",
+      (() => {
+        const t = ref.tolerance("N"), m = ref.matchTolerance("N");
+        return m > t && Math.abs(m - t * 1.8) < 1e-9;
+      })(), `tolerance=${ref.tolerance("N")} matchTolerance=${ref.matchTolerance("N")}`);
+    ok("reference: a joint just inside matchTolerance scores 'correct' AND would be drawn green",
+      (() => {
+        const c = ref.centroid("B"), mt = ref.matchTolerance("B"), v = c.slice();
+        // push exactly one joint (index tip) to 95% of matchTolerance, on one axis
+        // only, so its OWN error stays under matchTolerance (what the overlay
+        // checks per-joint) while the shape still counts as correct overall.
+        v[8 * 3] += mt * 0.95;
+        const s = ref.score(v, "B");
+        const jointErr = Math.hypot(v[8 * 3] - c[8 * 3], v[8 * 3 + 1] - c[8 * 3 + 1]);
+        return s.bucket === "correct" && jointErr <= mt;
+      })());
     ok("reference: a readable-but-imperfect hand scores 'correct' (~1.4x tol)",
       (() => {
         const c = ref.centroid("C"), tol = ref.tolerance("C"), v = c.slice();
