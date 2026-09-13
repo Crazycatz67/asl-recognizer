@@ -75,6 +75,13 @@ const workspace = $("workspace");
 const viewport = $("viewport");
 const video = $("camera");
 const canvas = $("overlay");
+
+// Dev-only: "?dev" in the URL exposes live module internals on window so
+// tools/testHarness.js can drive the app with synthetic hand data instead of
+// a real webcam. Checked once at load — zero cost when absent, and the one
+// place it's used below (start()) runs once per camera session, not per
+// frame, so it costs nothing in the real camera path either way.
+const DEV = new URLSearchParams(location.search).has("dev");
 const pillText = $("pillText");
 const statsEl = $("stats");
 const curtainSub = $("curtainSub");
@@ -1159,6 +1166,18 @@ async function start() {
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
     await acquireWakeLock();
     await datasetPromise;
+    if (DEV) {
+      // tools/testHarness.js's one hook into the live app — see that file for
+      // the full API. Getters (not plain values) for reference/classifier
+      // since they're `let` bindings normally populated inside
+      // datasetPromise.then(); by this point that's already resolved, but the
+      // getters cost nothing and protect against a future reordering.
+      window.__aslDev = {
+        tracker, overlay, video, canvas, sound,
+        get reference() { return reference; },
+        get classifier() { return classifier; },
+      };
+    }
     stabilizer?.reset();
     if (targetLetter) sizeRefCanvas();
 
