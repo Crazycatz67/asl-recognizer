@@ -401,16 +401,42 @@ export function createCanonicalPlayer(canvasEl) {
 
   const FORM = 800; // ease in (snappier)
   const HOLD = 1400; // sit at the target
-  const BACK = 400; // ease back to neutral
+  const BACK = 400; // ease back to neutral (static letters only — see below)
   const REST = 300; // pause before looping
   const CYCLE = FORM + HOLD + BACK + REST;
 
+  // For a STATIC letter, easing back through the same finger-curl arc to
+  // neutral is just a visual reset — there's no real "how you get to D"
+  // lesson being taught, so retracing it is harmless.
   function phaseFrac(elapsed) {
     const t = elapsed % CYCLE;
     if (t < FORM) return easeInOut(t / FORM);
     if (t < FORM + HOLD) return 1;
     if (t < FORM + HOLD + BACK) return 1 - easeInOut((t - FORM - HOLD) / BACK);
     return 0;
+  }
+
+  // J/Z strokes are different: retracing the SAME path backward visually
+  // teaches a motion that doesn't exist (S2d, live QA: "Skeletal video
+  // guides for dynamic letters ... show anatomically impossible ...
+  // movements"). FADE replaces that reverse-retrace with a hold->crossfade->
+  // restart: the finished-stroke hand fades out while the about-to-restart
+  // hand fades in, both held still — no implied backward motion at all.
+  const S_FORM = 800;
+  const S_HOLD = 1400;
+  const S_FADE = 400;
+  const S_REST = 300;
+  const S_CYCLE = S_FORM + S_HOLD + S_FADE + S_REST;
+
+  function strokePhase(elapsed) {
+    const t = elapsed % S_CYCLE;
+    if (t < S_FORM) return { mode: "prog", prog: easeInOut(t / S_FORM) };
+    if (t < S_FORM + S_HOLD) return { mode: "prog", prog: 1 };
+    if (t < S_FORM + S_HOLD + S_FADE) {
+      const f = easeInOut((t - S_FORM - S_HOLD) / S_FADE);
+      return { mode: "fade", outAlpha: 1 - f, inAlpha: f };
+    }
+    return { mode: "prog", prog: 0 };
   }
 
   // a transform mapping normalised [x,y] (wrist ~origin) into canvas px so that
@@ -516,6 +542,44 @@ export function createCanonicalPlayer(canvasEl) {
     ctx.fill();
   }
 
+  // The S_FADE phase: no path retrace, just the finished-stroke hand fading
+  // out at prog=1 while the about-to-restart hand fades in at prog=0, both
+  // held perfectly still. Same faint dashed guide path stays put throughout
+  // for orientation.
+  function paintStrokeCrossfade(outAlpha, inAlpha) {
+    const w = canvasEl.width;
+    ctx.clearRect(0, 0, w, canvasEl.height);
+    if (!fit) return;
+    const { path, poseAt0, tip } = stroke;
+    const px = path.map(fit);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+    ctx.lineWidth = Math.max(2.5, w * 0.022);
+    ctx.setLineDash([w * 0.045, w * 0.045]);
+    ctx.beginPath();
+    px.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const poseFit = poseAt0.map(fit);
+    const drawAt = (prog, alpha) => {
+      if (alpha <= 0.01) return;
+      const tipNow = along(px, prog);
+      const dx = tipNow[0] - poseFit[tip][0];
+      const dy = tipNow[1] - poseFit[tip][1];
+      drawHandShape(ctx, poseFit.map(([x, y]) => [x + dx, y + dy]), { alpha });
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+    drawAt(1, outAlpha); // the just-finished hand, fading out
+    drawAt(0, inAlpha); // the about-to-restart hand, fading in
+  }
+
   // poseInterp(frac) -> pixel points through the cached `fit`, so the ghost
   // trail and the solid hand share the exact same anchor/scale instead of
   // each refitting its own bbox (that mismatch was D3 — the ghost drifting
@@ -558,7 +622,14 @@ export function createCanonicalPlayer(canvasEl) {
 
   function loop(ts) {
     if (!t0) t0 = ts;
-    paint(phaseFrac(ts - t0));
+    const elapsed = ts - t0;
+    if (stroke) {
+      const ph = strokePhase(elapsed);
+      if (ph.mode === "fade") paintStrokeCrossfade(ph.outAlpha, ph.inAlpha);
+      else paintStroke(ph.prog);
+    } else {
+      paint(phaseFrac(elapsed));
+    }
     raf = requestAnimationFrame(loop);
   }
 
