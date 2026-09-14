@@ -332,6 +332,9 @@ body {
   gap: 0.9rem;
   /* default (portrait / narrow): camera stacked over the reference strip */
   flex-direction: column;
+  /* S4b: the containing block for .reference's bottom-sheet positioning
+     (mobile/portrait only — see .reference) */
+  position: relative;
 }
 
 /* landscape / desktop: camera left, reference card right, both centred in the
@@ -695,33 +698,83 @@ body {
 /* ---- reference panel ---------------------------------------- */
 
 .reference {
-  /* was `flex: none` at a fixed ~358px in portrait — the only other flex
-     item is .viewport (flex:1), so the camera got crushed toward 0. Letting
-     this shrink (and scroll if its content still doesn't fit) means the
-     camera keeps a real minimum instead of losing a fight it can't win. */
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 42svh;
+  /* S4b: a bottom sheet floating OVER the camera stage instead of a flex
+     sibling that steals height from it — .workspace only has .viewport left
+     as a flex participant, so the camera gets the full stage. Collapsed by
+     default (~72px: handle + match meter/hint, per the plan) so the camera
+     stays maximally visible; js/sheet.js's "sheet-open" class (toggled by
+     #refHandle) expands it to the full card. `.app-stage` is the positioned
+     ancestor (see its rule). Landscape/desktop overrides this whole block
+     back to a normal, always-expanded side column — unchanged from before
+     S4b — since there's no camera-space pressure to collapse for there. */
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 15; /* above .hud's camera overlays (which are pointer-events:none anyway), below modals */
+  /* collapsed: handle + meter + 1-line hint. The plan's own "~72px" figure
+     undershoots once the hint has real text (measured 117px for a realistic
+     correction message even with the 1-line clamp below) — sized off that
+     measurement, not the plan's guideline number, with a little headroom
+     for font/rendering variance. */
+  max-height: 7.6rem;
   overflow-x: hidden; /* setting only overflow-y makes some browsers auto-enable x too */
   overflow-y: auto;
   overscroll-behavior: contain;
   background: linear-gradient(180deg, #1e293b, #16202f);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 0.8rem 0.95rem;
+  padding: 0.3rem 0.95rem 0.8rem;
   display: grid;
   gap: 0.5rem 0.75rem;
   box-shadow: 0 16px 40px -22px rgba(0, 0, 0, 0.6);
+  transition: max-height 0.22s ease;
   /* mobile/portrait: photo + demo stacked above the match readout, not
      squeezed into one cramped row — the old 3-column strip made both the
      images and the text too small to actually read on a phone. */
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
+    "handle handle"
     "head  head"
     "desc  desc"
     "photo canvas"
     "match match";
   align-items: center;
+}
+.reference.sheet-open { max-height: 44svh; }
+.ref-handle {
+  grid-area: handle;
+  justify-self: center;
+  width: 2.4rem;
+  height: 0.32rem;
+  padding: 0;
+  margin: 0.15rem 0 0.05rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.45);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ref-handle:hover { background: rgba(148, 163, 184, 0.7); }
+}
+/* collapsed (mobile default): only the handle + match readout show — the
+   plan's ~72px peek. The hint is clamped to 1 line here (measured: a real
+   correction message like "Straighten your middle finger — extend it out
+   fully" made the natural content 136px tall un-clamped, well past any
+   "~72px" budget) so the peek height stays small and predictable regardless
+   of how long a given hint happens to be. */
+.reference:not(.sheet-open) .ref-head,
+.reference:not(.sheet-open) .ref-desc,
+.reference:not(.sheet-open) .ref-photo-wrap,
+.reference:not(.sheet-open) .ref-canvas-wrap,
+.reference:not(.sheet-open) .letter-stat {
+  display: none;
+}
+.reference:not(.sheet-open) .ref-hint {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .ref-head  { grid-area: head;  font-size: 0.82rem; color: var(--muted); }
 .ref-head b { color: var(--fg); font-size: 1.05rem; }
@@ -801,15 +854,31 @@ body {
   }
 }
 
-/* LANDSCAPE + roomy: a full-height column beside the camera. Grid areas
-   already match the mobile layout above — this just widens the card. */
+/* LANDSCAPE + roomy: back to a normal, always-expanded side column beside
+   the camera — not a bottom sheet, no collapse/peek (there's no camera-
+   space pressure to collapse for once it's not floating over the stage).
+   Grid areas already match the mobile layout above — this just widens the
+   card and undoes the S4b sheet positioning/collapse. */
 @media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
   .reference {
+    position: static;
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 42svh;
     width: clamp(230px, 26vw, 330px);
     align-self: center; /* compact card, balanced beside the camera */
     align-content: start;
     align-items: stretch;
     gap: 0.6rem 0.7rem;
+    padding: 0.8rem 0.95rem;
+  }
+  .ref-handle { display: none; }
+  .reference:not(.sheet-open) .ref-head,
+  .reference:not(.sheet-open) .ref-desc,
+  .reference:not(.sheet-open) .ref-photo-wrap,
+  .reference:not(.sheet-open) .ref-canvas-wrap,
+  .reference:not(.sheet-open) .letter-stat {
+    display: block;
   }
   .ref-photo-wrap,
   .ref-canvas-wrap {

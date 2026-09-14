@@ -19,6 +19,7 @@ import { createClassifier } from "./knn.js";
 import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference.js";
+import { createSheet } from "./sheet.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
@@ -88,6 +89,7 @@ const nextLetterBtn = $("nextLetter");
 const letterPicker = $("letterPicker");
 const clearTargetBtn = $("clearTarget");
 const refPanel = $("refPanel");
+const refHandle = $("refHandle");
 const refLetter = $("refLetter");
 const refImg = $("refImg");
 const refCanvas = $("refCanvas");
@@ -195,6 +197,27 @@ const spDecodeError = $("spDecodeError");
 const sound = createSound();
 const fx = createFx();
 const bg = createBackground();
+
+// S4b: the reference panel is a non-modal bottom sheet on mobile (a full
+// side column on landscape/desktop, where "sheet-open" is forced by CSS
+// regardless of this state — see .reference's landscape media query).
+// Non-modal because you're meant to glance at it WHILE still signing at the
+// camera behind it, unlike a true dialog — camera interaction never blocks.
+const refSheet = createSheet(refPanel, { modal: false });
+function syncRefHandle() {
+  refHandle.setAttribute("aria-expanded", String(refSheet.isOpen()));
+  refHandle.setAttribute("aria-label", refSheet.isOpen() ? "collapse reference details" : "expand reference details");
+}
+// expanded by default whenever a new letter's reference appears — the
+// collapse is an opt-in for more camera room, not the starting point
+function openRefSheet() {
+  refSheet.open();
+  syncRefHandle();
+}
+refHandle.addEventListener("click", () => {
+  refSheet.toggle();
+  syncRefHandle();
+});
 
 // ---- couldn't-load banners (S3) ---------------------------------
 // A failed fetch used to fail silently (`.catch(() => {})`) and leave
@@ -651,6 +674,7 @@ function setTarget(letter) {
   prevLetterBtn.hidden = !letter;
   nextLetterBtn.hidden = !letter;
   refPanel.hidden = !letter || blindToggle.checked;
+  if (letter && !blindToggle.checked) openRefSheet();
   ghostToggleWrap.hidden = !letter;
   workspace.dataset.target = letter ? "on" : "off";
   // collapse the letter grid to a compact strip once one's chosen
@@ -1213,6 +1237,7 @@ function clearChallengeHud() {
   chBanner.hidden = true;
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
+  if (targetLetter) openRefSheet();
 }
 
 function startChallenge() {
@@ -2135,6 +2160,7 @@ blindToggle.addEventListener("change", () => {
   // guiding/hint text re-evaluate every frame from blindToggle.checked directly;
   // the reference panel doesn't, so it needs an explicit refresh on toggle.
   refPanel.hidden = !targetLetter || blindToggle.checked;
+  if (targetLetter && !blindToggle.checked) openRefSheet();
 });
 muteBtn.addEventListener("click", () => {
   sound.setMuted(!sound.muted);

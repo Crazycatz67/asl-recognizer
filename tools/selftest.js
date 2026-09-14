@@ -1137,6 +1137,80 @@ function mkHand() {
       (() => { const c = [...document.querySelectorAll("canvas")].find((x) => x.style.zIndex === "-1"); return !!c; })());
     bg.stop();
 
+    // ---- sheet.js (S4b — shared bottom-sheet/dialog controller) ----
+    const sheetMod = await import("../js/sheet.js");
+    ok("sheet: non-modal open/close/toggle track isOpen + openClass + hidden", (() => {
+      const el = document.createElement("div");
+      el.hidden = true;
+      document.body.appendChild(el);
+      const s = sheetMod.createSheet(el, { modal: false });
+      const beforeOpen = s.isOpen() === false && el.hidden === true;
+      s.open();
+      const afterOpen = s.isOpen() === true && el.hidden === false && el.classList.contains("sheet-open");
+      s.toggle();
+      const afterToggleClose = s.isOpen() === false;
+      s.close(); // already closed — should be a safe no-op
+      const stillClosed = s.isOpen() === false;
+      s.destroy();
+      el.remove();
+      return beforeOpen && afterOpen && afterToggleClose && stillClosed;
+    })());
+    ok("sheet: modal inerts every OTHER top-level child, never the one containing the sheet, however deeply nested", (() => {
+      const root = document.createElement("div");
+      const sib1 = document.createElement("div");
+      const container = document.createElement("div");
+      const wrapper = document.createElement("div"); // extra nesting between container and the sheet el
+      const sheetEl = document.createElement("div");
+      const btnInside = document.createElement("button");
+      btnInside.textContent = "inside";
+      const sib2 = document.createElement("div");
+      sheetEl.appendChild(btnInside);
+      wrapper.appendChild(sheetEl);
+      container.appendChild(wrapper);
+      root.append(sib1, container, sib2);
+      document.body.appendChild(root);
+      sheetEl.hidden = true;
+
+      const outsideBtn = document.createElement("button");
+      outsideBtn.textContent = "trigger";
+      document.body.appendChild(outsideBtn);
+      outsideBtn.focus();
+      const focusedTriggerBefore = document.activeElement === outsideBtn;
+
+      const s = sheetMod.createSheet(sheetEl, { modal: true, inertRoot: root });
+      s.open();
+      const inertedRight = sib1.inert === true && sib2.inert === true && container.inert !== true;
+      const focusMovedIn = sheetEl.contains(document.activeElement);
+
+      // Escape closes a modal sheet
+      sheetEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      const closedByEscape = s.isOpen() === false;
+      const uninertedAfterClose = sib1.inert !== true && sib2.inert !== true;
+      const focusRestored = document.activeElement === outsideBtn;
+
+      s.destroy();
+      root.remove();
+      outsideBtn.remove();
+      return focusedTriggerBefore && inertedRight && focusMovedIn && closedByEscape && uninertedAfterClose && focusRestored;
+    })());
+    ok("sheet: modal auto-creates a backdrop; clicking it closes the sheet", (() => {
+      const parent = document.createElement("div");
+      const el = document.createElement("div");
+      el.hidden = true;
+      parent.appendChild(el);
+      document.body.appendChild(parent);
+      const s = sheetMod.createSheet(el, { modal: true });
+      s.open();
+      const backdrop = parent.querySelector(".sheet-backdrop");
+      const backdropShown = !!backdrop && backdrop.hidden === false;
+      backdrop.click();
+      const closedByBackdrop = s.isOpen() === false;
+      s.destroy();
+      parent.remove();
+      return backdropShown && closedByBackdrop;
+    })());
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 
