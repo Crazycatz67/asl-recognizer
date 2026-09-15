@@ -550,8 +550,18 @@ export function sampleWordSpans(spans, elapsedMs) {
 // did it" clip instead of a static picture. Falls back to a still diagram when
 // the viewer prefers reduced motion.
 export function createCanonicalPlayer(canvasEl) {
-  const reduce =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Read once AND stay live (see fx.js/bg.js's identical fix) — deliberately
+  // conservative here though: this only updates the variable, it doesn't
+  // reach into an already-running rAF loop to force-cancel it mid-animation.
+  // The many setTarget/setMotion/setWord entry points below already each
+  // check `reduce` and branch correctly, so the very next one naturally
+  // picks up a live toggle; forcibly interrupting a running clip mid-way
+  // (multiple stroke/word paint variants, each with their own resume state)
+  // isn't worth the risk here for a fairly rare event (toggling OS-level
+  // reduced-motion mid-session).
+  const motionQuery = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  let reduce = motionQuery ? motionQuery.matches : false;
+  motionQuery?.addEventListener?.("change", (e) => { reduce = e.matches; });
   const ctx = canvasEl.getContext("2d");
   let target = null; // 21 [x,y] from the centroid
   let stroke = null; // for J/Z: { path:[[x,y]...], pose:[21 x,y], tip:idx, poseAt0 }

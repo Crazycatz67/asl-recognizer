@@ -122,7 +122,7 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
      reparametrize time (not the rotation) to slow down near-zero-projected-
      length moments.
 8. **Yellow correction lines shown even when the shape is marked correct.**
-   `FIXED (verified offline)` — commit `2f75e95` (local, not yet pushed).
+   `FIXED (verified offline)` — commit `2f75e95`, pushed and live.
    Root cause: overlay colored joints green only within the tight tolerance,
    while the scorer's "correct" bucket forgives up to 1.8x that. Added
    `reference.matchTolerance()` as the shared threshold; 2 new regression

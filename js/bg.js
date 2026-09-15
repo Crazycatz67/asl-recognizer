@@ -13,8 +13,12 @@
 //     regions : { top, left, right } each 0..1 error (higher = more wrong) — optional
 
 export function createBackground() {
-  const reduce =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Read once AND stay live — see fx.js's identical comment: a mid-session
+  // OS-level toggle should take effect on the very next frame, not wait for
+  // a reload.
+  const motionQuery = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  let reduce = motionQuery ? motionQuery.matches : false;
+  motionQuery?.addEventListener?.("change", (e) => { reduce = e.matches; });
 
   const cv = document.createElement("canvas");
   cv.setAttribute("aria-hidden", "true");

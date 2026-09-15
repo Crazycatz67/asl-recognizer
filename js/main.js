@@ -157,6 +157,9 @@ const spGrid = $("spGrid");
 const spMetrics = $("spMetrics");
 const spHint = $("spHint");
 const spFluid = $("spFluid");
+const gHoldText = $("gHoldText");
+const spStep1 = $("spStep1");
+const spStep2 = $("spStep2");
 const spDecodedRow = $("spDecodedRow");
 const spDecodedText = $("spDecodedText");
 const spSpeak = $("spSpeak");
@@ -279,7 +282,14 @@ const loadJSON = (k, d) => {
   }
 };
 const saveJSON = (k, v) => savePref(k, JSON.stringify(v));
+// Haptic buzz is a form of motion too — gate it on the same OS-level
+// preference fx.js/bg.js/reference.js respect, live-subscribed so a
+// mid-session toggle takes effect immediately.
+const reduceMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+let reduceMotion = reduceMotionQuery?.matches ?? false;
+reduceMotionQuery?.addEventListener?.("change", (e) => { reduceMotion = e.matches; });
 const buzz = (p) => {
+  if (reduceMotion) return;
   try {
     navigator.vibrate?.(p);
   } catch {}
@@ -2239,6 +2249,27 @@ function applyFluid() {
   spHint.textContent = fluidMode
     ? "Sign at a natural pace — each settled shape is a letter, a pause finishes a word. Tap 🔊 to hear it."
     : "Spell a word (shown dashed) — pause a second and it's saved. Swipe to scrap it.";
+  // The "Hand gestures" / "How to spell" copy below was written for the
+  // still-mode mechanic ("hold it still until the ring fills") and stayed
+  // that way even in fluid mode, where a letter locks in when the hand
+  // SETTLES after moving — no ring, no held-still countdown. Swap the copy
+  // that actually describes the mechanic; everything else in those lists
+  // (word-finish, scrap, copy/paste, J/Z) applies the same in both modes.
+  if (gHoldText) {
+    gHoldText.innerHTML = fluidMode
+      ? "<b>Add a letter</b> — form the handshape at a natural signing pace; it locks in once your hand <b>settles</b> after moving."
+      : "<b>Add a letter</b> — form the handshape and <b>hold it still</b> until the ring fills (about half a second).";
+  }
+  if (spStep1) {
+    spStep1.innerHTML = fluidMode
+      ? "<b>Spell a word</b> — sign continuously at a natural pace. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet."
+      : "<b>Spell a word</b> — form each letter and hold it briefly. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet.";
+  }
+  if (spStep2) {
+    spStep2.innerHTML = fluidMode
+      ? "<b>Next letter</b> — keep moving into the next handshape; a brief settle after each one is what locks it in, not a held pose."
+      : "<b>Next letter</b> — just change handshape; no pause needed. Hold each one still for a beat so it's read cleanly.";
+  }
 }
 spFluid.checked = fluidMode;
 applyFluid();

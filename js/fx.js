@@ -3,8 +3,12 @@
 // something is animating. Respects prefers-reduced-motion.
 
 export function createFx() {
-  const reduce =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Read once AND stay live — a user who turns on reduced-motion mid-session
+  // (e.g. feeling motion-sick) needs the next burst()/flash() to respect it
+  // immediately, not just on the next page load.
+  const motionQuery = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  let reduce = motionQuery ? motionQuery.matches : false;
+  motionQuery?.addEventListener?.("change", (e) => { reduce = e.matches; });
 
   const cv = document.createElement("canvas");
   cv.setAttribute("aria-hidden", "true");
