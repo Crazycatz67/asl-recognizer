@@ -1690,7 +1690,24 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .run-card-title { margin: 0 0 0.5rem; font: 800 1.3rem system-ui, sans-serif; }
 .run-card-body { margin: 0 0 1.1rem; color: #cbd5e1; font-size: 0.9rem; line-height: 1.6; }
-.intro-inner { text-align: left; }
+.intro-inner {
+  text-align: left;
+  /* was unbounded — on a short/landscape phone the "Got it" button could be
+     pushed off-screen with no way to reach it (same family of bug as S1's
+     .reference/.reader panels). */
+  max-height: min(90svh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.intro-inner .cta {
+  /* pinned within the scrollable area so it's always reachable, however
+     long the "how it works" list gets */
+  position: sticky;
+  bottom: -1px; /* covers the 1px seam a plain 0 can leave against the border */
+  background: linear-gradient(180deg, #1e293b, #16202f);
+  padding-top: 0.4rem;
+  margin-top: -0.4rem;
+}
 .intro-privacy {
   margin: 0 0 1rem;
   padding: 0.65rem 0.8rem;

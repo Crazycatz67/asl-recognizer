@@ -73,6 +73,11 @@ const canvas = $("overlay");
 // place it's used below (start()) runs once per camera session, not per
 // frame, so it costs nothing in the real camera path either way.
 const DEV = new URLSearchParams(location.search).has("dev");
+// "?debug" in the URL exposes raw tuning telemetry (Spell's live gesture
+// metrics, J/Z's move/drop/turns numbers) that otherwise reads to a learner
+// as "here's exactly how you failed" rather than useful feedback — see the
+// plan's S5 stage. Off by default; checked once, same cost model as DEV.
+const DEBUG = new URLSearchParams(location.search).has("debug");
 const pillText = $("pillText");
 const statsEl = $("stats");
 const curtainSub = $("curtainSub");
@@ -315,10 +320,20 @@ if (loadPref("seen-intro") !== "1") {
     }
   }, 1000);
 }
-introClose.addEventListener("click", () => {
-  if (introClose.disabled) return;
+function dismissIntro() {
   intro.hidden = true;
   savePref("seen-intro", "1");
+}
+introClose.addEventListener("click", () => {
+  if (introClose.disabled) return;
+  dismissIntro();
+});
+// A forced multi-second read-pause is reasonable for a mouse click through a
+// popup, but a keyboard user hitting Escape is making a deliberate, explicit
+// "close this" gesture — the same disabled-button wait would just be an a11y
+// trap with no benefit. Escape always closes immediately, timer or not.
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && intro && !intro.hidden) dismissIntro();
 });
 
 const HARD_LETTERS = new Set(["M", "N", "D"]); // recogniser is weaker on these
@@ -1902,7 +1917,7 @@ function loop() {
     // live gesture readout — so a gesture that won't register can be tuned.
     // swipe wants sideways ≥ 1.1 (and > up/down); copy/paste want the two-hand
     // gap to swing past ~2.2 <-> ~1.6
-    if (spMetrics && now - lastHintAt >= HINT_INTERVAL) {
+    if (spMetrics && DEBUG && now - lastHintAt >= HINT_INTERVAL) {
       lastHintAt = now;
       const twoHands = (result.landmarks?.length ?? 0) >= 2;
       if (twoHands) {
@@ -1976,9 +1991,10 @@ function loop() {
           ? "Little finger up in a fist — then hook it down and back toward you"
           : "Index finger out — draw a big Z in the air: across, down-slash, across"
         : "Show your hand, then trace the letter in the air";
-      // while a hand is mid-stroke show the live metric readout; otherwise fall
-      // back to this letter's practice stats ("done 3× · best 2.1s")
-      if (hasHand && mt) {
+      // while a hand is mid-stroke show the live metric readout (debug only —
+      // a learner reads raw thresholds as a judgment they failed); otherwise
+      // fall back to this letter's practice stats ("done 3× · best 2.1s")
+      if (DEBUG && hasHand && mt) {
         letterStat.textContent =
           targetLetter === "J"
             ? `move ${mt.pinkyMove}/1.2 · drop ${mt.pinkyDrop}/0.7`
