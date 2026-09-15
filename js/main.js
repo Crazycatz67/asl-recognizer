@@ -1802,11 +1802,15 @@ function loop() {
       transition.push(hand, lastPred, now);
       const e = transition.read();
       if (e && now >= spellSuppressUntil) {
-        speller.addLetter(e.letter, e.conf);
-        fluidLastLetterAt = now; // for auto-speak-on-pause
-        fluidSpoke = false;
-        sound.lock?.();
-        buzz(8);
+        const added = speller.addLetter(e.letter, e.conf);
+        if (added === "full") {
+          showToast("Line full — Clear or Copy");
+        } else {
+          fluidLastLetterAt = now; // for auto-speak-on-pause
+          fluidSpoke = false;
+          sound.lock?.();
+          buzz(8);
+        }
       }
     }
 
@@ -1855,6 +1859,8 @@ function loop() {
       sound.success?.();
       buzz([0, 18, 30, 18]);
       fx.flash("rgba(56, 189, 248, 0.4)");
+    } else if (res.event === "full") {
+      showToast("Line full — Clear or Copy");
     }
 
     syncSpellText();

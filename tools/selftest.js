@@ -800,6 +800,14 @@ function mkHand() {
         sp.raw.map((r) => r.letter).join("") === "HI" &&
         sp.raw[0].conf === 0.8;
     })());
+    ok("speller: at the char cap, add returns 'full' instead of silently dropping the letter", (() => {
+      const sp = spMod.createSpeller({ maxLen: 2 });
+      const first = sp.addLetter("H"); // fills the 2-char cap
+      const second = sp.addLetter("I");
+      const third = sp.addLetter("X"); // no room left
+      return first === "letter" && second === "letter" && third === "full" &&
+        sp.pending === "HI"; // the blocked letter never got appended
+    })());
     ok("speller: raw[] tracks backspace / clearPending / clear", (() => {
       const sp = spMod.createSpeller();
       "CAT".split("").forEach((L) => sp.addLetter(L, 0.9));

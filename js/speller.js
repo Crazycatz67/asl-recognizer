@@ -14,7 +14,8 @@
 //     stroke      - "J" | "Z" | null, a motion letter completed this frame
 //     moved       - has the hand shifted notably since the last letter
 //     now         - performance.now()
-//     event       - "letter" | "word" | null   (fires once, for sound/haptics)
+//     event       - "letter" | "word" | "full" | null (fires once, for sound/haptics —
+//                   "full" means the 240-char cap blocked a letter, no mutation happened)
 //   sp.text · sp.pending · sp.display · sp.space() · sp.backspace()
 //   sp.clearPending() · sp.clear() · sp.insert(str)
 
@@ -36,7 +37,12 @@ export function createSpeller({
   const room = () => maxLen - text.length - pending.length;
 
   function add(letter, conf = 0.85) {
-    if (!isLetter(letter) || room() <= 0) return null;
+    if (!isLetter(letter)) return null;
+    // at the cap, silently dropping the letter (the old behavior) gives the
+    // signer zero feedback — they keep spelling into a line that's already
+    // stopped growing. Distinct from "not a letter" so the caller can tell
+    // the difference and say something (see main.js's "Line full" toast).
+    if (room() <= 0) return "full";
     pending += letter;
     raw.push({ letter, conf });
     last = letter;
