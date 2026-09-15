@@ -952,7 +952,14 @@ export function createCanonicalPlayer(canvasEl) {
       target = [];
       targetZ = [];
       for (let i = 0; i < 21; i++) {
-        target.push([vec[i * 3], vec[i * 3 + 1]]);
+        // target carries z now too — posekin.js's makeInterpolator uses it to
+        // interpolate each bone's true 3D direction instead of its 2D
+        // projection, so a finger that curls substantially in depth (every
+        // fist-shaped letter, confirmed empirically) sweeps that depth
+        // rotation instead of an exaggerated in-plane swing (checklist item
+        // 7 — the W/R/X/K/V "anatomically impossible" animation). NEUTRAL_HAND
+        // has no z of its own; posekin treats a 2-element point as z=0.
+        target.push([vec[i * 3], vec[i * 3 + 1], vec[i * 3 + 2]]);
         targetZ.push(vec[i * 3 + 2] ?? 0);
       }
       poseInterp = makeInterpolator(NEUTRAL_HAND, target);

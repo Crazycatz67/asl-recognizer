@@ -85,11 +85,42 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
      Z kept its translation, gained a wrist cock/arrowhead/waypoints.
      Verified live in Practice for both letters (trail overlays the guide
      exactly, hold→crossfade→restart still has no reverse retrace).
-   - **W/R/X/K/V: still `OPEN`.** Unrelated root cause — these are static
-     letters going through `posekin.js`'s shortest-arc interpolation, which
-     may lack anatomical joint-angle clamping — plausible but not yet
-     confirmed with concrete angle-delta evidence. Not touched by the S2d
-     work above.
+   - **W/R/X/K/V: `FIXED (verified offline)`.** Root cause confirmed with
+     concrete evidence, not just plausible: `posekin.js` interpolated each
+     bone's 2D-PROJECTED angle only. A real letter centroid's z (already read
+     for S2c's depth cues) shows several joints curl substantially in depth —
+     e.g. the index PIP-DIP bone's z-only contribution is ~7-16% of its
+     length for S/A/E/N, growing knuckle to tip — so 2D-only interpolation
+     forced that depth rotation to be represented as an exaggerated in-plane
+     swing (confirmed: several fist-shaped letters' worst bone swung
+     120-180° in 2D between neutral and target). Rewrote `posekin.js` to
+     interpolate each bone's true 3D direction (SLERP, which has no sign
+     ambiguity — the old 2D signed-angle "shortest arc" did, near ±180°) and
+     project back to 2D for rendering; `js/reference.js`'s `setTarget()` now
+     threads z into the `target` pose it hands `makeInterpolator` (was
+     dropped before, kept separately as `targetZ` for depth-cue rendering
+     only). Backward compatible by construction: a 2-element `[x,y]` point
+     still works (z defaults to 0), and when both poses are all-z=0 the SLERP
+     reduces to exactly the old shortest-arc math — `tools/ci-check.mjs`'s
+     existing posekin invariants (length-pinning, endpoint-exactness,
+     overshoot, `angleDistance` symmetry) all still pass unmodified except
+     one tolerance (`angleDistance(x,x)` can no longer be bit-exact 0 with a
+     normalize+acos chain instead of `wrap(same-same)`; loosened to `<1e-6`,
+     documented why). Visually verified: rendered R/X/K/V (the actual
+     reported letters) at t=0/.2/.4/.6/.8/1 — all now show a smooth, natural
+     curl into the target shape, no crossing/tangling/backward bend.
+     `tools/selftest.html` 173/173.
+     **New, separate, milder issue found while verifying — not the reported
+     bug, noting for later:** letter **N** shows a brief "shrinks to a
+     sliver then reappears" glitch around t=0.4-0.6 on its middle-finger MCP
+     bone — a real 3D SLERP passing near edge-on to the camera, where a
+     smooth 3D rotation's 2D projection can move very fast (this is the
+     classic gimbal-like foreshortening artifact, not an invalid pose — every
+     intermediate frame IS a valid projection of a real rigid rotation, just
+     briefly a fast/small-looking one). Not in the original report; `OPEN`
+     as its own item if it turns out to bother testers. A future fix would
+     reparametrize time (not the rotation) to slow down near-zero-projected-
+     length moments.
 8. **Yellow correction lines shown even when the shape is marked correct.**
    `FIXED (verified offline)` — commit `2f75e95` (local, not yet pushed).
    Root cause: overlay colored joints green only within the tight tolerance,
@@ -124,8 +155,20 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
 ## Read Mode
 
 15. **Guide accuracy blocked by incorrect skeletal animations.** Same root
-    cause as item 7 — not a separate bug, tracked together. The J/Z portion
-    is fixed alongside item 7; the W/R/X/K/V portion is still open.
+    cause as item 7 — not a separate bug, tracked together. `FIXED
+    (verified offline)` alongside item 7 — both the J/Z and W/R/X/K/V
+    portions are now fixed.
+
+## Demo-hand animation — new findings (not from the original report)
+
+16. **Letter N's demo-hand briefly shrinks to a sliver then reappears
+    (~t=0.4-0.6 of the animation).** `OPEN`, found while verifying item 7's
+    fix. The middle-finger MCP bone's 3D rotation passes near edge-on to the
+    camera partway through — a real rotation, not an invalid pose, but its 2D
+    projection moves very fast right at that moment (classic foreshortening/
+    gimbal-adjacent artifact). Only seen on N so far; not confirmed on other
+    letters. Fix would reparametrize animation TIME (not the rotation itself)
+    to spend less of the clip near a bone's zero-projected-length moment.
 
 ---
 

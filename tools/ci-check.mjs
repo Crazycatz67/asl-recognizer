@@ -283,7 +283,14 @@ await check("posekin.js: wrap() range, bone lengths pinned to target, endpoints 
   // usual range check above (already covers that poseAt(1) is exact; here we
   // additionally confirm overshoot t doesn't throw or go non-finite, since
   // S2e's word-mode arrival dynamics rely on that).
-  if (angleDistance(neutral, neutral) !== 0) throw new Error("angleDistance(x,x) should be 0");
+  // ~0, not exactly 0: posekin.js compares bone DIRECTIONS via normalize+dot+
+  // acos now (3D, no sign-ambiguous wrap needed), and that chain can't
+  // guarantee bit-exact 0 for identical inputs the way `wrap(same - same)`
+  // used to — acos's derivative near 1 amplifies a ~1e-16 float rounding
+  // error up to ~1e-9, which is still functionally zero. 1e-6 is generous
+  // relative to that and to the endpoint-exactness tolerance just above.
+  const dSelf = angleDistance(neutral, neutral);
+  if (!(dSelf < 1e-6)) throw new Error(`angleDistance(x,x) should be ~0, got ${dSelf}`);
   const dAB = angleDistance(neutral, target);
   const dBA = angleDistance(target, neutral);
   if (Math.abs(dAB - dBA) > 1e-9) throw new Error(`angleDistance not symmetric: ${dAB} vs ${dBA}`);
