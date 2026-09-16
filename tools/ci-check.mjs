@@ -499,7 +499,60 @@ await check("reference.js: buildWordSpans/sampleWordSpans timing contract + doub
   return "3-letter run totals exactly 3*holdMs, spans gapless, freezes past totalMs, lands exactly on the last letter; a doubled letter bounces and returns to its own pose; wordTransDur stays in [90,340]ms";
 });
 
-// ---- 13. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
+// ---- 13. js/onefilter.js — one-euro adaptive landmark smoothing (S8) ------
+await check("onefilter.js: first-sample passthrough, converges on a held signal, dt<=0/reset are safe, no NaN", async () => {
+  const { createLandmarkFilter } = await import(pathToFileURL(path.join(ROOT, "js", "onefilter.js")));
+  const f = createLandmarkFilter({ mincutoff: 1.2, beta: 3.0, dcutoff: 1.0 });
+
+  const pt = (x, y, z) => [{ x, y, z }];
+
+  // first real sample: no history yet, must pass through exactly (this is
+  // also what the live app relies on for "hand re-acquired -> snap, don't
+  // lerp in from wherever the filter last was")
+  const p0 = f.filter(pt(0.3, 0.4, 0.1), 0);
+  if (p0[0].x !== 0.3 || p0[0].y !== 0.4 || p0[0].z !== 0.1) {
+    throw new Error(`first sample should pass through unchanged, got ${JSON.stringify(p0[0])}`);
+  }
+
+  // a signal held perfectly constant should converge to that constant (not
+  // just "stay close" forever) — feed it enough steps at a normal frame
+  // interval to settle within a tight tolerance
+  let last = p0;
+  for (let i = 1; i <= 60; i++) last = f.filter(pt(0.3, 0.4, 0.1), i / 30);
+  const err = Math.hypot(last[0].x - 0.3, last[0].y - 0.4, last[0].z - 0.1);
+  if (err > 1e-3) throw new Error(`held-constant signal didn't converge: err=${err}`);
+
+  // a duplicate/non-increasing timestamp must not throw, divide by zero, or
+  // produce NaN — the live loop guards against this already, but the filter
+  // itself shouldn't assume a caller always will
+  const dup = f.filter(pt(0.31, 0.4, 0.1), 2); // same t as the last iteration above (60/30 = 2)
+  for (const [k, v] of Object.entries(dup[0])) {
+    if (!Number.isFinite(v)) throw new Error(`non-finite ${k} after a non-increasing timestamp`);
+  }
+
+  // null (hand lost) resets history — the next real sample must pass
+  // through unchanged again, exactly like the very first one ever
+  f.filter(null, 3);
+  const afterReset = f.filter(pt(0.7, 0.8, 0.2), 4);
+  if (afterReset[0].x !== 0.7 || afterReset[0].y !== 0.8 || afterReset[0].z !== 0.2) {
+    throw new Error(`sample right after a reset should pass through unchanged, got ${JSON.stringify(afterReset[0])}`);
+  }
+
+  // a fast-changing signal should track noticeably closer than a signal
+  // fed through a much heavier fixed cutoff would — a cheap proxy for "the
+  // adaptive part is actually doing something": lag after one step of a
+  // big jump should be well under half the jump size at a normal frame dt.
+  const g = createLandmarkFilter({ mincutoff: 1.2, beta: 3.0, dcutoff: 1.0 });
+  g.filter(pt(0, 0, 0), 0);
+  const jumped = g.filter(pt(1, 0, 0), 1 / 30);
+  if (jumped[0].x < 0.5) {
+    throw new Error(`adaptive cutoff barely responded to a fast jump: x=${jumped[0].x} after 1 step`);
+  }
+
+  return "first-sample passthrough exact, held signal converges (<1e-3), non-increasing dt and reset both safe, fast motion tracked with low lag";
+});
+
+// ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
 // monotonic in a synthetic rotation sweep — see the plan's S7 section).

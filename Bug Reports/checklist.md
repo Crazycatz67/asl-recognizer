@@ -17,12 +17,44 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    PWA cache (service worker) — try fully closing/reopening the app first
    before treating this as still-broken.
 2. **Frame rate ~22fps on Mac, hand tracking delayed with visible ghosting.**
-   `OPEN`. Leading suspect: the 640→1280 camera capture resolution bump
-   (`js/camera.js:19-20`, shipped 2026-09-11 as "B16", explicitly flagged at
-   the time as not verified live). No other new per-frame cost found in the
-   detection loop. **Decision needed from the owner:** revert to 640, or make
-   resolution adaptive (try 1280, measure, fall back). Cannot be verified in
-   this environment — no real webcam.
+   Two genuinely separate problems bundled in one report — split:
+   - **Raw fps (~22, below the 30fps cap):** `OPEN`. Leading suspect is still
+     the 640→1280 camera capture resolution bump (`js/camera.js:19-20`,
+     shipped 2026-09-11 as "B16", never verified live). **Decision needed
+     from the owner:** revert to 640, make resolution adaptive, or decouple
+     capture resolution from detection resolution (downscale a copy before
+     feeding MediaPipe). **Diagnostic first, costs nothing:** `main.js` has
+     always shown a small `resolution · fps · delegate` readout bottom-right
+     of the camera (`#stats`, e.g. "1280×720 · 22 fps · GPU") — check whether
+     it says `GPU` or `CPU` on the affected Mac before touching resolution at
+     all. If it silently fell back to CPU (a known gap on some Mac
+     GPU/browser combos — `handTracker.js` already has that fallback path),
+     that alone would explain the whole number and no amount of resolution
+     tuning fixes it.
+   - **The "ghosting"/lag feel: `FIXED (needs live confirm)`** — replaced the
+     fixed-alpha (0.5) EMA landmark smoother with a one-euro adaptive filter
+     (new `js/onefilter.js`, wired into `main.js`'s `smoothLandmarks`).
+     Fixed-alpha has to compromise a single smoothing strength for every
+     speed; one-euro widens its own cutoff (smooths less, responds faster)
+     in proportion to estimated velocity, so it's heavier than the old
+     filter while genuinely still (kills jitter better) and much lighter
+     during real motion (kills the visible trailing/"ghosting"). Verified
+     offline: a synthetic still-then-fast-swoosh sequence run through both
+     filters shows the new one converges on a held-constant signal to
+     within 1e-3 (jitter suppression intact) while trailing a fast 0.3->0.6
+     swoosh by 22% less than the old EMA (0.045 vs 0.058 after the same 5
+     frames). `ONE_EURO_MIN_CUTOFF`/`ONE_EURO_BETA`/`ONE_EURO_DCUTOFF`
+     (`config.js`) are an informed starting guess from that math, explicitly
+     NOT measured against a real hand — this is the "needs live confirm"
+     part: does it actually feel less laggy on a real device, and does
+     `motion.js`'s J/Z false-positive rate hold (one-euro is loosest exactly
+     during fast motion, which is the J/Z regime). The raw/smoothed split
+     (`swipe`/`twohand` still get RAW landmarks, untouched) is preserved
+     exactly. `node tools/ci-check.mjs` (new pure-module invariants: first-
+     sample passthrough, held-signal convergence, non-increasing-timestamp
+     and reset safety, fast-motion responsiveness) and `tools/selftest.html`
+     (174/174) both pass — this is a live-loop-only change, same
+     verification boundary as everything else in `main.js`'s per-frame code.
 3. **Skeletal overlay snaps off/on when fingers overlap the palm.**
    `FIXED (needs live confirm)`. `main.js`'s `hasHand` gate was clearing the
    overlay the instant a single frame's detection missed, while

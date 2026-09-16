@@ -37,6 +37,9 @@ import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
   OVERLAY_GRACE_FRAMES,
+  ONE_EURO_MIN_CUTOFF,
+  ONE_EURO_BETA,
+  ONE_EURO_DCUTOFF,
   DATASET_URL,
   LETTERS,
   ALL_LETTERS,
@@ -48,6 +51,7 @@ import {
   STABLE_FRAMES,
   REFERENCE_IMG,
 } from "./config.js";
+import { createLandmarkFilter } from "./onefilter.js";
 
 const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
 const motion = createMotionMatcher();
@@ -1494,7 +1498,7 @@ function setState(next, detail) {
     viewport.dataset.match = "none";
     holdStart = 0;
     rewarded = false;
-    smoothPts = null;
+    landmarkFilter.reset();
     guideAmt = 0;
     motionChargeAmt = 0;
     viewport.style.setProperty("--hold", "0");
@@ -1628,26 +1632,19 @@ function applyFacing() {
 
 // ---- per-frame loop --------------------------------------------
 
-// exponential moving average over the 21 landmarks — smooths tracker jitter so
-// the skeleton looks fluid and the match meter doesn't twitch. alpha ~0.5 is a
-// good jitter/latency trade. Pass null to reset (hand lost).
-let smoothPts = null;
-function smoothLandmarks(raw) {
-  if (!raw) {
-    smoothPts = null;
-    return null;
-  }
-  if (!smoothPts || smoothPts.length !== raw.length) {
-    smoothPts = raw.map((p) => ({ x: p.x, y: p.y, z: p.z }));
-    return smoothPts;
-  }
-  const a = 0.5;
-  for (let i = 0; i < raw.length; i++) {
-    smoothPts[i].x += (raw[i].x - smoothPts[i].x) * a;
-    smoothPts[i].y += (raw[i].y - smoothPts[i].y) * a;
-    smoothPts[i].z += (raw[i].z - smoothPts[i].z) * a;
-  }
-  return smoothPts;
+// Adaptive (one-euro) smoothing over the 21 landmarks — see js/onefilter.js.
+// Replaces a fixed-alpha EMA: heavy smoothing while the hand is nearly
+// still (kills tracker jitter), much lighter while it's actually moving
+// (kills the visible lag/"ghosting" a constant-alpha filter has at speed).
+const landmarkFilter = createLandmarkFilter({
+  mincutoff: ONE_EURO_MIN_CUTOFF,
+  beta: ONE_EURO_BETA,
+  dcutoff: ONE_EURO_DCUTOFF,
+});
+// t in SECONDS (one-euro's cutoffs are frequencies in Hz); `now` elsewhere in
+// this file is performance.now() in ms. Pass raw=null to reset (hand lost).
+function smoothLandmarks(raw, nowMs) {
+  return landmarkFilter.filter(raw, nowMs / 1000);
 }
 
 function loop() {
@@ -1702,7 +1699,7 @@ function loop() {
   // smooth the raw landmarks (EMA) — kills the frame-to-frame jitter that makes
   // the skeleton look stringy, and steadies the meter. Reset on a lost hand so
   // it doesn't lerp across a re-acquire.
-  const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null);
+  const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null, now);
 
   // J/Z motion buffer — fed the SMOOTHED landmarks so idle jitter doesn't
   // accumulate into a fake "stroke"

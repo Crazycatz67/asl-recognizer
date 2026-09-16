@@ -37,6 +37,24 @@ export const LOST_HAND_FRAMES = 6;
 // LOST_HAND_FRAMES, which still governs the "searching" state label).
 export const OVERLAY_GRACE_FRAMES = 3;
 
+// One-euro filter (js/onefilter.js), replacing a fixed-alpha EMA for the
+// live landmark smoothing (S8 — see the plan's "ghosting"/lag item). Both
+// mincutoff and dcutoff are frequencies in Hz; beta scales estimated
+// velocity (signal units/second, in this normalized 0..1 landmark space)
+// into extra cutoff. THESE THREE ARE AN INFORMED STARTING GUESS, NOT
+// MEASURED — derivation: the old EMA (alpha=0.5 at ~30fps) behaves like a
+// ~4.8 Hz low-pass; ONE_EURO_MIN_CUTOFF is deliberately lower (heavier
+// smoothing than the old filter EVER had, while genuinely still) and
+// ONE_EURO_BETA is sized so a fast deliberate motion (a J/Z swoosh, roughly
+// 2-5 units/sec in this coordinate space) pushes the effective cutoff well
+// ABOVE the old filter's constant 4.8 Hz (much less lag while moving).
+// Needs live-device tuning — cannot be judged from any offline replay
+// (`tools/sweep-transition.mjs` runs on raw, unsmoothed landmarks and
+// wouldn't see a change here at all).
+export const ONE_EURO_MIN_CUTOFF = 1.2;
+export const ONE_EURO_BETA = 3.0;
+export const ONE_EURO_DCUTOFF = 1.0;
+
 // ---- classification (Stages 3-4) --------------------------------------
 
 // Where the live app loads training vectors from. Produced by
