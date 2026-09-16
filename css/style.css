@@ -250,6 +250,18 @@ body {
 .learn.compact .learn-current { display: inline-block; }
 .learn.compact .step-btn { display: inline-block; }
 .learn.compact[data-run="on"] .step-btn { display: none; }
+/* only shown mid-run (A→Z or Review) — free-pick has nothing to skip past */
+.az-skip {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font: 700 0.78rem system-ui, sans-serif;
+  cursor: pointer;
+}
+.az-skip:active { transform: scale(0.94); }
 .az-progress {
   flex: none;
   font: 800 0.85rem system-ui, sans-serif;

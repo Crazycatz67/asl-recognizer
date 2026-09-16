@@ -89,6 +89,7 @@ const learnRow = $("learnRow");
 const subMode = $("subMode");
 const learnCurrent = $("learnCurrent");
 const azProgress = $("azProgress");
+const azSkip = $("azSkip");
 const prevLetterBtn = $("prevLetter");
 const nextLetterBtn = $("nextLetter");
 const letterPicker = $("letterPicker");
@@ -478,18 +479,23 @@ let runKind = null; // "az" | "review" | null (mirrors which queue azRun is walk
 let runQueue = ALL_LETTERS; // the queue azRun walks — ALL_LETTERS for A->Z, a picked subset for Review
 let azAdvancing = false; // guards the "next: X" bridge
 const azDone = new Set();
+const azSkipped = new Set(); // letters skipped (not completed) in the current run
 let azTimes = []; // {letter, ms} per completion in the current run
 const REVIEW_SIZE = 10; // a review session is a defined length, not open-ended grinding
 
 // Spaced-repetition-ish priority: never-practiced letters first, HARD_LETTERS
-// weighted up (the recogniser is weaker on them, so they need more reps), then
+// weighted up (the recogniser is weaker on them, so they need more reps),
+// recently-SKIPPED letters weighted up too (a skip is a stronger "this one's
+// giving you trouble" signal than just not having practiced it — turns
+// frustration into curriculum data instead of just a dead end), then
 // whichever you haven't touched in the longest. Lower score = reviewed sooner.
 function reviewPriority(L) {
   const s = statsMap[L];
   const done = s?.done || 0;
   const hardBonus = HARD_LETTERS.has(L) ? 2 : 0;
+  const skipBonus = Math.min(s?.skipped || 0, 3) * 1.5; // capped — don't let one letter dominate forever
   const daysSince = s?.last ? (Date.now() - s.last) / 86400000 : 999; // never seen -> very stale
-  return done - hardBonus - Math.min(daysSince, 10) * 0.3;
+  return done - hardBonus - skipBonus - Math.min(daysSince, 10) * 0.3;
 }
 function buildReviewQueue(n) {
   return [...ALL_LETTERS].sort((a, b) => reviewPriority(a) - reviewPriority(b)).slice(0, n);
@@ -755,6 +761,7 @@ function setAzRun(on, kind = "az") {
   azNext.hidden = true;
   learnRow.dataset.run = on ? "on" : "off";
   azProgress.hidden = !on;
+  azSkip.hidden = !on; // free-pick has nothing to skip past
   blindToggleWrap.hidden = !on; // free-pick is meant to teach — no blind option there
   if (!on) blindToggle.checked = false; // don't leave free-pick accidentally blind
   for (const b of subMode.children)
@@ -762,6 +769,7 @@ function setAzRun(on, kind = "az") {
   for (const b of letterPicker.children) b.classList.remove("done");
   if (on) {
     azDone.clear();
+    azSkipped.clear();
     azTimes = [];
     updateAzProgress();
     setTarget(runQueue[0]);
@@ -798,6 +806,40 @@ function advanceAz() {
   }
 }
 
+// Skip the current letter without completing it — was impossible before:
+// the only way out of a hard stop (M/N/D commonly) was abandoning the whole
+// run. Marks it visited (so the run still ends) but with no time entry (so
+// it doesn't pollute "Fastest"/"Took a while"), and bumps a persisted
+// `skipped` counter that reviewPriority() reads — a skip is real curriculum
+// data, not just a letter you happened not to practice.
+function skipLetter() {
+  if (!azRun || !reference || azAdvancing || !targetLetter) return;
+  azAdvancing = true;
+  const skipped = targetLetter;
+  azDone.add(skipped);
+  azSkipped.add(skipped);
+  const s = (statsMap[skipped] ||= { done: 0, bestMs: Infinity });
+  s.skipped = (s.skipped || 0) + 1;
+  saveJSON("stats", statsMap);
+  for (const b of letterPicker.children) {
+    if (b.textContent === skipped) b.classList.add("done");
+  }
+  updateAzProgress();
+  const next = runQueue.find((L) => !azDone.has(L));
+  if (next) {
+    azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
+    azNext.hidden = false;
+    setTimeout(() => {
+      azNext.hidden = true;
+      azAdvancing = false;
+      setTarget(next);
+    }, 700); // shorter than advanceAz's reward bridge — nothing to celebrate
+  } else {
+    showRunCard();
+  }
+}
+azSkip.addEventListener("click", skipLetter);
+
 function showRunCard() {
   const times = [...azTimes].sort((a, b) => a.ms - b.ms);
   const fmt = (t) => `${t.letter} ${(t.ms / 1000).toFixed(1)}s`;
@@ -808,7 +850,8 @@ function showRunCard() {
   runCardBody.innerHTML =
     (isReview ? `You reviewed ${azDone.size} letters.<br>` : `You signed all ${azDone.size} letters.<br>`) +
     `<br><b>Fastest:</b> ${fast}` +
-    (tricky.length ? `<br><b>Took a while:</b> ${tricky.join(" ")}` : "");
+    (tricky.length ? `<br><b>Took a while:</b> ${tricky.join(" ")}` : "") +
+    (azSkipped.size ? `<br><b>Skipped:</b> ${[...azSkipped].join(" ")}` : "");
   runCard.hidden = false;
   fx.flash("#22c55e");
   sound.success();
