@@ -10,3 +10,15 @@ tools/agent/.ids.json
 tools/agent/outputs/
 __pycache__/
 *.pyc
+
+# local Claude Code tooling — never app code, and the Stop hook's WIP
+# checkpoint keeps re-adding these as untracked files without this:
+.claude/settings.local.json
+# generic (non-ASL-project) skills installed via `npx skills add` land here
+# when this repo happens to be the cwd — .claude/skills/asl-verify,
+# asl-resume, and asl-bugwatch are the real, deliberately-tracked project
+# skills and are NOT covered by these two specific entries.
+.claude/skills/frontend-design/
+.claude/skills/skill-creator/
+.agents/
+skills-lock.json
