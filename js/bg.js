@@ -68,6 +68,13 @@ export function createBackground() {
   let last = performance.now();
 
   function frame(now) {
+    // slow ambient drift doesn't need the display's full 60-120 Hz — every
+    // repaint is 5 radial gradients composited full-screen, so cap it at ~30
+    // (dt below still eases by real elapsed time, so motion speed is unchanged)
+    if (now - last < 30) {
+      raf = requestAnimationFrame(frame);
+      return;
+    }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const t = now / 1000;

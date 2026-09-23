@@ -929,17 +929,26 @@ export function createCanonicalPlayer(canvasEl) {
     drawHandShape(ctx, pose.map(fit), { depth: z ? { z } : null });
   }
 
+  // skip repainting an identical frame: a static letter spends most of its
+  // cycle on a still HOLD (frac 1) or rest (frac 0), and a word freezes on
+  // its last letter after totalMs — the pixels don't change, so don't redraw
+  // them 60-120 times a second. Reset to null whenever what's shown changes.
+  let lastPaintKey = null;
   function loop(ts) {
     if (!t0) t0 = ts;
     const elapsed = ts - t0;
     if (word) {
-      paintWordAt(elapsed);
+      const key = elapsed >= word.totalMs ? "end" : elapsed;
+      if (key !== lastPaintKey) paintWordAt(elapsed);
+      lastPaintKey = key;
     } else if (stroke) {
       const ph = strokePhase(elapsed);
       if (ph.mode === "fade") paintStrokeCrossfade(ph.outAlpha, ph.inAlpha);
       else paintStroke(ph.prog);
     } else {
-      paint(phaseFrac(elapsed));
+      const f = phaseFrac(elapsed);
+      if (f !== lastPaintKey) paint(f);
+      lastPaintKey = f;
     }
     raf = requestAnimationFrame(loop);
   }
@@ -975,6 +984,7 @@ export function createCanonicalPlayer(canvasEl) {
       poseInterp = makeInterpolator(NEUTRAL_HAND, target);
       rebuildFit();
       t0 = 0;
+      lastPaintKey = null;
       if (reduce) {
         cancelAnimationFrame(raf);
         raf = 0;
@@ -1016,6 +1026,7 @@ export function createCanonicalPlayer(canvasEl) {
       }
       rebuildFit();
       t0 = 0;
+      lastPaintKey = null;
       if (reduce) { cancelAnimationFrame(raf); raf = 0; paint(1); }
       else if (!raf) raf = requestAnimationFrame(loop);
     },
@@ -1056,6 +1067,7 @@ export function createCanonicalPlayer(canvasEl) {
       };
       rebuildFit();
       t0 = 0;
+      lastPaintKey = null;
       paused = false;
       if (reduce) {
         cancelAnimationFrame(raf);
@@ -1112,6 +1124,7 @@ export function createCanonicalPlayer(canvasEl) {
     // re-draw after a canvas resize without restarting the cycle
     redraw() {
       rebuildFit();
+      lastPaintKey = null;
       if (reduce) {
         if (word) paintWordAt(word.totalMs);
         else paint(1);

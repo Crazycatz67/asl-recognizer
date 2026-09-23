@@ -102,64 +102,94 @@ export function createDecoder(lexicon, opts = {}) {
     return out;
   }
 
-  // expand every beam hypothesis by exactly one observed letter
+  // expand every beam hypothesis by exactly one observed letter.
+  //
+  // Performance (measured: the old version took ~8 ms/letter and fluid mode
+  // re-ran it over the whole stream every 350 ms, freezing the page): the
+  // insertion branch (2) generates ~26x more candidates than substitution
+  // (1), but carries insPenalty so almost none survive. Substitutions are
+  // generated first; once they fill the beam, the beamWidth-th best unique
+  // substitution score is a hard floor — adding candidates can only RAISE
+  // the final cut-off, so anything strictly below it can never make the beam
+  // and is skipped before allocating it. Result is the same beam as a full
+  // sort + de-dup of everything.
   function advance(beam, o, c) {
-    const out = [];
+    const best = new Map(); // de-dup key -> best candidate for it
+    const put = (cand) => {
+      const k = cand.words.length + "|" + cand.cur + "|" + (cand.node.w ? "w" : "");
+      const prev = best.get(k);
+      if (!prev || cand.score > prev.score) best.set(k, cand);
+    };
+    const bases = [];
     for (const h of beam) {
       // states this hypothesis can be in *before* consuming the letter:
       //   itself, or (if it's on a complete word) the committed-then-restart state
-      const bases = [h];
+      bases.push(h);
       if (h.node.w && h.cur) {
         bases.push({
           node: trie, cur: "", words: [...h.words, h.cur],
           score: h.score + logp(h.cur) + wordPenalty, ins: 0,
         });
       }
-      for (const b of bases) {
-        // (1) substitution: consume the letter as some trie child
-        for (const ch in b.node.c) {
-          out.push({
-            node: b.node.c[ch], cur: b.cur + ch, words: b.words,
-            score: b.score + emit(ch, o, c),
-            ins: b.ins || 0,
-          });
-        }
-        // (2) one inserted letter, then consume: recovers a dropped double/letter
-        if ((b.ins || 0) < 1) {
-          for (const ch1 in b.node.c) {
-            const n1 = b.node.c[ch1];
-            for (const ch2 in n1.c) {
-              out.push({
-                node: n1.c[ch2], cur: b.cur + ch1 + ch2, words: b.words,
-                score: b.score + insPenalty + emit(ch2, o, c),
-                ins: 1,
-              });
-            }
-          }
+    }
+    // (1) substitution: consume the letter as some trie child
+    for (const b of bases) {
+      for (const ch in b.node.c) {
+        put({
+          node: b.node.c[ch], cur: b.cur + ch, words: b.words,
+          score: b.score + emit(ch, o, c),
+          ins: b.ins || 0,
+        });
+      }
+    }
+    let floor = -Infinity;
+    if (best.size >= beamWidth) {
+      const scores = Array.from(best.values(), (h) => h.score).sort((a, b) => b - a);
+      floor = scores[beamWidth - 1];
+    }
+    // (2) one inserted letter, then consume: recovers a dropped double/letter
+    for (const b of bases) {
+      if ((b.ins || 0) >= 1) continue;
+      const base = b.score + insPenalty;
+      if (base + Math.log(Math.max(c, 0.15)) < floor) continue; // best possible emit can't reach the floor
+      for (const ch1 in b.node.c) {
+        const n1 = b.node.c[ch1];
+        for (const ch2 in n1.c) {
+          const score = base + emit(ch2, o, c);
+          if (score < floor) continue;
+          put({ node: n1.c[ch2], cur: b.cur + ch1 + ch2, words: b.words, score, ins: 1 });
         }
       }
     }
+    const out = Array.from(best.values());
     out.sort((a, b) => b.score - a.score);
-    // de-dup identical (cur, node) keeping the best
-    const seen = new Set();
-    const pruned = [];
-    for (const h of out) {
-      const k = h.words.length + "|" + h.cur + "|" + (h.node.w ? "w" : "");
-      if (seen.has(k)) continue;
-      seen.add(k);
-      pruned.push(h);
-      if (pruned.length >= beamWidth) break;
-    }
-    return pruned;
+    if (out.length > beamWidth) out.length = beamWidth;
+    return out;
   }
+
+  // Incremental cache: fluid mode decodes a stream that mostly just grows by
+  // one letter, so keep the beam after every step of the last run decoded and
+  // resume from the longest shared prefix instead of starting over. Beams are
+  // never mutated after advance() returns them, so sharing them is safe.
+  let cacheObs = [];
+  let cacheBeams = [];
 
   // beam-decode one alphabetic run
   function decodeRun(obs) {
-    let beam = [{ node: trie, cur: "", words: [], score: 0, ins: 0 }];
-    for (const f of obs) {
-      beam = advance(beam, f.letter, f.conf);
-      if (!beam.length) break;
+    let p = 0;
+    while (
+      p < obs.length && p < cacheObs.length &&
+      obs[p].letter === cacheObs[p].letter && obs[p].conf === cacheObs[p].conf
+    ) p++;
+    const beams = cacheBeams.slice(0, p + 1);
+    if (!beams.length) beams.push([{ node: trie, cur: "", words: [], score: 0, ins: 0 }]);
+    let beam = beams[beams.length - 1];
+    for (let i = beams.length - 1; i < obs.length && beam.length; i++) {
+      beam = advance(beam, obs[i].letter, obs[i].conf);
+      beams.push(beam);
     }
+    cacheObs = obs.slice(0, beams.length - 1).map((f) => ({ letter: f.letter, conf: f.conf }));
+    cacheBeams = beams;
     let best = null;
     for (const h of beam) {
       let score = h.score, words = h.words;

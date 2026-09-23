@@ -17,7 +17,7 @@ export const HAND_MODEL_URL =
 // Fingerspelling is one-handed. Kept at 2 for now so the Stage 1 skeleton
 // demo shows both hands; drop to 1 once classification lands (one hand is
 // faster, and we only ever classify one).
-export const NUM_HANDS = 2;
+export const NUM_HANDS = 2; // max; main.js drops to 1 outside Spell mode (see handTracker.setNumHands)
 
 // Cap detection rate. 30/s is plenty for recognition and roughly halves
 // CPU/GPU/battery vs. running on every animation frame.

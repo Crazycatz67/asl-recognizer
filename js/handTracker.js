@@ -1,6 +1,6 @@
 // Wraps MediaPipe HandLandmarker (Tasks Vision API) for per-frame video use.
 //
-// createHandTracker() -> { delegate, detect(video, timestampMs), close() }
+// createHandTracker() -> { delegate, detect(video, timestampMs), setNumHands(n), close() }
 //
 //   detect() returns the raw HandLandmarkerResult. The fields we care about:
 //     result.landmarks       -> [ [ {x,y,z}, ... 21 ], ... ]  normalised 0..1
@@ -36,6 +36,7 @@ export async function createHandTracker() {
   // VIDEO mode requires strictly increasing timestamps; guard against the
   // rare case where two rAF callbacks report the same millisecond.
   let lastTimestamp = -1;
+  let numHands = NUM_HANDS;
 
   return {
     delegate,
@@ -45,6 +46,16 @@ export async function createHandTracker() {
       if (ts <= lastTimestamp) ts = lastTimestamp + 1;
       lastTimestamp = ts;
       return landmarker.detectForVideo(video, ts);
+    },
+
+    // Tracking a second hand isn't free: with room for 2 hands and only 1 in
+    // view, MediaPipe keeps running its palm detector every frame looking for
+    // the other one. Only Spell mode's two-hand gestures need 2.
+    setNumHands(n) {
+      if (n === numHands) return;
+      numHands = n;
+      Promise.resolve(landmarker.setOptions({ numHands: n })).catch((err) =>
+        console.warn("HandLandmarker setOptions(numHands) failed:", err));
     },
 
     close() {

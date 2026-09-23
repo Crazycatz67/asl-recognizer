@@ -463,6 +463,10 @@ let rafId = 0;
 
 let facingMode = "user";
 let lastDetectAt = 0;
+let lastSpellText = null; // syncSpellText(): last text/pending rendered
+let lastSpellPending = null;
+let lastHold = null; // setHold(): last --hold value written
+let lastMeterKey = null; // updateMeter(): last score|bucket shown
 let missStreak = 0;
 let lastGoodHand = null; // raw landmarks, held briefly through a momentary detection miss
 let overlayGrace = 0;
@@ -725,7 +729,7 @@ function setTarget(letter) {
   motion.reset();
   refPanel.classList.remove("nudge");
   viewport.classList.toggle("is-motion", MOTION.has(letter));
-  viewport.style.setProperty("--hold", "0");
+  setHold("0");
   applyHand(); // motion letters never mirror the panel — keep the Z demo readable
   reco.hidden = true;
   if (letter) {
@@ -892,7 +896,19 @@ function sizeRefCanvas() {
 }
 window.addEventListener("resize", sizeRefCanvas);
 
+// --hold lives on the viewport (CSS reads it inside); writing it every frame
+// invalidates style for the whole camera area, so skip unchanged values.
+function setHold(v) {
+  if (v === lastHold) return;
+  lastHold = v;
+  viewport.style.setProperty("--hold", v);
+}
+
 function updateMeter(score, bucket) {
+  // runs every frame in Practice — only write when what's shown changes
+  const key = Math.round(score * 100) + "|" + bucket;
+  if (key === lastMeterKey) return;
+  lastMeterKey = key;
   meterFill.style.width = `${Math.round(score * 100)}%`;
   meterFill.style.background = BUCKET_COLOR[bucket] || "#475569";
   meterFill.classList.toggle("correct", bucket === "correct");
@@ -1253,6 +1269,7 @@ function setMode(next) {
   if (!challenge || next === mode) return;
   mode = next;
   savePref("mode", mode);
+  tracker?.setNumHands(mode === "spell" ? 2 : 1);
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) {
     const on = b.dataset.mode === mode;
@@ -1501,7 +1518,7 @@ function setState(next, detail) {
     landmarkFilter.reset();
     guideAmt = 0;
     motionChargeAmt = 0;
-    viewport.style.setProperty("--hold", "0");
+    setHold("0");
     sound.charge(0);
     bg.setMatch(null);
     if (challenge?.active) {
@@ -1541,6 +1558,7 @@ async function start() {
 
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
+    tracker.setNumHands(mode === "spell" ? 2 : 1);
     await acquireWakeLock();
     await datasetPromise;
     if (DEV) {
@@ -1652,8 +1670,14 @@ function loop() {
   rafId = requestAnimationFrame(loop);
 
   const now = performance.now();
-  if (now - lastDetectAt < DETECT_INTERVAL) return; // throttle to TARGET_FPS
-  lastDetectAt = now;
+  // throttle to TARGET_FPS. A strict `now - last < interval` misfires on a
+  // 60 Hz display: two frames are ~33.3 ms +/- jitter, so about half the time
+  // it waits a third frame (50 ms) and detection averages ~22-24/s instead of
+  // 30. Allow a few ms of early slack and advance on a fixed schedule
+  // (re-syncing after a long gap) so the rate holds at TARGET_FPS.
+  const sinceDetect = now - lastDetectAt;
+  if (sinceDetect < DETECT_INTERVAL - 4) return;
+  lastDetectAt = sinceDetect > DETECT_INTERVAL * 2 ? now : lastDetectAt + DETECT_INTERVAL;
   if (video.readyState < 2) return;
 
   overlay.resizeToVideo(video);
@@ -2013,7 +2037,7 @@ function loop() {
     }
     const shownProg = rewarded ? 1 : prog;
     updateMeter(shownProg, rewarded ? "correct" : prog > 0.55 ? "close" : null);
-    viewport.style.setProperty("--hold", shownProg.toFixed(3));
+    setHold(shownProg.toFixed(3));
     // prog is a live geometric metric (indexMove/indexX/rev for Z, a rolling-
     // window reversal count that jumps around during a genuine zigzag) — for
     // a static-letter hold, charge()'s input is a smooth elapsed-time
@@ -2108,7 +2132,7 @@ function loop() {
       }
       const heldMs = holdStart ? now - holdStart : 0;
       const heldFrac = Math.min(1, heldMs / HOLD_MS);
-      viewport.style.setProperty("--hold", heldFrac.toFixed(3));
+      setHold(heldFrac.toFixed(3));
       // rising "charge" tone tracks the hold; success() resolves it
       if (holdStart && !rewarded) sound.charge(0.05 + 0.95 * heldFrac);
       else if (!rewarded) sound.charge(0);
@@ -2159,7 +2183,7 @@ function loop() {
       if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
         holdStart = 0;
         rewarded = false;
-        viewport.style.setProperty("--hold", "0");
+        setHold("0");
       }
     }
   } else {
@@ -2281,6 +2305,11 @@ const syncSpellText = () => {
   if (!speller) return;
   const t = speller.text;
   const p = speller.pending;
+  // called every frame in Spell mode — only touch the DOM when the text
+  // actually changed (innerHTML + reading scrollHeight forces a layout)
+  if (t === lastSpellText && p === lastSpellPending) return;
+  lastSpellText = t;
+  lastSpellPending = p;
   const sep = t && p && !t.endsWith(" ") ? " " : "";
   spText.innerHTML =
     escapeHtml(t) + sep +
