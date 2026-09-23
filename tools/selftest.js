@@ -582,6 +582,13 @@ function mkHand() {
       }
       return hits === 1;
     })());
+    ok("swipe: a sweep straight out of a held closed letter fires first time (live QA: needed repeats)", (() => {
+      const sw = swMod.createSwipeMatcher();
+      let out = null, t = 0;
+      for (let i = 0; i < 8; i++) { sw.push(fistHand(0.30, 0.6), t); out = sw.match(t) || out; t += 40; } // holding a letter
+      [0.30, 0.40, 0.50, 0.60, 0.70].forEach((wx) => { sw.push(openHand(wx, 0.6), t); out = sw.match(t) || out; t += 40; });
+      return out === "delete";
+    })());
     ok("swipe: push(null) / reset() don't throw",
       (() => { try { const sw = swMod.createSwipeMatcher(); sw.push(null, 0); sw.reset(); return sw.match(1) === null; } catch { return false; } })());
 
@@ -713,7 +720,7 @@ function mkHand() {
       while (t < end) sp.feed({ holding: false, letter: null, handPresent: true, moved: false, now: t += 40 });
       return t;
     };
-    const bigGap = (sp, t0) => gap(sp, t0, 1300); // > acceptMs -> commit the word
+    const bigGap = (sp, t0) => gap(sp, t0, 2300); // > acceptMs -> commit the word
     ok("speller: letters go to the pending word, a pause commits it (CAT)", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "C", 0);
@@ -734,7 +741,7 @@ function mkHand() {
       t = gap(sp, t, 120); ({ t } = hold(sp, "O", t));
       ({ t } = hold(sp, "O", t)); // no gap -> second O ignored
       const oneO = sp.pending === "BO";
-      t = gap(sp, t, 450); ({ t } = hold(sp, "O", t)); // clear gap -> BOO
+      t = gap(sp, t, 750); ({ t } = hold(sp, "O", t)); // clear gap (> gapMs) -> BOO
       t = gap(sp, t, 120); ({ t } = hold(sp, "K", t));
       return oneO && sp.pending === "BOOK";
     })());
@@ -747,6 +754,23 @@ function mkHand() {
       u = hold(sp, "U", u).t;
       return sp.text === "HI" && sp.pending === "U" && sp.display === "HI U";
     })());
+    ok("speller: a held letter doesn't re-commit after a brief classifier dip (live QA: letters every second)", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "A", 0, 10);
+      for (let i = 0; i < 6; i++) { t = gap(sp, t, 360); ({ t } = hold(sp, "A", t, 8)); } // ~1/3 s dips
+      return sp.pending === "A";
+    })());
+    ok("speller: a learner-pace pause between letters doesn't commit the word (no word cue per letter)", (() => {
+      const sp = spMod.createSpeller();
+      let { t, r } = hold(sp, "C", 0);
+      let words = 0;
+      for (const L of "AT") {
+        const end = t + 1300;
+        while (t < end) { r = sp.feed({ holding: false, letter: null, handPresent: true, moved: false, now: t += 40 }); if (r.event === "word") words++; }
+        ({ t } = hold(sp, L, t));
+      }
+      return words === 0 && sp.pending === "CAT";
+    })());
     ok("speller: J/Z strokes append and can repeat (JAZZ)", (() => {
       const sp = spMod.createSpeller();
       let t = 40;
@@ -755,6 +779,13 @@ function mkHand() {
       sp.feed({ holding: false, letter: null, stroke: "Z", moved: false, now: t }); t += 200;
       sp.feed({ holding: false, letter: null, stroke: "Z", moved: false, now: t });
       return sp.pending === "JAZZ";
+    })());
+    ok("speller: a J stroke right after a held I replaces it (J, not IJ)", (() => {
+      const sp = spMod.createSpeller();
+      let { t } = hold(sp, "H", 0); t = gap(sp, t, 120);
+      ({ t } = hold(sp, "I", t)); // start shape committed as a letter
+      sp.feed({ holding: false, letter: null, stroke: "J", moved: false, now: t + 500 });
+      return sp.pending === "HJ" && sp.raw.map((r) => r.letter).join("") === "HJ";
     })());
     ok("speller: swipe (clearPending) throws away the half-formed word", (() => {
       const sp = spMod.createSpeller();
@@ -930,7 +961,7 @@ function mkHand() {
           if (k > 0) feed(null, 0.2, 4, true); // transition between letters
           feed(word[k], 0.9, 8, false); // hold the letter
         }
-        feed(null, 0.2, 40, false); // long pause -> commit the word
+        feed(null, 0.2, 70, false); // long pause (~2.3 s > speller acceptMs) -> commit the word
         return { raw: sp.raw.map((r) => r.letter).join(""), text: sp.text.trim(), decoded: dec.decode(sp.raw).text };
       };
       const r1 = runFluid("HELLO", "hello 90\nworld 80\nhell 5\nhe 40");

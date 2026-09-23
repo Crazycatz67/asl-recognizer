@@ -25,7 +25,7 @@ import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
 import { createChallenge } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
-import { createSpeller } from "./speller.js";
+import { createSpeller, STROKE_START } from "./speller.js";
 import { createSpellDrill } from "./spelldrill.js";
 import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
@@ -465,6 +465,7 @@ let facingMode = "user";
 let lastDetectAt = 0;
 let lastSpellText = null; // syncSpellText(): last text/pending rendered
 let lastSpellPending = null;
+let spellLastCommitAt = 0; // Spell: when the last letter landed (gates J/Z strokes)
 let lastHold = null; // setHold(): last --hold value written
 let lastMeterKey = null; // updateMeter(): last score|bucket shown
 let missStreak = 0;
@@ -651,7 +652,10 @@ const datasetPromise = loadDataset(DATASET_URL)
     readPlayer = createCanonicalPlayer(rdCanvas);
     challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
     speller = createSpeller();
-    spellStab = createStabilizer({ stableFrames: 6, minConfidence: 0.6 });
+    // 10 frames (~1/3 s at 30 fps) at >=4-of-5 kNN votes. Was 6 frames at
+    // 3-of-5: a look-alike flicker (A<->S, M<->N) only had to win ~0.2 s to
+    // commit a letter the signer never made.
+    spellStab = createStabilizer({ stableFrames: 10, minConfidence: 0.8 });
     buildLetterPicker(ALL_LETTERS);
     learnRow.hidden = false;
     modeToggle.hidden = false;
@@ -1900,27 +1904,44 @@ function loop() {
 
     // a notable wrist shift since the last commit lets a deliberate bounce
     // re-arm a doubled letter (LL, SS) without waiting for the full pause
+    // Measured in hand-spans (like handSpeed above), not raw frame units —
+    // 0.14 of the frame was a small nudge for a hand far from the camera and
+    // a large move up close, so drift re-armed repeats for some signers.
     let moved = false;
     if (hasHand && hand && spellAnchor) {
-      moved =
-        Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) > 0.14;
+      let mx = 0, my = 0;
+      for (const j of [5, 9, 13, 17]) { mx += hand[j].x; my += hand[j].y; }
+      const span = Math.hypot(mx / 4 - hand[0].x, my / 4 - hand[0].y) || 1e-6;
+      moved = Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) / span > 0.8;
     }
+
+    // J/Z motion letters bypassed every Spell gate (stillness, the post-swipe
+    // suppression window) and re-armed repeats — moving between handshapes
+    // could land a stray J/Z about once a second. Only accept a stroke outside
+    // the suppression window and not right on the heels of another commit.
+    // (A stroke right after its own start shape — J after a held I — is
+    // exempt: speller.feed() swaps that letter for the stroke.)
+    const spellStroke =
+      stroke && now >= spellSuppressUntil &&
+      (now - spellLastCommitAt > 700 || speller.last === STROKE_START[stroke])
+        ? stroke : null;
 
     const res = speller.feed({
       holding,
       letter: cur,
-      stroke,
+      stroke: spellStroke,
       handPresent: hasHand,
       moved,
       now,
     });
 
     if (res.event === "letter") {
+      spellLastCommitAt = now;
       spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
       sound.lock?.();
       buzz(10);
     } else if (res.event === "word") {
-      sound.success?.();
+      sound.word?.(); // its own quiet cue — success() is the big reward sound
       buzz([0, 18, 30, 18]);
       fx.flash("rgba(56, 189, 248, 0.4)");
     } else if (res.event === "full") {

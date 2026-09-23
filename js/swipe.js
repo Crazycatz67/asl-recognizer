@@ -10,7 +10,15 @@
 //   sw.match(now) -> "delete" | null  // fires once, then arms a cooldown
 
 const WINDOW_MS = 650; // consider the last ~0.65 s of motion
-const COOLDOWN_MS = 650; // one sweep = one delete
+// one sweep = one delete. Longer than WINDOW_MS (was equal): with the buffer
+// still holding the outbound sweep, the return stroke of a back-and-forth
+// wipe could fire a second delete.
+const COOLDOWN_MS = 800;
+// the "is the hand open" test only looks at the most recent frames — the
+// sweep itself. Over the whole window it also counted the closed letter the
+// signer was holding just before sweeping, so the first sweep often failed
+// and had to be repeated (live QA: "requires repetitive actions").
+const OPEN_RECENT_MS = 350;
 const KEEP_ON_GAP_MS = 450; // a fast swipe that clips the frame edge still evaluates
 const MIN_FRAMES = 4;
 
@@ -80,14 +88,17 @@ export function createSwipeMatcher() {
     match(now) {
       if (now < coolUntil || buf.length < MIN_FRAMES) return null;
       if (now - buf[0].t < 120) return null;
-      const openFrac = buf.filter((f) => f.open).length / buf.length;
+      const recent = buf.filter((f) => now - f.t <= OPEN_RECENT_MS);
+      const openFrac = recent.filter((f) => f.open).length / (recent.length || 1);
       if (openFrac < 0.5) return null;
       const span = avgSpan();
       const dx = extent("x") / span; // horizontal travel, in hand-spans
       const dy = extent("y") / span;
-      // wide-ish and clearly more sideways than up/down
-      if (dx > 1.1 && dx > dy * 1.6) {
+      // wide-ish and clearly more sideways than up/down (1.3, was 1.6: a
+      // natural arm sweep arcs, and the arc's rise was failing real wipes)
+      if (dx > 1.1 && dx > dy * 1.3) {
         coolUntil = now + COOLDOWN_MS;
+        buf = []; // this sweep is spent — don't let its frames count again
         return "delete";
       }
       return null;

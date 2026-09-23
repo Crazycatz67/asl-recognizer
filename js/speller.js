@@ -19,9 +19,21 @@
 //   sp.text · sp.pending · sp.display · sp.space() · sp.backspace()
 //   sp.clearPending() · sp.clear() · sp.insert(str)
 
+// the handshape each motion letter starts from, and how recently that letter
+// must have landed for a finished stroke to replace it (see feed())
+export const STROKE_START = { J: "I", Z: "D" };
+const STROKE_REPLACE_MS = 1600;
+
 export function createSpeller({
-  gapMs = 320, // hand off a letter this long before the SAME letter repeats
-  acceptMs = 1000, // pause this long with a word in the buffer -> commit the word
+  // hand off a letter this long before the SAME letter can repeat. Was 320:
+  // live QA ("keeps inputting letters every second") traced to a held letter
+  // re-committing after any ~1/3 s classifier dip — a real double letter
+  // (LL, OO) is a deliberate release/bounce, which `moved` also re-arms.
+  gapMs = 700,
+  // pause this long with a word in the buffer -> commit the word. Was 1000,
+  // which also fired between letters for anyone spelling at a learner's pace,
+  // playing the word-complete cue after every letter.
+  acceptMs = 2000,
   maxLen = 240,
 } = {}) {
   let text = ""; // committed words
@@ -30,13 +42,14 @@ export function createSpeller({
   let armed = true; // may a repeat of `last` be added right now?
   let offSince = 0; // when "not forming a letter" began (0 = forming one now)
   let accepted = true; // has the current pause already committed the word?
+  let lastAddAt = 0; // `now` of the last letter added via feed()
   let raw = []; // {letter, conf}[] — the uncorrected letter stream, for decode.js
   let rawWordStart = 0; // raw[] index where the current pending word began
 
   const isLetter = (s) => typeof s === "string" && /^[A-Z]$/.test(s);
   const room = () => maxLen - text.length - pending.length;
 
-  function add(letter, conf = 0.85) {
+  function add(letter, conf = 0.85, now = 0) {
     if (!isLetter(letter)) return null;
     // at the cap, silently dropping the letter (the old behavior) gives the
     // signer zero feedback — they keep spelling into a line that's already
@@ -46,6 +59,7 @@ export function createSpeller({
     pending += letter;
     raw.push({ letter, conf });
     last = letter;
+    lastAddAt = now;
     armed = false;
     accepted = false;
     offSince = 0; // a letter was just formed — restart the word-break clock
@@ -89,16 +103,26 @@ export function createSpeller({
       let event = null;
       if (moved) armed = true;
 
-      // motion letters (J/Z): one-shot, an inherent pause around the stroke
+      // motion letters (J/Z): one-shot, an inherent pause around the stroke.
+      // J starts from an I handshape (Z from a D-like point), and holding that
+      // start shape can commit it as a letter a moment before the stroke
+      // finishes — "IJ" instead of "J". A stroke right after its own start
+      // letter replaces it.
       if (stroke === "J" || stroke === "Z") {
         armed = true;
-        event = add(stroke) || event;
+        if (
+          pending && last === STROKE_START[stroke] && now - lastAddAt < STROKE_REPLACE_MS
+        ) {
+          pending = pending.slice(0, -1);
+          if (raw.length > rawWordStart) raw.pop();
+        }
+        event = add(stroke, 0.85, now) || event;
         offSince = now || 1;
         return { text, pending, event };
       }
 
       if (holding && isLetter(letter)) {
-        if (letter !== last || armed) event = add(letter) || event;
+        if (letter !== last || armed) event = add(letter, 0.85, now) || event;
         offSince = 0;
       } else {
         if (offSince === 0) offSince = now || 1;

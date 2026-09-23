@@ -35,6 +35,19 @@ export function createSound() {
     o.stop(at + dur + 0.03);
   };
 
+  // Per-sound cooldown: the same cue can't stack on itself faster than a
+  // listener can tell the repeats apart. Every call site is event-driven, but
+  // several events can land within a few frames of each other (e.g. a letter
+  // + a word commit), and stacked oscillators read as a buzz or a spammed
+  // jingle rather than feedback.
+  const lastAt = {};
+  const cool = (name, ms) => {
+    const t = performance.now();
+    if (t - (lastAt[name] ?? -Infinity) < ms) return false;
+    lastAt[name] = t;
+    return true;
+  };
+
   // persistent "charging" voice while a completed sign is being held — a low
   // tone that rises in pitch and volume as progress 0 -> 1, then resolves into
   // success(). charge(p<=0) or chargeStop() ends it.
@@ -102,7 +115,7 @@ export function createSound() {
     // triumphant little rising arpeggio + a sparkle tail
     success() {
       chargeStop(0.04);
-      if (muted || !ensure()) return;
+      if (muted || !cool("success", 300) || !ensure()) return;
       const n = ctx.currentTime;
       [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
         tone(f, n + i * 0.08, 0.3, { gain: 0.14 })
@@ -112,19 +125,29 @@ export function createSound() {
 
     // soft tick — a finger just locked onto the target
     lock() {
-      if (muted || !ensure()) return;
+      if (muted || !cool("lock", 80) || !ensure()) return;
       tone(1320, ctx.currentTime, 0.05, { type: "sine", gain: 0.035 });
     },
 
     // sharper tick — the challenge timer is running low
     tick() {
-      if (muted || !ensure()) return;
+      if (muted || !cool("tick", 120) || !ensure()) return;
       tone(880, ctx.currentTime, 0.06, { type: "square", gain: 0.03 });
+    },
+
+    // Spell: a word was committed to the transcript — a soft two-note "set
+    // down" cue, deliberately small (Spell commits often; success() is the
+    // big reward sound and shouldn't play every word)
+    word() {
+      if (muted || !cool("word", 400) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(659.25, n, 0.09, { type: "sine", gain: 0.05 });
+      tone(987.77, n + 0.07, 0.16, { type: "sine", gain: 0.04 });
     },
 
     // a run ended
     fail() {
-      if (muted || !ensure()) return;
+      if (muted || !cool("fail", 300) || !ensure()) return;
       const n = ctx.currentTime;
       tone(300, n, 0.18, { type: "sawtooth", gain: 0.09 });
       tone(220, n + 0.12, 0.3, { type: "sawtooth", gain: 0.08 });
@@ -132,7 +155,7 @@ export function createSound() {
 
     // picking a letter to learn
     select() {
-      if (muted || !ensure()) return;
+      if (muted || !cool("select", 80) || !ensure()) return;
       const n = ctx.currentTime;
       tone(392, n, 0.05, { type: "sine", gain: 0.05 });
       tone(587.33, n + 0.045, 0.07, { type: "sine", gain: 0.05 });
