@@ -268,12 +268,29 @@
     </section>
 
     <section>
+      <h2>How this relates to Google&rsquo;s sign-language work</h2>
+      <p>In August 2026 Google announced ASL <b>Sign-to-Text</b> for the Pixel 11
+        (in Gboard and Live Transcribe). An on-device MediaPipe Holistic model
+        tracks the signer and only those geometric coordinates are sent on for
+        translation &mdash; the same landmarks-not-pixels idea this app uses, at a much
+        larger scale. Google DeepMind lists <b>rapid fingerspelling</b> among the
+        errors that remain
+        (<a href="https://deepmind.google/blog/putting-sign-language-ai-into-users-hands/" rel="noopener">DeepMind</a>,
+        <a href="https://blog.google/products-and-platforms/devices/pixel/american-sign-language-sign-to-text-pixel-11/" rel="noopener">Google</a>).</p>
+      <p>This project sits on the other side of that problem: not translating
+        signing, but helping people <em>learn</em> and practise fingerspelling, letter by
+        letter, with feedback on their own hand. It&rsquo;s a practice tool, not a
+        translator &mdash; and it should be tested by Deaf signers before it claims
+        anything more.</p>
+    </section>
+
+    <section>
       <h2>Credits &amp; data</h2>
       <ul class="ticks warn" style="--warn: var(--muted);">
         <li><b>Hand tracking</b> <span>&mdash; <a href="https://ai.google.dev/edge/mediapipe" rel="noopener">MediaPipe Tasks</a> (Google), loaded from a CDN.</span></li>
         <li><b>Training data</b> <span>&mdash; the <a href="https://www.kaggle.com/datasets/grassknoted/asl-alphabet" rel="noopener">ASL Alphabet dataset</a> (grassknoted, on Kaggle), converted to hand-landmark vectors.</span></li>
         <li><b>Word list</b> <span>&mdash; an English word-frequency list derived from Peter Norvig&rsquo;s <a href="https://norvig.com/ngrams/" rel="noopener">n-gram data</a>.</span></li>
-        <li><b>Inspiration</b> <span>&mdash; <a href="https://www.popsign.org/" rel="noopener">PopSign</a>, a Georgia Tech &times; RIT/NTID project, showed that a student-scale sign-language tool built <em>with</em> the Deaf community is possible.</span></li>
+        <li><b>Inspiration</b> <span>&mdash; <a href="https://www.popsign.org/" rel="noopener">PopSign</a>, built by RIT/NTID&rsquo;s Center on Access Technology with Google and Georgia Tech, showed that a student-scale sign-language tool built <em>with</em> the Deaf community is possible.</span></li>
       </ul>
     </section>
 
