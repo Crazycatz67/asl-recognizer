@@ -168,6 +168,22 @@ function mkHand() {
       p.confidence > 0 && p.confidence <= 1 && p.distance >= 0, JSON.stringify(p));
     ok("knn: wrong-length vector → null", clf.classify([1, 2, 3]) === null);
     ok("knn: classify exposes runnerUp + margin", "runnerUp" in p && typeof p.margin === "number");
+    {
+      // wrong handedness mirrors the vector: classifyEitherHand must recover
+      // the letter, and must not change the answer on correctly-oriented input
+      const nzm = await import("../js/normalize.js");
+      const sample = train.filter((_, i) => i % 25 === 0);
+      let plainMir = 0, eitherMir = 0, agree = 0;
+      for (const s of sample) {
+        const mv = nzm.mirrorVector(s.v);
+        if (clf.classify(mv)?.label === s.label) plainMir++;
+        if (knn.classifyEitherHand(clf, mv, nzm.mirrorVector).pred?.label === s.label) eitherMir++;
+        if (knn.classifyEitherHand(clf, s.v, nzm.mirrorVector).pred?.label === clf.classify(s.v)?.label) agree++;
+      }
+      ok("knn: classifyEitherHand recovers mirrored (wrong-handedness) input without changing normal input",
+        eitherMir / sample.length > 0.95 && eitherMir > plainMir && agree === sample.length,
+        `mirrored: plain ${plainMir}/${sample.length} -> either ${eitherMir}/${sample.length}; unchanged ${agree}/${sample.length}`);
+    }
     ok("knn: empty sample set → throws",
       (() => { try { knn.createClassifier([]); return false; } catch { return true; } })());
 

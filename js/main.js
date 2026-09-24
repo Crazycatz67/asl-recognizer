@@ -13,9 +13,9 @@
 import { startCamera, stopCamera, countCameras, facingOf } from "./camera.js";
 import { createHandTracker } from "./handTracker.js";
 import { createOverlay } from "./overlay.js";
-import { normalizeLandmarks, aspectOf } from "./normalize.js";
+import { normalizeLandmarks, aspectOf, mirrorVector } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
-import { createClassifier } from "./knn.js";
+import { createClassifier, classifyEitherHand } from "./knn.js";
 import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference.js";
@@ -1887,10 +1887,13 @@ function loop() {
   // classify up front too (badge is drawn later) so the practice meter can
   // accept a sign the recogniser reads even if the shape isn't textbook
   if (classifier) {
-    lastPred = hasHand && vec ? classifier.classify(vec) : null;
+    // either way round: a wrong MediaPipe handedness call mirrors the vector
+    // (see classifyEitherHand) — the heads then see the winning orientation
+    const either = hasHand && vec ? classifyEitherHand(classifier, vec, mirrorVector) : null;
+    lastPred = either?.pred ?? null;
     // learned heads clean up kNN's M↔N / D↔O↔C mixups (no-op if unavailable)
     if (lastPred && refiner) {
-      const refined = refiner.refine(vec, lastPred.label);
+      const refined = refiner.refine(either.vec, lastPred.label);
       if (refined !== lastPred.label) { lastPred.label = refined; lastPred.refined = true; }
     }
     stabilizer.push(hasHand ? lastPred : null);

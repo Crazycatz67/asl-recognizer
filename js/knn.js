@@ -133,3 +133,29 @@ export function createClassifier(samples, { k = 5 } = {}) {
 
   return { classify, classes, size: n, dims: DIMS };
 }
+
+/**
+ * Classify a hand whichever way round it came in. MediaPipe sometimes reports
+ * the wrong handedness, so the vector reaches the classifier mirrored — and
+ * chirality-sensitive letters (B, G, K, T, X) then read as something else
+ * entirely (QA 2026-09-23, blocked 5-fold: 93.7% correctly mirrored vs 52.2%
+ * with handedness wrong). Classify both the vector and its mirror and keep the
+ * mirror only when it's clearly closer to the data (nearest distance < ratio x
+ * the original's): measured 51% -> 92.6% under wrong handedness, no loss on
+ * clean input. Costs one extra classify (~1 ms).
+ * @param {{classify: Function}} clf  a createClassifier() result
+ * @param {number[]} vec  normalized landmark vector
+ * @param {(v: number[]) => number[]} mirror  e.g. normalize.js mirrorVector
+ * @param {number} [ratio=0.9]
+ * @returns {{pred: object|null, vec: number[], mirrored: boolean}}  pred as
+ *   classify() returns it; vec = the orientation that won (feed it to heads)
+ */
+export function classifyEitherHand(clf, vec, mirror, ratio = 0.9) {
+  const a = clf.classify(vec);
+  if (!a) return { pred: null, vec, mirrored: false };
+  const mv = mirror(vec);
+  const b = clf.classify(mv);
+  if (b && b.distance < a.distance * ratio) return { pred: b, vec: mv, mirrored: true };
+  return { pred: a, vec, mirrored: false };
+}
+
