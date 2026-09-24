@@ -54,9 +54,24 @@
     })();
 
     // skip the SW on localhost so dev reloads always get fresh files
+    //
+    // Getting a deploy on ONE refresh (2026-09-24 — owner refreshed and still
+    // saw the old Read mode): the SW serves its cached copy first and fetches
+    // the new version in the background, so the first load after a deploy ran
+    // the OLD code. Two fixes: (1) updateViaCache "none" — check sw.js against
+    // the network every load (GitHub Pages' 10-min HTTP cache could hide a
+    // new VERSION), and (2) when a new SW takes over a page that already had
+    // one (it calls skipWaiting + clients.claim), reload once so the page runs
+    // the new files instead of the ones it started with.
     if ("serviceWorker" in navigator && !window.__aslFresh && !/^(localhost|127\.|\[::1\])/.test(location.hostname)) {
+      var hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!hadController || window.__aslReloadedForUpdate) return; // first install: nothing stale to replace
+        window.__aslReloadedForUpdate = true;
+        location.reload();
+      });
       addEventListener("load", () =>
-        navigator.serviceWorker.register("sw.js").catch(() => {})
+        navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {})
       );
     }
   </script>

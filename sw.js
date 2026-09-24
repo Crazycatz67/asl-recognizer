@@ -9,7 +9,7 @@
 // BUMP `VERSION` on every deploy so old caches are cleared. Paths are relative
 // so this works both at "/" (dev) and "/asl-recognizer/" (GitHub Pages).
 
-const VERSION = "v82";
+const VERSION = "v83";
 const SHELL = `asl-shell-${VERSION}`;
 const RUNTIME = `asl-runtime-${VERSION}`;
 const MP = `asl-mediapipe-${VERSION}`;
@@ -47,8 +47,12 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     (async () => {
       const c = await caches.open(SHELL);
-      await c.addAll(CORE);
-      await Promise.allSettled(EXTRA.map((u) => c.add(u)));
+      // cache: "reload" — bypass the browser's HTTP cache (GitHub Pages sets
+      // max-age=600), or a new VERSION could precache the OLD files for up to
+      // 10 minutes after a deploy
+      const fresh = (u) => new Request(u, { cache: "reload" });
+      await c.addAll(CORE.map(fresh));
+      await Promise.allSettled(EXTRA.map((u) => c.add(fresh(u))));
       self.skipWaiting();
     })()
   );
