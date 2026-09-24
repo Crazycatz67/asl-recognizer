@@ -10,8 +10,51 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/style.css" />
   <script>
+    // ?fresh — start over as a brand-new visitor: wipe THIS app's saved data
+    // (every localStorage key starting "asl-": prefs, progress, streaks,
+    // Challenge bests, the seen-tour flag), its offline caches ("asl-*"), and
+    // its own service worker, then reload the same URL without ?fresh (other
+    // params like ?debug are kept). Scoped on purpose: GitHub Pages serves
+    // other projects (e.g. hologram-workshop) from the same origin, and they
+    // share this localStorage — their keys must survive.
+    (function () {
+      var q = new URLSearchParams(location.search);
+      if (!q.has("fresh")) return;
+      window.__aslFresh = true;
+      function wipeKeys() {
+        try {
+          for (var i = localStorage.length - 1; i >= 0; i--) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf("asl-") === 0) localStorage.removeItem(k);
+          }
+        } catch (e) {}
+      }
+      wipeKeys();
+      q.delete("fresh");
+      var rest = q.toString().replace(/=(&|$)/g, "$1"); // "debug=" -> "debug"
+      var clean = location.pathname + (rest ? "?" + rest : "") + location.hash;
+      var scope = new URL("./", location.href).href;
+      var jobs = [];
+      if ("serviceWorker" in navigator) {
+        jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+          return Promise.all(regs.filter(function (r) { return r.scope === scope; })
+            .map(function (r) { return r.unregister(); }));
+        }));
+      }
+      if (window.caches) {
+        jobs.push(caches.keys().then(function (names) {
+          return Promise.all(names.filter(function (n) { return n.indexOf("asl-") === 0; })
+            .map(function (n) { return caches.delete(n); }));
+        }));
+      }
+      Promise.all(jobs).catch(function () {}).then(function () {
+        wipeKeys(); // anything the app wrote while the async clean-up ran
+        location.replace(clean);
+      });
+    })();
+
     // skip the SW on localhost so dev reloads always get fresh files
-    if ("serviceWorker" in navigator && !/^(localhost|127\.|\[::1\])/.test(location.hostname)) {
+    if ("serviceWorker" in navigator && !window.__aslFresh && !/^(localhost|127\.|\[::1\])/.test(location.hostname)) {
       addEventListener("load", () =>
         navigator.serviceWorker.register("sw.js").catch(() => {})
       );
