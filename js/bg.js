@@ -1,17 +1,37 @@
-// Living ambient background. Big soft blobs drift behind everything; their
-// colour eases warm (far) -> amber (close) -> green (matched).
+// =============================================================================
+// js/bg.js — living ambient background that reacts to the match (Browser UI)
+// =============================================================================
+// WHAT: Big soft blobs drift behind everything; their colour eases warm
+//   (far) -> amber (close) -> green (matched). With no target or no hand it
+//   shows a calm cool-blue "breathing" ambience instead.
 //
-// It's also SPATIAL: each blob is anchored to a screen region (top, thumb side,
-// pinky side, centre). If your fingers are wrong the top of the page stays
-// amber/red and drifts more; if the thumb is off, that side reacts — so the
-// background is a soft "where's the problem" map, not just a global colour.
+//   It's also SPATIAL: each blob is anchored to a screen region (top, thumb
+//   side, pinky side, centre). If your fingers are wrong the top of the page
+//   stays amber/red and drifts more; if the thumb is off, that side reacts —
+//   so the background is a soft "where's the problem" map, not just a global
+//   colour.
 //
-//   const bg = createBackground();
+// WHERE IT SITS: presentation only. In Practice, main.js feeds it
+//   reference.score() and reference.regionErrors() every frame; every other
+//   mode calls setMatch(null) to return it to idle.
+//
+// PUBLIC API:
+//   const bg = createBackground();   // prepends a fixed canvas behind the page
 //   bg.setMatch(score, bucket, regions);
 //     score   : 0..1 overall shape match
-//     bucket  : "off" | "close" | "correct" | null
+//     bucket  : "off" | "close" | "correct" | null   (null/absent score -> idle)
 //     regions : { top, left, right } each 0..1 error (higher = more wrong) — optional
+//   bg.stop()                        // cancel the loop and remove the canvas
+//
+// PERFORMANCE: renders into a small 480-px-wide backing canvas that CSS
+//   stretches to full screen — it's all blur anyway, so this keeps the
+//   always-on rAF loop cheap.
 
+/**
+ * Create the ambient background canvas and start its animation loop.
+ * @returns {{setMatch: (score: (number|null), bucket?: (string|null),
+ *   regions?: {top?: number, left?: number, right?: number}) => void, stop: () => void}}
+ */
 export function createBackground() {
   // Read once AND stay live — see fx.js's identical comment: a mid-session
   // OS-level toggle should take effect on the very next frame, not wait for
@@ -33,6 +53,7 @@ export function createBackground() {
   document.body.prepend(cv);
   const ctx = cv.getContext("2d");
 
+  // backing-store size in canvas px: fixed width, height follows the window's aspect
   const BW = 480;
   let BH = 300;
   const resize = () => {
@@ -67,6 +88,7 @@ export function createBackground() {
   let raf = 0;
   let last = performance.now();
 
+  // ---- animation loop (runs continuously until stop()) ----
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;

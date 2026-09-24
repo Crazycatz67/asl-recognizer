@@ -1,8 +1,25 @@
-// Rule-based tie-breaker for confusable letter pairs.
+// =============================================================================
+// js/refine.js — rule-based tie-breaker for confusable letters (Engine, SHELVED)
+// =============================================================================
+// WHAT: For a thin-margin kNN vote between two known look-alikes, measure one
+//   hand-picked geometric feature (e.g. the index-tip ↔ thumb-tip gap for
+//   D vs O), learn a threshold for it from the training data, and let that
+//   measurement pick the winner.
 //
 // STATUS: SHELVED — built, measured, does not help. Kept as a record + a ready
 // harness in case cleaner data changes the picture. NOT wired into the live
-// app or the eval tool.
+// app or the eval tool; only tools/selftest.js exercises it. The learned
+// replacement that DID help is js/heads.js.
+//
+// PIPELINE: would sit where heads.js sits (after kNN, before stabilizer).
+//
+// PUBLIC API:
+//   createRefiner(samples, { maxMargin, minSeparation }) → { refine, rules }
+//     refine(prediction, vec) → prediction, relabelled (+ refinedBy) if a rule fired
+//     rules                   → the rules that separated well enough to activate
+//
+// GOTCHA: shares the export name `createRefiner` with js/heads.js but is an
+//   unrelated implementation with a different signature.
 //
 // Why it failed (2026-09-03, tested against the current dataset):
 //   * M↔N — no landmark measurement separates them better than ~65% (13
@@ -18,6 +35,9 @@
 //   const refiner = createRefiner(samples);
 //   refiner.refine(prediction, vec63plus) -> prediction (maybe relabelled)
 
+// ---- geometry helper ----
+// 3D distance between landmarks a and b inside a normalized vector v (each
+// landmark occupies v[i*3 .. i*3+2]); units = normalized hand-size units.
 const d = (v, a, b) =>
   Math.hypot(v[a * 3] - v[b * 3], v[a * 3 + 1] - v[b * 3 + 1], v[a * 3 + 2] - v[b * 3 + 2]);
 
@@ -33,6 +53,11 @@ const RULES = [
   },
 ];
 
+// ---- threshold learning ----
+// Brute-force the best single cut between letters a and b on measure(v):
+// try every midpoint between sorted neighbouring values and keep the one that
+// classifies the most originals (rotated copies excluded) correctly, in
+// whichever polarity works better. sepAcc = that best accuracy, 0.5..1.
 function learnThreshold(samples, measure, a, b) {
   const av = samples.filter((s) => s.label === a && !s.rot).map((s) => measure(s.v));
   const bv = samples.filter((s) => s.label === b && !s.rot).map((s) => measure(s.v));
@@ -65,6 +90,17 @@ function learnThreshold(samples, measure, a, b) {
   return { threshold, lowLabel, highLabel, sepAcc: best / rows.length };
 }
 
+// ---- public factory ----
+
+/**
+ * Fit every RULE on the training data and return a refiner using the ones
+ * that separate their pair well enough.
+ * @param {{label: string, v: number[], rot?: number}[]} samples  training set
+ * @param {{maxMargin?: number, minSeparation?: number}} [opts]
+ *   maxMargin: only intervene when the kNN vote margin is ≤ this;
+ *   minSeparation: a rule activates only if its sepAcc ≥ this (0..1)
+ * @returns {{refine: (pred: object, vec: number[]) => object, rules: object[]}}
+ */
 export function createRefiner(samples, { maxMargin = 1, minSeparation = 0.75 } = {}) {
   const active = [];
   for (const r of RULES) {

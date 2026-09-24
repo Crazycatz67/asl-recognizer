@@ -1,15 +1,39 @@
-// Wraps MediaPipe HandLandmarker (Tasks Vision API) for per-frame video use.
+// =============================================================================
+// js/handTracker.js — MediaPipe HandLandmarker wrapper (Browser I/O)
+// =============================================================================
+// WHAT: Wraps MediaPipe HandLandmarker (Tasks Vision API) for per-frame video
+//   use: loads the WASM runtime + hand model, prefers the GPU delegate with
+//   a CPU fallback, and guarantees the strictly increasing timestamps VIDEO
+//   mode demands. This is the only module that talks to the ML model that
+//   finds hands; everything downstream works on its 21 landmarks per hand.
 //
-// createHandTracker() -> { delegate, detect(video, timestampMs), close() }
+// PIPELINE: webcam (camera.js) → [handTracker.js] → onefilter → normalize →
+//   kNN → … main.js loop() calls detect() once per throttled frame.
 //
-//   detect() returns the raw HandLandmarkerResult. The fields we care about:
-//     result.landmarks       -> [ [ {x,y,z}, ... 21 ], ... ]  normalised 0..1
-//     result.worldLandmarks  -> same shape, metric units, wrist-centred
-//     result.handedness      -> [ [ {categoryName: "Left"|"Right", score} ] ]
+// PUBLIC API:
+//   createHandTracker() → Promise<{ delegate, detect(video, timestampMs), close() }>
+//     delegate → "GPU" | "CPU" (which one actually loaded)
+//     detect() → the raw HandLandmarkerResult. The fields we care about:
+//       result.landmarks       -> [ [ {x,y,z}, ... 21 ], ... ]  normalised 0..1
+//       result.worldLandmarks  -> same shape, metric units, wrist-centred
+//       result.handedness      -> [ [ {categoryName: "Left"|"Right", score} ] ]
+//     close()  → free the model
+//
+// UNITS: landmark x/y are normalized 0..1 frame coords (x across, y down);
+//   z is relative depth on roughly the same scale as x, negative = nearer
+//   the camera. timestampMs is performance.now()-style milliseconds.
+//
+// GOTCHA: model/WASM URLs and NUM_HANDS live in config.js; the first call
+//   downloads ~7 MB, so main.js shows a "loading" state while it resolves.
 
 import { loadVision } from "./mediapipe.js";
 import { WASM_BASE_URL, HAND_MODEL_URL, NUM_HANDS } from "./config.js";
 
+/**
+ * Load MediaPipe and build a VIDEO-mode HandLandmarker (GPU, else CPU).
+ * @returns {Promise<{delegate: "GPU"|"CPU",
+ *   detect: (video: HTMLVideoElement, timestampMs: number) => any, close: () => void}>}
+ */
 export async function createHandTracker() {
   const { HandLandmarker, FilesetResolver } = await loadVision();
   const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_URL);

@@ -1,11 +1,32 @@
-// Lexicon-constrained decoder: a noisy per-letter stream -> the most probable
-// word sequence.
+// =============================================================================
+// js/decode.js — lexicon-constrained beam-search word decoder (Engine)
+// =============================================================================
+// WHAT: Turns a noisy per-letter stream (what the recogniser thought it saw,
+//   with confidences) into the most probable sequence of real words, e.g.
+//   "HELO WORLF" → "hello world". It knows which letters look alike in ASL
+//   (M/N, D/O, …), so a known look-alike is a cheap correction and a random
+//   swap is an expensive one.
+//
+// PIPELINE (Spell mode, fluid path): transition.js → speller.js (records
+//   speller.raw: [{letter, conf}]) → [decode.js] → the "decoded" sentence row
+//   (and speech). main.js re-decodes speller.raw at most every ~350 ms.
+//
+// PUBLIC API:
+//   DEFAULT_CONFUSION                     hand-set look-alike floor {truth: {observed: p}}
+//   mergeConfusion(measured, floor?)      per-pair max of measured matrix and the floor
+//   buildLexicon(text | rows)             → { trie, logp(word), size }
+//   createDecoder(lexicon, opts?)         → { decode, segment, collapse }
 //
 //   const lex = buildLexicon(wordFreqText);        // "word\tcount\n..." (lowercase)
 //   const dec = createDecoder(lex);
-//   dec.decode([{letter:"W",conf:0.8}, ...])  -> { text, words, raw }
+//   dec.decode([{letter:"W",conf:0.8}, ...])  -> { text, words, raw, fallback? }
 //   dec.segment("whatareyoudoing")            -> ["what","are","you","doing"]
+//   dec.collapse(frames, thr?)                -> merged letter runs (below)
 //
+// UNITS: every score is a natural-log probability (sums = products); conf is
+//   the recogniser's 0..1 confidence. The lexicon is data/words25k.txt.
+//
+// HOW IT WORKS:
 // decode() runs a left-to-right beam search over the collapsed letter stream.
 // Each hypothesis holds a position in the dictionary trie for the word it's
 // currently spelling. At each observed letter it either (a) extends the word
@@ -15,6 +36,12 @@
 // word's log-frequency minus a per-word penalty) and starts the next word.
 // One optional inserted letter per word recovers a dropped double. If the beam
 // dead-ends (an out-of-vocabulary name), it falls back to segment().
+// Digit runs (phone numbers, addresses) are passed through verbatim.
+//
+// GOTCHA: `decode()` also accepts a plain string (treated as letters at
+//   conf 0.9) — handy in tests and tools/decode-lab.html.
+
+// ---- confusion model ----
 
 // ASL fingerspelling look-alikes: elevated P(observed | true). Symmetric-ish;
 // unlisted pairs get EPS. This is the hand-set FLOOR — a measured matrix
@@ -31,11 +58,17 @@ export const DEFAULT_CONFUSION = {
   i: { j: 0.2, y: 0.12 }, y: { i: 0.12 }, j: { i: 0.2 },
   f: { d: 0.08 }, b: { f: 0.06 }, x: { r: 0.08 }, w: { v: 0.06 },
 };
-const EPS = 0.006;
+const EPS = 0.006; // P(observed | true) for any pair not listed above
 
 // blend a measured confusion matrix over the hand-set floor: take the larger of
 // the two per pair (measured leads where it has signal, the floor covers the
 // rest — posed data under-reports live look-alikes).
+/**
+ * @param {Object<string, Object<string, number>> | null} measured  e.g. data/confusion.json
+ *   (keys starting with "_" are metadata and skipped)
+ * @param {Object<string, Object<string, number>>} [floor]  defaults to DEFAULT_CONFUSION
+ * @returns {Object<string, Object<string, number>>} new merged map {truth: {observed: weight}}
+ */
 export function mergeConfusion(measured, floor = DEFAULT_CONFUSION) {
   const out = {};
   for (const src of [floor, measured || {}]) {
@@ -48,6 +81,16 @@ export function mergeConfusion(measured, floor = DEFAULT_CONFUSION) {
   return out;
 }
 
+// ---- lexicon (trie + unigram word probabilities) ----
+
+/**
+ * Build the dictionary trie and a unigram log-probability function.
+ * @param {string | Array<[string, number|string]>} input  "word count" lines
+ *   (whitespace-separated) or [word, count] rows; non a–z words are skipped
+ * @returns {{trie: {c: Object, w: number}, logp: (w: string) => number, size: number}}
+ *   trie nodes: c = children by letter, w = word count if a word ends here (else 0);
+ *   logp(w) = ln P(w), with a length-penalised backoff for unknown words
+ */
 export function buildLexicon(input) {
   const rows =
     typeof input === "string"
@@ -74,6 +117,18 @@ export function buildLexicon(input) {
   return { trie, logp, size: count.size };
 }
 
+// ---- decoder ----
+
+/**
+ * Create a beam-search decoder over a lexicon.
+ * @param {ReturnType<typeof buildLexicon>} lexicon
+ * @param {{confusion?: object, beamWidth?: number, wordPenalty?: number,
+ *   insPenalty?: number, subBase?: number, minConf?: number}} [opts]
+ *   penalties are log-prob costs; minConf drops observations below minConf+0.05
+ * @returns {{decode: (input: ({letter: string, conf?: number}[] | string)) =>
+ *   {text: string, words: string[], raw: string, fallback?: true},
+ *   segment: (s: string) => string[], collapse: (frames: object[], thr?: number) => object[]}}
+ */
 export function createDecoder(lexicon, opts = {}) {
   const { trie, logp } = lexicon;
   const confuse = opts.confusion || DEFAULT_CONFUSION;
@@ -83,12 +138,19 @@ export function createDecoder(lexicon, opts = {}) {
   const subBase = opts.subBase ?? -1.6; // flat cost for any letter correction
   const minConf = opts.minConf ?? 0.4;
 
+  // Emission score: ln P(observing letter o, at confidence c | true letter h).
+  // A match scores ln(c); a mismatch pays subBase plus the look-alike weight,
+  // so M-for-N costs far less than, say, B-for-N.
   const emit = (h, o, c) =>
     h === o
       ? Math.log(Math.max(c, 0.15))
       : subBase +
         Math.log(Math.max(1 - c, 0.03) * ((confuse[h] && confuse[h][o]) || EPS) * 0.5);
 
+  // Merge consecutive repeats of the same letter into one observation (keeping
+  // the highest conf). A below-`thr` or empty frame acts as a "blank"
+  // separator, so the same letter either side of it is kept as two (a real
+  // double like the LL in HELLO).
   function collapse(frames, thr = 0.5) {
     const out = [];
     let blank = true;
@@ -140,7 +202,12 @@ export function createDecoder(lexicon, opts = {}) {
       }
     }
     out.sort((a, b) => b.score - a.score);
-    // de-dup identical (cur, node) keeping the best
+    // de-dup identical (cur, node) keeping the best. The key is (committed-word
+    // count, current partial word, is-a-word): `cur` fixes the trie node, and
+    // since the language model is unigram, two hypotheses that differ only in
+    // earlier words can never be re-ranked later — the lower one is dropped.
+    // (The per-word insertion budget `ins` is NOT in the key, so a used-up
+    // hypothesis can shadow an equal-text one that still has its insertion.)
     const seen = new Set();
     const pruned = [];
     for (const h of out) {
