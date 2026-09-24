@@ -358,7 +358,11 @@ references are as of commit `41c43f0` and will drift.
     `fluidSpoke` not reset in `setMode` and speech not cancelled on leaving
     Spell. `OPEN`, low.
 35. **Accuracy: wrong handedness drops static-letter accuracy 93.7% → 52%.**
-    `OPEN` — measured fix: classify both `v` and its mirror, keep the mirror
+    `PARTLY FIXED` — mirror-both shipped in `89022da` (`knn.classifyEitherHand`,
+    regression check in selftest). Still open: jitter augmentation (would ~3x
+    kNN rows → too slow per frame without prototype reduction) and k=7 /
+    weighted votes (changes every vote-fraction threshold — stabilizers,
+    transition.js — needs live tuning). Measured fix: classify both `v` and its mirror, keep the mirror
     only if its nearest distance is <0.9× (51% → 92.6% under wrong
     handedness, no clean loss). Next: train-time jitter augmentation (+1.3 pt
     under jitter), k=7 / distance-weighted votes (confident-wrong 5.5% →
