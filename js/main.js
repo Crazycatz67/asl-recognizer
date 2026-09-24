@@ -50,8 +50,7 @@ import {
   MIRROR_LEFT_HAND,
   MIN_CONFIDENCE,
   STABLE_FRAMES,
-  REFERENCE_IMG,
-} from "./config.js";
+  REFERENCE_IMG, REJECT_DIST } from "./config.js";
 import { createLandmarkFilter } from "./onefilter.js";
 
 const MOTION = new Set(MOTION_LETTERS); // J, Z — traced, not held
@@ -521,7 +520,11 @@ let lastDetectAt = 0;
 let lastSpellText = null; // syncSpellText(): last text/pending rendered
 let lastSpellPending = null;
 const DECODE_BLANK = { letter: "", conf: 0 }; // see the fluid decode call
-let spellLastCommitAt = 0; // Spell: when the last letter landed (gates J/Z strokes)
+let spellLastCommitAt = 0;
+let handSeenSince = 0; // when the current continuous hand sighting began
+let lastHandSeenAt = 0;
+const HAND_ENTRY_MS = 400;
+let spellMaxAway = 0; // Spell: farthest (hand-spans) the wrist got from the last letter while NOT holding // Spell: when the last letter landed (gates J/Z strokes)
 let lastHold = null; // setHold(): last --hold value written
 let lastMeterKey = null; // updateMeter(): last score|bucket shown
 let missStreak = 0;
@@ -717,7 +720,9 @@ const datasetPromise = loadDataset(DATASET_URL)
     // 10 frames (~1/3 s at 30 fps) at >=4-of-5 kNN votes. Was 6 frames at
     // 3-of-5: a look-alike flicker (A<->S, M<->N) only had to win ~0.2 s to
     // commit a letter the signer never made.
-    spellStab = createStabilizer({ stableFrames: 10, minConfidence: 0.8 });
+    // 16 frames (~0.53 s at 30 fps; was 10 ≈ 0.33 s — a learner moving
+    // slowly between letters held the in-between shape that long)
+    spellStab = createStabilizer({ stableFrames: 16, minConfidence: 0.8 });
     buildLetterPicker(ALL_LETTERS);
     learnRow.hidden = false;
     modeToggle.hidden = false;
@@ -1922,9 +1927,21 @@ function loop() {
   // degenerate frame) would poison the one-euro filter's state until the hand
   // is lost and read as a confident wrong letter (QA 2026-09-23: NaN -> kNN
   // "A" at 0.8). Treat such a frame as no hand.
-  const hasHand =
+  const hasHandRaw =
     result.landmarks?.length > 0 &&
     result.landmarks[0].every((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
+  const hasHand = hasHandRaw;
+  // Spell: the first ~0.4s after a hand appears is the hand arriving, not a
+  // letter — raising a hand used to commit whatever shape it came up in.
+  // After ~0.3s with no hand, forget the latched letter so the same shape
+  // coming back isn't a phantom repeat.
+  if (hasHand && !handSeenSince) handSeenSince = now;
+  if (!hasHand && handSeenSince && now - lastHandSeenAt > 300) {
+    handSeenSince = 0;
+    spellStab?.reset();
+  }
+  if (hasHand) lastHandSeenAt = now;
+  const handEntering = hasHand && now - handSeenSince < HAND_ENTRY_MS;
   const mpLabel = hasHand ? result.handedness?.[0]?.[0]?.categoryName : null;
   // MediaPipe classifies handedness from the raw pixels — it doesn't know which
   // camera produced them — and its label was validated against the real hand on
@@ -1997,13 +2014,16 @@ function loop() {
     // (see classifyEitherHand) — the heads then see the winning orientation
     const either = hasHand && vec ? classifyEitherHand(classifier, vec, mirrorVector) : null;
     lastPred = either?.pred ?? null;
+    // too far from ANY real letter (a relaxed / rising / in-between hand) ->
+    // no prediction at all, rather than its nearest letter (see REJECT_DIST)
+    if (lastPred && lastPred.distance > REJECT_DIST) lastPred = null;
     // learned heads clean up kNN's M↔N / D↔O↔C mixups (no-op if unavailable)
     if (lastPred && refiner) {
       const refined = refiner.refine(either.vec, lastPred.label);
       if (refined !== lastPred.label) { lastPred.label = refined; lastPred.refined = true; }
     }
     stabilizer.push(hasHand ? lastPred : null);
-    if (spellStab) spellStab.push(mode === "spell" && hasHand ? lastPred : null);
+    if (spellStab) spellStab.push(mode === "spell" && hasHand && !handEntering ? lastPred : null);
   }
 
   // score the shape once — the guide's reveal ramp and the practice block need it
@@ -2108,6 +2128,7 @@ function loop() {
     if (swipe.match(now) === "delete" && (speller.clearPending() || speller.backspace())) {
       syncSpellText();
       spellStab.reset(); // the moving hand mustn't then register as a letter
+      transition.reset();
       spellAnchor = null;
       spellSuppressUntil = now + 500;
       buzz([0, 25, 45, 25]);
@@ -2119,9 +2140,13 @@ function loop() {
     if (two === "copy") {
       doSpellCopy();
       spellStab.reset();
+      transition.reset();
+      spellSuppressUntil = now + 600; // open hands settling after a gesture aren't a letter
     } else if (two === "paste" && spellClipboard && speller.insert(spellClipboard)) {
       syncSpellText();
       spellStab.reset();
+      transition.reset();
+      spellSuppressUntil = now + 600;
       buzz([0, 12, 22, 12, 22]);
       fx.flash("rgba(56, 189, 248, 0.5)");
     }
@@ -2129,7 +2154,7 @@ function loop() {
     // FLUID MODE — letters come from js/transition.js (settle-after-move) instead
     // of the "held still N frames" stabiliser path
     if (fluidMode) {
-      transition.push(hand, lastPred, now);
+      transition.push(hand, handEntering || now < spellSuppressUntil ? null : lastPred, now);
       const e = transition.read();
       if (e && now >= spellSuppressUntil) {
         const added = speller.addLetter(e.letter, e.conf);
@@ -2148,7 +2173,9 @@ function loop() {
     // or mid-swipe moves a lot and used to register a string of junk letters
     spellWrist.push({ t: now, x: hand?.[0]?.x ?? 0, y: hand?.[0]?.y ?? 0, has: hasHand });
     while (spellWrist.length && now - spellWrist[0].t > 200) spellWrist.shift();
-    let handSpeed = 0;
+    // unknown speed (too few frames, or a frame without a hand in the window)
+    // counts as MOVING — it used to default to 0 = still
+    let handSpeed = Infinity;
     if (hasHand && hand && spellWrist.length >= 3 && spellWrist.every((f) => f.has)) {
       const a = spellWrist[0], b = spellWrist.at(-1);
       const w = hand[0];
@@ -2157,7 +2184,7 @@ function loop() {
       const span = Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
       handSpeed = Math.hypot(b.x - a.x, b.y - a.y) / span; // hand-spans moved in ~0.2 s
     }
-    const still = handSpeed < 0.45 && now >= spellSuppressUntil;
+    const still = handSpeed < 0.3 && now >= spellSuppressUntil && !handEntering;
 
     const cand = spellStab.candidate;
     const cur = spellStab.current;
@@ -2169,13 +2196,18 @@ function loop() {
     // Measured in hand-spans (like handSpeed above), not raw frame units —
     // 0.14 of the frame was a small nudge for a hand far from the camera and
     // a large move up close, so drift re-armed repeats for some signers.
-    let moved = false;
+    // A re-arm needs a real bounce AWAY from the letter: only distance
+    // covered while NOT holding counts, and the anchor follows the hand while
+    // it holds — slow drift during a long hold used to add up to 0.8 spans
+    // and re-commit the same letter.
     if (hasHand && hand && spellAnchor) {
       let mx = 0, my = 0;
       for (const j of [5, 9, 13, 17]) { mx += hand[j].x; my += hand[j].y; }
       const span = Math.hypot(mx / 4 - hand[0].x, my / 4 - hand[0].y) || 1e-6;
-      moved = Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) / span > 0.8;
+      if (holding) spellAnchor = { x: hand[0].x, y: hand[0].y };
+      else spellMaxAway = Math.max(spellMaxAway, Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) / span);
     }
+    const moved = spellMaxAway > 0.8;
 
     // J/Z motion letters bypassed every Spell gate (stillness, the post-swipe
     // suppression window) and re-armed repeats — moving between handshapes
@@ -2199,6 +2231,7 @@ function loop() {
 
     if (res.event === "letter") {
       spellLastCommitAt = now;
+      spellMaxAway = 0;
       spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
       sound.lock?.();
       buzz(10);

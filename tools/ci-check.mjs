@@ -8,6 +8,7 @@
 // are correct in isolation but drift out of sync with each other.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -32,10 +33,21 @@ async function check(name, fn) {
 // `node --check` parses without executing, so this is safe even for modules
 // that call fetch() at import time (dataset.js, heads.js).
 {
+  // Check each file AS AN ES MODULE (a temp .mjs copy). Found 2026-09-24:
+  // `node --check file.js` with no package.json "type" silently passes ESM
+  // syntax errors — e.g. `import { a,, b }` in js/main.js went green here
+  // while the browser refused to load the app at all.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "asl-syntax-"));
   const jsFiles = fs.readdirSync(path.join(ROOT, "js")).filter((f) => f.endsWith(".js"));
   for (const f of jsFiles) {
     await check(`syntax: js/${f}`, () => {
-      execFileSync(process.execPath, ["--check", path.join(ROOT, "js", f)], { stdio: "pipe" });
+      const copy = path.join(tmp, f.replace(/\.js$/, ".mjs"));
+      fs.copyFileSync(path.join(ROOT, "js", f), copy);
+      try {
+        execFileSync(process.execPath, ["--check", copy], { stdio: "pipe" });
+      } catch (e) {
+        throw new Error(String(e.stderr || e.message).split("\n").slice(0, 5).join(" | "));
+      }
       return null;
     });
   }

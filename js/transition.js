@@ -51,6 +51,8 @@ const WIN_MS = 110; // motion is measured over this trailing window
 const SETTLE_MS = 115; // must be still this long after a move to commit
 // MediaPipe landmark indices tracked for motion:
 const TIPS = [0, 8, 12, 16]; // wrist + 3 fingertips — enough to catch a transition
+const MIN_VOTES = 3; // a settle needs at least this many confident frames to commit
+const MIN_SHARE = 0.6; // ...and the winning letter must hold this share of them
 
 // Hand size ("span"): wrist → mean of the four knuckles (5, 9, 13, 17).
 function spanOf(lm) {
@@ -89,7 +91,11 @@ export function createTransitionMatcher(opts = {}) {
   // each point's straight-line displacement from the oldest buffered frame to
   // the newest, averaged over the points and divided by the mean hand span.
   function travel() {
-    if (buf.length < 2) return 0;
+    // Until the window actually spans most of WIN_MS, motion is unknown —
+    // treat it as MOVING. (Returning 0 here made a hand that just entered
+    // the frame read as "still" and commit whatever shape it arrived in
+    // ~115ms later — 2026-09-24 live QA: "too many accidental spellings".)
+    if (buf.length < 2 || buf.at(-1).t - buf[0].t < WIN_MS * 0.75) return Infinity;
     const a = buf[0], b = buf.at(-1);
     let d = 0;
     for (let i = 0; i < TIPS.length; i++)
@@ -126,10 +132,12 @@ export function createTransitionMatcher(opts = {}) {
 
       if (v <= stillThr) {
         if (state === "moving") { state = "settling"; settledAt = now; votes = []; }
-        if (prediction && prediction.label && (prediction.confidence ?? 0) >= minConf) {
+        // (only while settling — once settled, votes used to keep growing
+        // ~30/s for as long as a hand stayed still)
+        if (state === "settling" && prediction && prediction.label && (prediction.confidence ?? 0) >= minConf) {
           votes.push({ label: prediction.label, conf: prediction.confidence });
         }
-        if (state === "settling" && now - settledAt >= SETTLE_MS && votes.length) {
+        if (state === "settling" && now - settledAt >= SETTLE_MS && votes.length >= MIN_VOTES) {
           // majority letter across the settle window + its mean confidence
           const tally = {};
           for (const x of votes) tally[x.label] = (tally[x.label] || 0) + 1;
@@ -137,7 +145,10 @@ export function createTransitionMatcher(opts = {}) {
           const conf =
             votes.filter((x) => x.label === letter).reduce((s, x) => s + x.conf, 0) /
             tally[letter];
-          if (letter !== heldLetter || movedSince) {
+          // the winner must clearly dominate the settle — one lucky vote
+          // among mixed ones is a transitional shape, not a letter
+          const clear = tally[letter] / votes.length >= MIN_SHARE;
+          if (clear && (letter !== heldLetter || movedSince)) {
             pending = { letter, conf: +conf.toFixed(3) };
             heldLetter = letter;
             movedSince = false;

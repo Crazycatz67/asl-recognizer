@@ -105,3 +105,15 @@ export const STABLE_FRAMES = 8;
 
 // Path to the per-letter reference photos (one clean grassknoted frame each).
 export const REFERENCE_IMG = (letter) => `assets/reference/${letter}.jpg`;
+
+// Reject a prediction whose nearest training example is farther than this
+// (normalized-vector distance, knn.js `distance`): the classifier has no
+// "not a letter" class, so a relaxed hand, a hand being raised, or an
+// in-between shape always landed on SOME letter, often with 4-5/5 votes.
+// Measured 2026-09-24 (blocked 80/20 per-letter split, rotation-augmented
+// train, held-out at 0/±12°): real letters p95 0.62 / p97 0.73; relaxed
+// "space" hands p10 0.69; midpoints of two different letters p50 0.73.
+// 0.68 keeps ~96% of real single frames (a letter holds for many frames, so
+// a rare reject barely delays it) and drops most non-letter shapes.
+export const REJECT_DIST = 0.68;
+

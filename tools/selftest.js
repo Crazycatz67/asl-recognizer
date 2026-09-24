@@ -1063,8 +1063,13 @@ function mkHand() {
       }
       return emitted;
     };
+    // (the hand is in view briefly before the first letter — since 2026-09-24
+    // motion is "unknown = moving" until the window fills, so a hand that
+    // appears already in a shape doesn't commit it on arrival)
+    ok("transition: a hand that flashes into view already shaped commits nothing",
+      trRun([{ letter: "B", frames: 3 }]).length === 0);
     ok("transition: C-A-T settles to three letters",
-      trRun([{ letter: "C", frames: 7 }, { frames: 4, move: true },
+      trRun([{ frames: 4 }, { letter: "C", frames: 7 }, { frames: 4, move: true },
              { letter: "A", frames: 7 }, { frames: 4, move: true },
              { letter: "T", frames: 7 }]).join("") === "CAT");
     ok("transition: a doubled letter survives (move between the two B's)",
