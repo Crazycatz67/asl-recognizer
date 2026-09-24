@@ -330,7 +330,7 @@ references are as of commit `41c43f0` and will drift.
     reference panel also auto-flips silently. The fix is Stages 7a (tour
     scene), 7b (`palmFacing()` + badge + hint, which must be validated against
     B11's negative result first) and 7d.
-28. **Challenge's "seeing X" readout leaks the answer.** `OPEN`.
+28. **Challenge's "seeing X" readout leaks the answer.** `FIXED (needs live confirm)` — `0abc510`: hidden during play; a miss now reports what it read. (Stage 5 also added combo, difficulty, fair drain, words, end summary.)
     `renderChallenge()` shows `seeing <b>X</b>` (the live raw prediction)
     during play. It turns the game into "wiggle until it says the letter".
     The fix is Stage 5: show it only in the post-miss "so close — read as N"
