@@ -701,6 +701,80 @@ function mkHand() {
         return g.active === false && g.update(1, "A") === null;
       })());
 
+    // Challenge v2 (combo, fair drain, near-miss grace, words, difficulty)
+    {
+      try { localStorage.removeItem("asl-challenge-best-hard"); localStorage.removeItem("asl-challenge-stats-hard"); } catch {}
+      const toPlay = (g, t) => { let s; for (let i = 0; i < 8 && g.phase !== "play"; i++) s = g.update((t.v += 3000), null); return s; };
+      ok("challenge v2: combo multiplier climbs x1 -> x2 at 3 in a row, and scales the points", (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B", "C"] });
+        g.start(0); const t = { v: 0 }; g.update(0, null);
+        const gains = [], mults = []; let up = 0;
+        for (let k = 0; k < 3; k++) {
+          const s0 = toPlay(g, t);
+          const s = g.update((t.v += 10), s0.target);
+          gains.push(s.lastGain); mults.push(s.mult); if (s.comboUp) up++;
+          g.update((t.v += 1000), null); // past the "won" beat
+        }
+        return mults.join() === "1,1,2" && up === 1 && gains[2] >= 2 * 20;
+      })());
+      ok("challenge v2: holding a WRONG shape drains the clock (costs time, not a life)", (() => {
+        const mk = () => { const g = gameMod.createChallenge({ letters: ["A", "B"] }); g.start(0); g.update(0, null); return g; };
+        const run = (wrongFor) => {
+          const g = mk(); const t = { v: 0 }; const s0 = toPlay(g, t);
+          const wrong = s0.target === "A" ? "B" : "A";
+          let s = s0, drained = false;
+          for (let k = 0; k * 50 < 3000; k++) { s = g.update((t.v += 50), k * 50 < wrongFor ? wrong : null); drained ||= s.draining; }
+          return { frac: s.remainingFrac, drained, lives: s.lives, phase: s.phase };
+        };
+        const clean = run(0), wrong = run(2500);
+        return wrong.drained && !clean.drained && wrong.frac < clean.frac - 0.2 && wrong.lives === 3 && wrong.phase === "play";
+      })());
+      ok("challenge v2: cycling through different wrong shapes still drains (can't dodge it)", (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B", "C", "D", "E"] }); g.start(0); g.update(0, null);
+        const t = { v: 0 }; const s0 = toPlay(g, t);
+        const wrongs = ["A", "B", "C", "D", "E"].filter((c) => c !== s0.target);
+        let drained = false;
+        for (let k = 0; k < 40; k++) drained ||= g.update((t.v += 50), wrongs[(k >> 2) % wrongs.length]).draining;
+        return drained;
+      })());
+      ok("challenge v2: no hand (null) never drains; 'near' at time-out earns one grace extension", (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B"] }); g.start(0); g.update(0, null);
+        const t = { v: 0 }; toPlay(g, t);
+        let s = g.update((t.v += 7000), null, { near: true }); // time's up, but close
+        const graced = s.phase === "play" && s.lives === 3;
+        s = g.update((t.v += 1100), null, { near: true }); // grace used up
+        return graced && s.event === "miss" && s.lives === 2;
+      })());
+      ok("challenge v2: a word round needs every letter in order; the just-landed letter isn't 'wrong'", (() => {
+        const g = gameMod.createChallenge({ letters: ["C", "A", "T", "X"], words: ["cat"], rng: () => 0 });
+        g.start(0); const t = { v: 0 }; g.update(0, null);
+        let s;
+        for (let r = 0; r < 30; r++) { // play letter rounds until a word round comes up
+          s = toPlay(g, t);
+          if (s.target.length > 1) break;
+          g.update((t.v += 10), s.target); g.update((t.v += 1000), null);
+        }
+        if (s.target !== "CAT") return false;
+        s = g.update((t.v += 50), "C");
+        const p1 = s.partHit && s.progress === 1;
+        let drained = false;
+        for (let k = 0; k < 30; k++) drained ||= g.update((t.v += 50), "C").draining; // still reading C
+        s = g.update((t.v += 50), "A"); s = g.update((t.v += 50), "T");
+        return p1 && !drained && s.event === "win";
+      })());
+      ok("challenge v2: hard = short study; the run's summary + per-difficulty best persist", (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B"] });
+        g.start(0, "hard"); let s = g.update(0, null);
+        const shortStudy = g.update(1000, null).phase !== "study";
+        const t = { v: 1000 };
+        toPlay(g, t); s = g.update((t.v += 10), g.needed); g.update((t.v += 1000), null);
+        for (let life = 3; life > 0; life--) { toPlay(g, t); s = g.update((t.v += 90000), null); }
+        return shortStudy && s.event === "over" && s.newBest && s.summary.difficulty === "hard" &&
+          s.summary.wins === 1 && s.summary.misses === 3 && g.savedStats("hard").best === s.score;
+      })());
+      try { localStorage.removeItem("asl-challenge-best-hard"); localStorage.removeItem("asl-challenge-stats-hard"); } catch {}
+    }
+
     // ---- speller.js (continuous fingerspelling -> text) ----
     const spMod = await import("../js/speller.js");
     // hold a letter = many frames of {holding:true}; a gap = frames of not-holding

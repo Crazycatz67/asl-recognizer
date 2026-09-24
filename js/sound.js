@@ -145,6 +145,98 @@ export function createSound() {
       tone(987.77, n + 0.07, 0.16, { type: "sine", gain: 0.04 });
     },
 
+    // ---- Challenge palette (2026-09-23): every game event gets its OWN cue
+    // instead of reusing success()/fail()/select() everywhere. Each has a
+    // visual twin in main.js (banner / flash / chip) — sound is never the
+    // only signal.
+
+    // a new round's letter appears — a quick soft upward "whoosh" blip
+    roundStart() {
+      if (muted || !cool("roundStart", 200) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(440, n, 0.06, { type: "sine", gain: 0.04 });
+      tone(660, n + 0.05, 0.08, { type: "sine", gain: 0.035 });
+    },
+    // GO — bright two-note starting gun
+    go() {
+      if (muted || !cool("go", 300) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(784, n, 0.07, { type: "square", gain: 0.035 });
+      tone(1175, n + 0.07, 0.16, { type: "square", gain: 0.04 });
+    },
+    // one letter of a word landed — a short pluck that climbs with position
+    partHit(i = 0) {
+      if (muted || !cool("partHit", 60) || !ensure()) return;
+      tone(660 * Math.pow(2, Math.min(i, 6) / 12), ctx.currentTime, 0.09, { type: "triangle", gain: 0.07 });
+    },
+    // a Challenge letter/word landed — a chord whose root climbs with the
+    // combo multiplier (1..4), so a hot streak audibly "levels up"
+    hit(mult = 1) {
+      chargeStop(0.04);
+      if (muted || !cool("hit", 150) || !ensure()) return;
+      const n = ctx.currentTime;
+      const root = 523.25 * Math.pow(2, (Math.min(mult, 4) - 1) * 3 / 12);
+      [1, 1.26, 1.5].forEach((r, i) => tone(root * r, n + i * 0.035, 0.22, { gain: 0.08 }));
+      if (mult > 1) tone(root * 4, n + 0.12, 0.3, { type: "sine", gain: 0.03 + 0.01 * mult });
+    },
+    // the combo multiplier just went up — a rising sparkle run
+    comboUp(mult = 2) {
+      if (muted || !cool("comboUp", 300) || !ensure()) return;
+      const n = ctx.currentTime;
+      const base = 880 * Math.pow(2, (Math.min(mult, 4) - 2) * 2 / 12);
+      [0, 4, 7, 12].forEach((st, i) => tone(base * Math.pow(2, st / 12), n + 0.18 + i * 0.05, 0.14, { type: "sine", gain: 0.05 }));
+    },
+    // holding the wrong shape — the clock is draining (soft, low, repeating)
+    drain() {
+      if (muted || !cool("drain", 380) || !ensure()) return;
+      tone(165, ctx.currentTime, 0.12, { type: "triangle", gain: 0.05 });
+    },
+    // lost a life (not the end) — a muted low thud, deliberately not harsh
+    lifeLost() {
+      if (muted || !cool("lifeLost", 300) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(220, n, 0.16, { type: "triangle", gain: 0.1 });
+      tone(165, n + 0.1, 0.24, { type: "triangle", gain: 0.08 });
+    },
+    // the run is over — a slower three-step descent
+    gameOver() {
+      chargeStop(0.04);
+      if (muted || !cool("gameOver", 500) || !ensure()) return;
+      const n = ctx.currentTime;
+      [392, 311.13, 261.63].forEach((f, i) => tone(f, n + i * 0.16, 0.34, { type: "triangle", gain: 0.1 }));
+    },
+    // a new personal best — the ONE big fanfare in the app, saved for this
+    newBest() {
+      if (muted || !cool("newBest", 1000) || !ensure()) return;
+      const n = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) =>
+        tone(f, n + 0.45 + i * 0.09, 0.4, { gain: 0.12 }));
+      [1046.5, 1567.98, 2093].forEach((f, i) =>
+        tone(f, n + 0.95 + i * 0.06, 0.6, { type: "sine", gain: 0.04 }));
+    },
+    // an A->Z / Review run completed — warmer and longer than a single letter
+    runComplete() {
+      chargeStop(0.04);
+      if (muted || !cool("runComplete", 800) || !ensure()) return;
+      const n = ctx.currentTime;
+      [392, 523.25, 659.25, 783.99].forEach((f, i) => tone(f, n + i * 0.11, 0.45, { gain: 0.11 }));
+      tone(1046.5, n + 0.44, 0.7, { type: "sine", gain: 0.05 });
+    },
+    // Read mode: a correct answer — a gentle two-note "yes" (not the big reward)
+    correct() {
+      if (muted || !cool("correct", 250) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(659.25, n, 0.12, { type: "sine", gain: 0.07 });
+      tone(880, n + 0.09, 0.2, { type: "sine", gain: 0.07 });
+    },
+    // Read mode: not quite — a soft falling two-note "hmm" (not the harsh fail)
+    wrong() {
+      if (muted || !cool("wrong", 250) || !ensure()) return;
+      const n = ctx.currentTime;
+      tone(392, n, 0.12, { type: "triangle", gain: 0.06 });
+      tone(349.23, n + 0.1, 0.2, { type: "triangle", gain: 0.05 });
+    },
+
     // a run ended
     fail() {
       if (muted || !cool("fail", 300) || !ensure()) return;

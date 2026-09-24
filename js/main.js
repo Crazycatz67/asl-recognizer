@@ -23,7 +23,7 @@ import { createSheet } from "./sheet.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { createBackground } from "./bg.js";
-import { createChallenge } from "./challenge.js";
+import { createChallenge, START_LIVES } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
 import { createSpeller, STROKE_START } from "./speller.js";
 import { createSpellDrill } from "./spelldrill.js";
@@ -130,6 +130,10 @@ const chCardTitle = $("chCardTitle");
 const chCardSub = $("chCardSub");
 const chStart = $("chStart");
 const chSkip = $("chSkip");
+const chSummary = $("chSummary");
+const chDiff = $("chDiff");
+const chBests = $("chBests");
+const chCombo = $("chCombo");
 const chLives = $("chLives");
 const azNext = $("azNext");
 const reco = $("reco");
@@ -527,6 +531,7 @@ let fluidSpoke = false; // already spoke this pause?
 let drill = null; // spell mode: "spell this word" practice targets
 let drillMode = loadPref("drill") === "1";
 let drillSrc = loadPref("drill-src") === "starter" ? "starter" : "course";
+let challengeWords = []; // Challenge word rounds, from practice-words.json
 let drillStarter = []; // fallback word pool (short + common) when no course tier
 let drillHitAt = 0; // debounce the success -> next-word advance
 let reader = null; // read mode: receptive practice
@@ -563,6 +568,10 @@ function loadWordBank() {
       // spell-mode drill: a short+common starter pool; the course tier is the
       // other source (wired in refillDrill once curriculum.json lands)
       drillStarter = [...(bank.short || []), ...(bank.common || [])];
+      // Challenge word rounds: familiar everyday words (it filters to 3-5
+      // letters without doubles itself)
+      challengeWords = [...(bank.short || []), ...(bank.common || []), ...(bank.food || []), ...(bank.animals || [])];
+      challenge?.setWords(challengeWords);
       drill = createSpellDrill(drillStarter);
       if (spDrillSrc) spDrillSrc.value = drillSrc;
       if (mode === "spell") applyDrill();
@@ -651,7 +660,8 @@ const datasetPromise = loadDataset(DATASET_URL)
     refPlayer = createCanonicalPlayer(refCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     readPlayer = createCanonicalPlayer(rdCanvas);
-    challenge = createChallenge({ letters: ALL_LETTERS }); // incl. J/Z
+    challenge = createChallenge({ letters: ALL_LETTERS, words: challengeWords, difficulty: chDifficulty }); // incl. J/Z
+    renderChBests();
     speller = createSpeller();
     // 10 frames (~1/3 s at 30 fps) at >=4-of-5 kNN votes. Was 6 frames at
     // 3-of-5: a look-alike flicker (A<->S, M<->N) only had to win ~0.2 s to
@@ -750,7 +760,7 @@ function setTarget(letter) {
       if (MOTION.has(letter)) refPlayer?.setMotion(letter);
       else refPlayer?.setTarget(reference?.centroid(letter) || null);
     });
-    sound.select();
+    if (mode !== "challenge") sound.select(); // Challenge has its own roundStart()
   } else {
     if (refDesc) refDesc.textContent = "";
     letterStat.textContent = "";
@@ -867,7 +877,7 @@ function showRunCard() {
     (azSkipped.size ? `<br><b>Skipped:</b> ${[...azSkipped].join(" ")}` : "");
   runCard.hidden = false;
   fx.flash("#22c55e");
-  sound.success();
+  sound.runComplete();
   buzz([0, 40, 30, 60, 30, 90]);
 }
 runCardClose.addEventListener("click", () => {
@@ -1246,7 +1256,7 @@ function judgeRead(revealed) {
       : "✓ correct";
     rdFeedback.className = "rd-feedback good";
     buzz(promo && promo.unlocked ? 40 : 20);
-    sound.success?.();
+    sound.correct?.();
     setTimeout(nextReadWord, promo && promo.unlocked ? 1400 : 850);
   } else {
     rdFeedback.className = "rd-feedback bad";
@@ -1255,7 +1265,7 @@ function judgeRead(revealed) {
     } else {
       renderDiff(rdFeedback, result.diff, answer, guess.trim().toLowerCase());
       buzz(60);
-      sound.fail?.();
+      sound.wrong?.();
       // only the single strongest confusable — piling on every mismatched
       // pair reads as noise, not help
       const top = result.confusables.slice().sort((x, y) => y.weight - x.weight)[0];
@@ -1314,8 +1324,11 @@ function setMode(next) {
   if (mode === "challenge") {
     chCardTitle.textContent = "Challenge";
     chCardSub.textContent = state === "tracking" || state === "searching"
-      ? "A random letter, a shrinking timer. How far can you get?"
+      ? CH_INTRO
       : "Turn on the camera, then Start.";
+    chSummary.hidden = true;
+    chDiff.hidden = false;
+    renderChBests();
     chCard.hidden = false;
   }
 }
@@ -1330,6 +1343,7 @@ function clearChallengeHud() {
   chSeeing.hidden = true;
   chSkip.hidden = true;
   chBanner.hidden = true;
+  chCombo.hidden = true;
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
   if (targetLetter) openRefSheet();
@@ -1350,17 +1364,58 @@ function startChallenge() {
   scoreVal.textContent = "0";
   chStreak.hidden = true;
   timeBar.hidden = false;
-  challenge.start(performance.now());
+  chSummary.hidden = true;
+  chCombo.hidden = true;
+  chCombo.textContent = "";
+  challenge.start(performance.now(), chDifficulty);
 }
+
+// ---- Challenge v2 card: difficulty picker + per-difficulty bests ----
+const CH_INTRO =
+  "A letter flashes up — sign it before the timer runs out. Land them in a row " +
+  "for a combo multiplier. Later rounds bring look-alike letters and short words.";
+let chDifficulty = loadPref("ch-diff") === "hard" ? "hard" : "normal";
+function renderChDiff() {
+  for (const b of chDiff.querySelectorAll("button")) {
+    const on = b.dataset.diff === chDifficulty;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
+}
+function renderChBests() {
+  if (!challenge) return (chBests.textContent = "");
+  const st = challenge.savedStats(chDifficulty);
+  chBests.textContent = st.best
+    ? `${chDifficulty === "hard" ? "Hard" : "Normal"} best: ${st.best} pts · longest combo ${st.bestStreak || 0} · round ${st.bestRound || 0}`
+    : "";
+}
+chDiff.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-diff]");
+  if (!b) return;
+  chDifficulty = b.dataset.diff;
+  savePref("ch-diff", chDifficulty);
+  renderChDiff();
+  renderChBests();
+});
+renderChDiff();
 
 let lastTickAt = 0;
 
-// react to the game snapshot each frame. `seeing` = what the recogniser reads
-// right now (for the on-screen "seeing: X" feedback).
-function renderChallenge(snap, seeing) {
+// react to the game snapshot each frame. Every sound here has a visual twin
+// (banner / flash / chip) — sound is never the only signal (Deaf-first).
+let lastDrainAt = 0;
+const bannerFor = (snap) => {
+  // word rounds: landed letters lit, the next one underlined
+  if (!snap.target || snap.target.length < 2) return escapeHtml(snap.target || "");
+  return [...snap.target]
+    .map((c, i) => `<span class="${i < snap.progress ? "done" : i === snap.progress ? "next" : ""}">${c}</span>`)
+    .join("");
+};
+function renderChallenge(snap, near) {
   if (!snap) return;
   timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
   timeBar.classList.toggle("low", !!snap.low);
+  timeBar.classList.toggle("drain", !!snap.draining);
 
   if (snap.low && performance.now() - lastTickAt > 430) {
     lastTickAt = performance.now();
@@ -1368,20 +1423,33 @@ function renderChallenge(snap, seeing) {
   }
 
   chLives.hidden = false;
-  chLives.textContent = "♥".repeat(snap.lives) + "♡".repeat(Math.max(0, 3 - snap.lives));
+  chLives.textContent = "♥".repeat(snap.lives) + "♡".repeat(Math.max(0, START_LIVES - snap.lives));
 
   if (snap.event === "letter") {
-    setTarget(snap.letter); // shows the demo + description in the panel
-    refPanel.hidden = false;
-    workspace.dataset.target = "on";
-    chBanner.hidden = true;
+    const isWord = snap.target.length > 1;
+    // Normal previews a single letter's demo; Hard (and word rounds) show
+    // only what to sign
+    if (!isWord && snap.difficulty === "normal") {
+      setTarget(snap.target); // shows the demo + description in the panel
+      refPanel.hidden = false;
+      workspace.dataset.target = "on";
+      chBanner.hidden = true;
+    } else {
+      refPanel.hidden = true;
+      workspace.dataset.target = "off";
+      chBanner.className = `ch-banner study${isWord ? " word" : ""}`;
+      chBanner.innerHTML = bannerFor(snap);
+      chBanner.hidden = false;
+    }
     chSeeing.hidden = true;
+    sound.roundStart();
   } else if (snap.event === "go") {
     refPanel.hidden = true;
     workspace.dataset.target = "off";
     chBanner.className = "ch-banner go";
     chBanner.textContent = "GO";
     chBanner.hidden = false;
+    sound.go();
   } else if (snap.event === "play") {
     stabilizer?.reset(); // the letter must be formed FRESH during play
   } else if (snap.event === "win") {
@@ -1391,7 +1459,7 @@ function renderChallenge(snap, seeing) {
     scoreBadge.classList.add("pop");
     chStreak.hidden = snap.streak < 2;
     chStreak.textContent = `🔥${snap.streak}`;
-    chGain.textContent = `+${snap.lastGain}`;
+    chGain.textContent = snap.mult > 1 ? `+${snap.lastGain}  ×${snap.mult}` : `+${snap.lastGain}`;
     chGain.hidden = false;
     chGain.classList.remove("ch-gain");
     void chGain.offsetWidth;
@@ -1401,52 +1469,110 @@ function renderChallenge(snap, seeing) {
     chBanner.hidden = false;
     chSeeing.hidden = true;
     chSkip.hidden = true;
-    fx.flash("#22c55e");
-    sound.success();
+    chCombo.hidden = snap.mult < 2;
+    chCombo.textContent = `×${snap.mult} combo`;
+    if (snap.comboUp) {
+      chCombo.classList.remove("up");
+      void chCombo.offsetWidth;
+      chCombo.classList.add("up");
+      sound.comboUp(snap.mult);
+    }
+    fx.flash(snap.mult >= 3 ? "#fde047" : "#22c55e");
+    sound.hit(snap.mult);
     buzz([0, 30, 25, 55]);
   } else if (snap.event === "miss") {
     chBanner.className = "ch-banner miss";
     chBanner.textContent = "✕";
     chBanner.hidden = false;
-    chSeeing.hidden = true;
+    // no peeking during play — but after a miss, say what it read
+    chSeeing.className = "ch-seeing";
+    chSeeing.innerHTML = snap.missReadAs
+      ? `so close — read as <b>${escapeHtml(snap.missReadAs)}</b>, not <b>${escapeHtml(snap.missedLetter)}</b>`
+      : `time — it was <b>${escapeHtml(snap.missedLetter)}</b>`;
+    chSeeing.hidden = false;
     chSkip.hidden = true;
     chStreak.hidden = true;
+    chCombo.hidden = true;
     fx.flash("#f87171");
-    sound.fail();
+    sound.lifeLost();
     buzz(90);
   } else if (snap.event === "over") {
     timeBar.hidden = true;
-    timeBar.classList.remove("low");
+    timeBar.classList.remove("low", "drain");
     chBanner.hidden = true;
     chSeeing.hidden = true;
     chSkip.hidden = true;
+    chCombo.hidden = true;
     refPanel.hidden = true;
-    chCardTitle.textContent = "Run over";
-    chCardSub.innerHTML =
-      `Score <b>${snap.score}</b> · Best <b>${snap.best}</b><br>` +
-      `Reached round ${snap.round} · missed <b>${snap.missedLetter}</b>`;
+    renderChallengeSummary(snap);
     chStart.textContent = "Play again";
     chCard.hidden = false;
     sound.charge(0);
-    sound.fail();
-    buzz([0, 60, 40, 120]);
+    if (snap.newBest) {
+      sound.newBest();
+      fx.flash("#fde047");
+      buzz([0, 40, 30, 60, 30, 120]);
+    } else {
+      sound.gameOver();
+      buzz([0, 60, 40, 120]);
+    }
+  }
+
+  if (snap.partHit) {
+    sound.partHit(snap.progress);
+    buzz(12);
   }
 
   if (snap.phase === "play") {
     refPanel.hidden = true;
     workspace.dataset.target = "off";
-    chBanner.className = "ch-banner";
-    chBanner.textContent = snap.letter;
+    chBanner.className = `ch-banner${snap.target.length > 1 ? " word" : ""}`;
+    chBanner.innerHTML = bannerFor(snap);
     chBanner.hidden = false;
-    chSeeing.hidden = false;
-    chSeeing.innerHTML = seeing ? `seeing <b>${seeing}</b>` : `seeing <b>—</b>`;
+    // live QA: "Challenge is too easy". The old live "seeing X" readout let
+    // you cycle shapes until the model agreed — now play shows only whether
+    // you're holding a WRONG shape (the clock drains), never which letter.
+    chSeeing.className = `ch-seeing${snap.draining ? " drain" : ""}`;
+    chSeeing.textContent = snap.draining ? "✕ not that shape — the clock is draining" : near ? "~ close…" : "";
+    chSeeing.hidden = !snap.draining && !near;
+    if (snap.draining && performance.now() - lastDrainAt > 400) {
+      lastDrainAt = performance.now();
+      sound.drain();
+    }
     chSkip.hidden = false;
-  } else if (snap.phase === "study") {
-    chBanner.hidden = true;
+  } else if (snap.phase === "study" && snap.event !== "letter") {
     chSeeing.hidden = true;
     chSkip.hidden = true;
   }
 }
+
+function renderChallengeSummary(snap) {
+  const sm = snap.summary;
+  chCardTitle.textContent = snap.newBest ? "New personal best!" : "Run over";
+  chCardSub.textContent = "";
+  const pct = Math.round((sm?.accuracy || 0) * 100);
+  const slow = (sm?.slowest || []).filter(Boolean);
+  chSummary.innerHTML =
+    (snap.newBest ? `<div class="newbest">★ NEW BEST ★</div>` : "") +
+    `<div class="stats">` +
+    `<div class="stat"><b>${sm?.score ?? snap.score}</b><span>score · best ${sm?.best ?? snap.best}</span></div>` +
+    `<div class="stat"><b>×${Math.max(1, Math.min(4, sm?.bestStreak >= 10 ? 4 : sm?.bestStreak >= 6 ? 3 : sm?.bestStreak >= 3 ? 2 : 1))}</b><span>best combo · ${sm?.bestStreak ?? 0} in a row</span></div>` +
+    `<div class="stat"><b>${pct}%</b><span>landed · round ${sm?.round ?? snap.round}</span></div>` +
+    `</div>` +
+    (slow.length
+      ? `<div class="practice">Practice these: ${slow
+          .map((t) => `<button type="button" data-practice="${escapeHtml(t[0])}">${escapeHtml(t)}</button>`)
+          .join("")}</div>`
+      : "");
+  chSummary.hidden = false;
+  renderChBests();
+}
+chSummary.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-practice]");
+  if (!b) return;
+  setMode("practice");
+  setTarget(b.dataset.practice);
+});
 
 function reward(originLandmark) {
   // per-letter stats: completions + best time from first-sighting to lock
@@ -1545,7 +1671,7 @@ function setState(next, detail) {
     !pendingChallengeStart // don't stomp "Starting camera..." while a Start click is in flight
   ) {
     chCardTitle.textContent = "Challenge";
-    chCardSub.textContent = "A random letter, a shrinking timer. How far can you get?";
+    chCardSub.textContent = CH_INTRO;
   }
 }
 
@@ -2047,9 +2173,17 @@ function loop() {
   // readout uses the raw current prediction so it feels responsive.
   if (mode === "challenge" && challenge?.active) {
     // a traced J/Z stroke, or the debounced classifier call for a static letter
-    const seen = stroke || stabilizer.current;
-    const seeing = stroke || (lastPred && lastPred.confidence >= 0.5 ? lastPred.label : null);
-    renderChallenge(challenge.update(now, seen), seeing);
+    // (only while a hand is in view: stabilizer.current latches the last
+    // confirmed letter after the hand leaves, and a stale wrong letter must
+    // not drain the clock)
+    const seen = stroke || (hasHand ? stabilizer.current : null);
+    // "near": the hand is close to the needed letter's shape — shown as a
+    // hint and earns a one-time grace second at time-out
+    const needed = challenge.needed;
+    const near =
+      !!needed && hasHand && !!vec && !!reference && !MOTION.has(needed) &&
+      reference.score(vec, needed).bucket !== "off";
+    renderChallenge(challenge.update(now, seen, { near }), near);
     bg.setMatch(null);
   }
 

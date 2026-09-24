@@ -139,11 +139,18 @@
         <div class="ch-gain" id="chGain" hidden></div>
         <div class="ch-banner" id="chBanner" hidden></div>
         <div class="ch-seeing" id="chSeeing" hidden></div>
+        <div class="ch-combo" id="chCombo" hidden></div>
         <button class="ch-skip" id="chSkip" type="button" hidden>Skip (–1 ♥)</button>
         <div class="ch-card" id="chCard" hidden>
           <div class="ch-card-inner">
             <p class="ch-card-title" id="chCardTitle">Challenge</p>
-            <p class="ch-card-sub" id="chCardSub">See a letter, then race the timer to sign it. Land it fast for more points. 3 lives — a timeout or a Skip costs one.</p>
+            <p class="ch-card-sub" id="chCardSub">A letter flashes up — sign it before the timer runs out. Land them in a row for a combo multiplier. Later rounds bring look-alike letters and short words. 3 lives: a time-out or a Skip costs one.</p>
+            <div class="ch-summary" id="chSummary" hidden></div>
+            <div class="ch-diff" id="chDiff" role="group" aria-label="Difficulty">
+              <button type="button" data-diff="normal" class="on" aria-pressed="true">Normal<small>demo preview</small></button>
+              <button type="button" data-diff="hard" aria-pressed="false">Hard<small>no preview · faster</small></button>
+            </div>
+            <p class="ch-bests" id="chBests"></p>
             <button class="cta" id="chStart" type="button">Start</button>
           </div>
         </div>
