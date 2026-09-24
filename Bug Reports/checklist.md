@@ -336,6 +336,36 @@ references are as of commit `41c43f0` and will drift.
     The fix is Stage 5: show it only in the post-miss "so close — read as N"
     message.
 
+## Found 2026-09-23 (automated limit-test + accuracy pass)
+
+29. **Fluid Spell decoded real double letters away** (HELLO → "held",
+    COFFEE → "code"). `FIXED (verified offline)` — `35a42af`: `decode()`'s
+    `collapse()` merged adjacent repeats of the already-segmented
+    `speller.raw`; main.js now blank-separates entries. Regression check added.
+30. **Two-hand paste re-fired every ~825 ms after one hand dropped** (and the
+    buffer grew without bound outside Spell). `FIXED (verified offline)` —
+    `35a42af`: buffer cleared on fire, trimmed in the one-hand branch.
+31. **A single NaN landmark read as a confident letter until the hand was
+    lost.** `FIXED (verified offline)` — `35a42af`: non-finite frames are
+    treated as no hand. (Stabilizer now also reset on mode switch.)
+32. **`transition.js` `votes` grows forever during a still hold** (~108k
+    entries/hour). `OPEN`, low — push only while settling.
+33. **Tiny hands (radius ~5% of frame) + jitter fire spurious J/Z and fluid
+    commits.** `OPEN`, low — add a minimum hand-span gate (fold into Stage 3).
+34. **Edge cases:** speller `flush()` separator can exceed `maxLen` by 1;
+    `insert()` can split a surrogate pair; `normalizeLandmarks` throws on
+    <21 points (unreachable from main.js guards); `fluidLastLetterAt`/
+    `fluidSpoke` not reset in `setMode` and speech not cancelled on leaving
+    Spell. `OPEN`, low.
+35. **Accuracy: wrong handedness drops static-letter accuracy 93.7% → 52%.**
+    `OPEN` — measured fix: classify both `v` and its mirror, keep the mirror
+    only if its nearest distance is <0.9× (51% → 92.6% under wrong
+    handedness, no clean loss). Next: train-time jitter augmentation (+1.3 pt
+    under jitter), k=7 / distance-weighted votes (confident-wrong 5.5% →
+    3.8–4.1%), then extra heads (P/Q, U/R/V/K, G/H) trained on jittered data.
+    Honest held-out number (blocked 5-fold, one signer): 93.6%, weakest
+    M 78 / N 80 / H 90 / Q 91. Scripts: session scratchpad `qa/`.
+
 ---
 
 ## Working the list
