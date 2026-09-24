@@ -1,6 +1,7 @@
 # ASL project roadmap (research-informed)
 
 ## Revision history
+- **2026-09-23:** Pointers updated for the docs reorganization. Phase 1 live status stays in `asl-letter-recognition-plan.md`, the dated history is now in `docs/CHANGELOG.md`, and the Stage 8/9 research is in `docs/research-and-future.md`. No roadmap content changed.
 - **2026-09-03:** Added two-handed neutral tracking approach to Phase 2 (mirror each hand individually, concatenate in consistent left-then-right order) — prompted by a fairness/bias discussion; doesn't affect Phase 1 since ASL fingerspelling is one-handed.
 - **2026-09-03:** Full roadmap rewritten to incorporate landscape research pass across all 5 phases — dataset swap (ASL Citizen over WLASL) for phase 2, explicit DRM scoping + word-boundary-detection task for phase 3, "check my sign" reuse of phase 1/2 classifier for phase 4, cross-cutting techniques section added.
 - **2026-09-03:** Roadmap expanded from letters-only to full 5-phase vision (letters → word recognition → video captioning → learning dictionary → app conversion), first established in chat.
@@ -17,6 +18,9 @@ an accessibility pass, and a full audit pass (bug hunt + free CI). Live status,
 the full backlog, and revision history are in `asl-letter-recognition-plan.md`
 — that file is the actual source of truth for Phase 1; this doc stays at the
 research-rationale level and doesn't try to track day-to-day status.
+(Since 2026-09-23 the plan doc is short. Dated history is in
+`docs/CHANGELOG.md`, and the Stage 8/9 designs, which overlap Phases 1 and 3
+here, are in `docs/research-and-future.md`.)
 
 **Validated by research:** MediaPipe landmarks → lightweight in-browser classifier is a well-trodden path (fingerpose, multiple 2025 papers), not just our own idea. kNN → small neural net is a legitimate, commonly-used upgrade ladder — nothing suggests we need to skip straight to a heavier model.
 

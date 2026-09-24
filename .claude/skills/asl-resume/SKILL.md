@@ -14,11 +14,14 @@ dump raw output.
 ## 1. Read the sources of truth, in this order
 
 1. `asl-letter-recognition-plan.md` — the top "Session resume — read first"
-   block, and its dated "Revision history" tail (most recent entries).
-2. Whatever active stage-plan file that resume block points to (currently
-   `C:\Users\maila\.claude\plans\twinkly-floating-garden.md` — but check the
-   pointer, it may have changed) — read its "Decisions already made" table and
-   the tail of its progress log to find the current stage.
+   block and its "Active backlog" stage table; then the newest entries at the
+   top of `docs/CHANGELOG.md` (the dated revision history moved there on
+   2026-09-23).
+2. Whatever active stage-plan file that resume block points to (as of
+   2026-09-23: `~/.claude/plans/cryptic-squishing-donut.md`, the showcase-polish
+   plan; the older `twinkly-floating-garden.md` stage plan lived on the previous
+   Windows machine — but check the pointer, it may have changed) — read it to
+   find the current stage and its verification rules.
 3. Project memory: `MEMORY.md` in this project's memory directory, then the
    linked `asl-project.md` (or equivalent) memory file for the fullest recent
    narrative.

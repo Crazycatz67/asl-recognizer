@@ -1,10 +1,11 @@
 # Bug checklist — task clipboard
 
-Source: `Bug Reports/bug_report version 1 post test.txt` (live QA, voice-delivered).
-This file is the durable tracker — update it in place as items move, don't
+Sources: `Bug Reports/bug_report version 1 post test.txt` (live QA,
+voice-delivered, items 1–16) and the owner's 2026-09-23 pre-showcase live
+testing (items 17–28). This file is the durable tracker — update it in place as items move, don't
 create parallel bug-list files. Each entry: **Status**, evidence, commit ref
 once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
-`FIXED (needs live confirm)` · `NOT A BUG` · `DEFERRED (planned stage)`.
+`FIXED (needs live confirm)` · `IN PROGRESS` · `NOT A BUG` · `DEFERRED (planned stage)`.
 
 ## General & Performance
 
@@ -31,6 +32,17 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
      GPU/browser combos — `handTracker.js` already has that fallback path),
      that alone would explain the whole number and no amount of resolution
      tuning fixes it.
+     **New root cause found 2026-09-23 (likely the main one):** the
+     detection throttle in `main.js`'s `loop()` (`main.js:1655` at commit
+     `41c43f0`: `if (now - lastDetectAt < DETECT_INTERVAL) return;`) misfires
+     on a 60 Hz display. Two rAF frames are ~33.3 ms ± jitter, and
+     `DETECT_INTERVAL` is 33.3 ms, so about half the time it skips to a third
+     frame (50 ms). Detection then averages ~22–24/s, which matches the
+     report even without any resolution or delegate problem. The planned fix
+     is showcase Stage 1.2 (see the plan doc): use `requestVideoFrameCallback`
+     where available, otherwise a fixed schedule (`lastDetectAt +=
+     INTERVAL`) with a catch-up clamp and a few ms of tolerance. Tracked as
+     item 25. Still `OPEN` until verified on a real device.
    - **The "ghosting"/lag feel: `FIXED (needs live confirm)`** — replaced the
      fixed-alpha (0.5) EMA landmark smoother with a one-euro adaptive filter
      (new `js/onefilter.js`, wired into `main.js`'s `smoothLandmarks`).
@@ -87,6 +99,8 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    documented math). May need retuning against real signing — `fs_sequences.json`
    replay numbers are known-unreliable in absolute terms (Holistic vs
    HandLandmarker domain gap).
+   **2026-09-23:** the code is looser than it looks. See item 22 for the
+   concrete gate/buffer/cooldown causes.
 6. **Z fails to track, messy detection, triggers a loud audio-buzz artifact.**
    Two separate problems bundled in one report:
    - **The audio-buzz artifact: `FIXED (verified offline)`.** Root cause
@@ -107,6 +121,8 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
      it needs actual threshold retuning against real signing, which needs
      live data (`fs_sequences.json` replay numbers are known-unreliable per
      the project's domain-gap caveat).
+     **2026-09-23:** concrete causes found (1 reversal, wrist-relative and
+     not aspect-corrected, so an arm-drawn Z fails). See item 23.
 7. **Anatomically impossible demo-hand animations for J, W, R, X, K, V, Z.**
    Two distinct root causes, not one — now split:
    - **J/Z: `FIXED (verified offline + live)`** — commit `1a54c68` (S2d part
@@ -175,14 +191,33 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
 12. **UI too text-heavy/cluttered.** `DEFERRED (planned stage)` — the active
     plan doc already calls for deleting/replacing the current Spell panel
     wholesale under **S4** (mobile restructure), not patching it now.
-13. **Correct-letter chime/buzz triggers constantly.** `OPEN`, inconclusive.
+13. **Correct-letter chime/buzz triggers constantly.** `FIXED (needs live confirm)` — root causes were items 18/19 (`e582e17`).
     `speller.js`/`transition.js` both gate their success sound as one-shot in
     code (no fire-every-frame bug found). Likely legitimately-rapid real
     commits during fast signing rather than a broken gate — needs live
     confirmation either way.
-14. **Accidental letter triggers; erase gesture needs repeating.** `OPEN`,
-    not yet investigated — `swipe.js`'s cooldown/motion-sensitivity constants
-    still need a look.
+    **Root cause found 2026-09-23:** each gate *is* one-shot, but the
+    triggers fire far more often than intended. (a) `speller.js` flushes the
+    pending word after only `acceptMs = 1000` ms without a held letter
+    (`speller.js:24`, `:107`). A normal 1 s pause between letters therefore
+    counts as a word break, and each flush plays the full success arpeggio
+    (item 19). (b) A *different* letter re-commits with no release at all
+    (`letter !== last || armed`, `speller.js` `feed()`), so kNN flicker
+    between two shapes commits both (item 18). Still `OPEN`; the fix is
+    showcase Stage 2.
+14. **Accidental letter triggers; erase gesture needs repeating.** `FIXED (needs live confirm)` — see items 18/20/21 (`e582e17`).
+    **Root causes found 2026-09-23:**
+    - Accidental letters come from the missing release-to-rearm (item 18).
+      Traced J/Z strokes also go straight into `speller.feed` (item 20).
+    - The erase problems are in `swipe.js` (item 21). The direction test
+      (`dx > dy * 1.6`, `swipe.js:89`) is strict. The open-hand fraction is
+      measured over all frames, not just the moving ones. The buffer is not
+      cleared after a hit, and `COOLDOWN_MS` (650 ms) only equals
+      `WINDOW_MS` (650 ms). The tail of the same sweep can still be in the
+      buffer when the cooldown ends, so it fires a second time. Together
+      these make a real wipe miss sometimes and double-fire at other times.
+
+    The fix is showcase Stage 2.
 
 ## Read Mode
 
@@ -194,13 +229,112 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
 ## Demo-hand animation — new findings (not from the original report)
 
 16. **Letter N's demo-hand briefly shrinks to a sliver then reappears
-    (~t=0.4-0.6 of the animation).** `OPEN`, found while verifying item 7's
+    (~t=0.4-0.6 of the animation).** `PARTLY FIXED` — the palm-collapse part was item 24's mirrored neutral (`7393db4`); a brief foreshortened tilt remains → Stage 4b. Found while verifying item 7's
     fix. The middle-finger MCP bone's 3D rotation passes near edge-on to the
     camera partway through — a real rotation, not an invalid pose, but its 2D
     projection moves very fast right at that moment (classic foreshortening/
     gimbal-adjacent artifact). Only seen on N so far; not confirmed on other
     letters. Fix would reparametrize animation TIME (not the rotation itself)
     to spend less of the clip near a bone's zero-projected-length moment.
+   **2026-09-23:** a more likely root cause was found. `NEUTRAL_HAND` is
+   mirrored relative to every letter centroid, so the animation starts from
+   an unreachable pose (item 24). Re-check N after that fix before building
+   any time-reparametrization.
+
+## Found 2026-09-23 (live testing before the showcase)
+
+From the owner's live testing on 2026-09-23. Fixes map to the stages of the
+showcase-polish plan in `asl-letter-recognition-plan.md`. File:line
+references are as of commit `41c43f0` and will drift.
+
+17. **Spell mode freezes/stutters as the text grows (decoder).**
+    `FIXED (verified offline)` — `d9f22ff` (exact-safe pruning floor + incremental prefix cache; cold 40-letter decode 315→25 ms, per appended letter ~1 ms, outputs identical on a 24-phrase bench). The Fluid-mode decode re-ran the whole beam search over the
+    entire letter stream every ~350 ms (`main.js` fluid block → `decode.js`).
+    It measured ~85 ms at 10 letters and ~1.7 s at 240, so the page hitched.
+    The fix is uncommitted in `js/decode.js`: an exact-safe pruning floor
+    plus an incremental prefix cache. On an offline bench, a cold 40-letter
+    decode went from 315 ms to 25 ms, and each appended letter costs about
+    1 ms. Output was identical on a 24-phrase bench. Still to do: selftest,
+    commit, and a live confirm. (Showcase Stage 1.1.)
+18. **Spell re-commits a letter without the hand releasing it.** `FIXED (needs live confirm)` — `e582e17`: gapMs 320→700, spell stabilizer 6 frames@0.6 → 10@0.8, `moved` measured in hand-spans; regression check "held letter doesn't re-commit after a brief classifier dip".
+    `speller.js` `feed()` commits whenever `letter !== last || armed`. A
+    *different* letter commits immediately, and the same letter re-arms after
+    only `gapMs = 320` ms of not-holding, which kNN flicker easily produces.
+    The `moved` re-arm in `main.js`'s spell block is in frame units, not
+    hand-spans. The fix is release-to-rearm plus a time-based hold.
+    (Showcase Stage 2.)
+19. **The word-flush success arpeggio plays at every ~1 s pause.** `FIXED (needs live confirm)` — `e582e17`: acceptMs 1000→2000 and word commits play a new quiet `sound.word()` cue, not `success()`; per-sound cooldowns in `sound.js`.
+    `acceptMs = 1000` (`speller.js:24`) treats any 1 s gap as a word break.
+    The "word" event plays the full `sound.success()` arpeggio. The fix is
+    `acceptMs` ~2200 and a distinct quiet word cue. (Stages 2 and 6.)
+20. **A J/Z stroke leaks into Spell text.** `FIXED (needs live confirm)` — `e582e17`: strokes gated on the suppression window + 700 ms since the last commit; a stroke right after its own start letter replaces it (J after I → "J"). Detector itself still item 22/23. `motion.match()` runs
+    every frame in every mode, and its `stroke` is passed straight into
+    `speller.feed`, which commits J/Z unconditionally. It isn't gated on the
+    handshape or on `spellSuppressUntil`, so any swoosh (including a swipe)
+    can type J or Z. The fix is to gate it on the rewritten detector.
+    (Stages 2 and 3.)
+21. **The swipe erase needs repeats, and sometimes double-fires.** `FIXED (needs live confirm)` — `e582e17`: openness judged on the last 350 ms (the sweep), direction ratio 1.6→1.3, buffer cleared on fire, cooldown 800 ms > window; regression check added.
+    - `swipe.js:89` requires `dx > dy * 1.6`.
+    - `openFrac` counts all frames in the window, not just the moving ones.
+    - The buffer isn't cleared on a hit.
+    - `COOLDOWN_MS` equals `WINDOW_MS` (650 ms).
+
+    The fix is `openFrac` over moving frames, a 1.2 ratio, a buffer clear,
+    and cooldown > window. (Stage 2.) See also item 14.
+22. **J accepts a tilt or a relaxing I-hand as a J.** `OPEN`.
+    - In `motion.js` `match()`, the gate is `(pinkyUp >= 0.3 || pinkyMoved)`.
+      The `||` fallback means the "I" shape isn't required.
+    - There's no trajectory/shape check: any pinky travel > 1.2 spans that
+      ends > 0.7 lower passes.
+    - The buffer isn't cleared after a hit.
+    - `COOLDOWN_MS` (900) < `WINDOW_MS` (1600), so the same motion can
+      re-fire.
+
+    The fix is the Stage 3 rewrite (hold-start, template match, orientation
+    channel). The ship fallback is the quick guards.
+23. **Z barely registers, especially when drawn with the arm.** `OPEN`.
+    - The Z test needs only `rev >= 1` (one reversal).
+    - The path is wrist-relative, so drawing with the whole arm (the natural
+      way) cancels out.
+    - Coordinates aren't aspect-corrected (x and y are in different units on
+      a 16:9 frame).
+
+    The fix is aspect-correct image-space tracking, 2 reversals, and a
+    template match. (Stage 3.)
+24. **Demo hand does "impossible" movements: palm collapses, thumb sweeps
+    across.** `FIXED (verified offline)` — `7393db4`: NEUTRAL_HAND un-mirrored, POINT_HAND thumb moved to the index side; ci-check #13b asserts no palm collapse/inversion for all 24 static letters (was 0-7% of endpoint area, now ≥100%).
+    - `NEUTRAL_HAND` (`reference.js:350`) is mirrored relative to every
+      dataset centroid: thumb and index are at −x versus +x (verified on
+      A/B/N/L).
+    - `POINT_HAND` (the Z pose) has the thumb on the pinky side.
+    - A mirror pose can't be reached by rotation, so interpolating from it
+      forces the palm through zero width.
+
+    This is likely also the root cause of item 16. The fix is Stage 4a
+    (negate x as needed and fix POINT_HAND's thumb), then 4b–4d.
+25. **The frame-cap throttle misfires, giving ~22–24 fps instead of 30.**
+    `FIXED (needs live confirm)` — `d9f22ff`: early slack + fixed-schedule advance; also numHands 1 outside Spell. Owner: check the `#stats` readout reads ~30 fps. The strict `now - lastDetectAt < DETECT_INTERVAL` test
+    (`main.js:1655` at `41c43f0`) waits a third 60 Hz frame about half the
+    time. See item 2. The fix is Stage 1.2. (An uncommitted change to this
+    throttle was appearing in the working tree on 2026-09-23. Verify it
+    before marking anything.)
+26. **Overlay colors have no legend.** `OPEN`. Nothing in the UI explains the
+    colors: blue skeleton, green/amber→red per-joint error, dashed ghost,
+    yellow worst-finger marker (`overlay.js`). Below score 0.35 the guide
+    also stays plain blue, which looks broken. The red/green ramp isn't
+    colorblind-safe either. The fix is Stage 7c (a color-key chip, redundant
+    encoding, and a colorblind-safe ramp).
+27. **Palm orientation is never taught or checked.** `OPEN`. Only B's and E's
+    `LETTER_GUIDE` descriptions mention palm direction. The matcher and
+    `hint()` ignore palm facing, so an upright H just reads as "U". The
+    reference panel also auto-flips silently. The fix is Stages 7a (tour
+    scene), 7b (`palmFacing()` + badge + hint, which must be validated against
+    B11's negative result first) and 7d.
+28. **Challenge's "seeing X" readout leaks the answer.** `OPEN`.
+    `renderChallenge()` shows `seeing <b>X</b>` (the live raw prediction)
+    during play. It turns the game into "wiggle until it says the letter".
+    The fix is Stage 5: show it only in the post-miss "so close — read as N"
+    message.
 
 ---
 
@@ -211,5 +345,5 @@ offline-verifiable fix > a confirmed architecture gap needing a real design
 decision > something needing live camera data before any fix is safe >
 something already deliberately deferred to a planned stage. Never flip an
 item to `FIXED` without actually running `node tools/ci-check.mjs` +
-`tools/selftest.html` (166+/166+) — verified-but-camera-dependent work gets
+`tools/selftest.html` (174+/174+ as of 2026-09-15) — verified-but-camera-dependent work gets
 `FIXED (needs live confirm)`, not `FIXED`.

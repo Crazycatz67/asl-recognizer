@@ -9,29 +9,43 @@ HTML/CSS/JS — no framework, no bundler, no build step, no `package.json`. The
 project's working agreement is to ask before adding any dependency beyond
 MediaPipe; keep new tooling dependency-free (see `tools/ci-check.mjs`).
 
-**`asl-letter-recognition-plan.md` is the actual source of truth** — dated
-revision history, current status, and the full backlog. Read its "Session
-resume" block first when picking up work here; don't duplicate its content in
-this file.
+**Docs layout (reorganized 2026-09-23). Don't duplicate their content here:**
+- **`asl-letter-recognition-plan.md`** is the source of truth for *now*: the
+  "Session resume" block (read it first), current status, and the active
+  backlog (the "Showcase polish (2026-09-23 plan)" stages).
+- **`Bug Reports/checklist.md`** is the bug tracker. Numbered items; never
+  renumber them.
+- **`docs/CHANGELOG.md`** is the full dated revision history, newest first.
+  Add one dated entry per change here, not in the plan doc.
+- **`docs/research-and-future.md`** holds the Stage 8/9 design and research
+  (decoder, sequence model, dual engine, skin-tone evaluation).
+- **`docs/original-plan-and-milestones.md`** is an archive: the original
+  plan, milestones M0–M5, and the B1–B21 backlog with its DONE / STALE /
+  NOT-A-GAP reasoning. Check it before re-proposing an old idea.
+- **`docs/code-reorg-proposal.md`** is the proposed `main.js` split by mode
+  (not executed).
+- **`README.md`** is the public/portfolio overview and module map. Keep it in
+  sync when modules are added.
 
 ## Commands
 
 Run locally (needs a secure context — `http://localhost` works, a bare
 `file://` does not, since camera access requires it):
 ```
-start-server.cmd          # Windows double-click: PowerShell static server + opens the browser
-serve.ps1                 # same, manual
-python -m http.server 8000  # or any other static server
+python3 -m http.server 8000  # macOS/Linux (the repo now lives on a Mac), or any static server
+start-server.cmd             # Windows double-click: PowerShell static server + opens the browser
+serve.ps1                    # same, manual (Windows)
 ```
 
-Test on a phone over LAN (self-signed HTTPS): `start-phone.cmd`.
+Test on a phone over LAN (self-signed HTTPS, Windows only): `start-phone.cmd`.
 
 Run the unit/integration suite (open on the dev server, needs a browser — not
 headless-runnable, since it exercises canvas/DOM-touching modules too):
 ```
 http://localhost:8000/tools/selftest.html
 ```
-164 checks. Run after every change that touches `js/`.
+174 checks as of 2026-09-15 (the count grows; the bar is zero FAIL lines).
+Run it after every change that touches `js/`.
 
 Run the free, dependency-free CI checks (plain Node, no install — syntax on
 every `js/*.js` + `sw.js`, `sw.js`'s `CORE` precache list vs. the real `js/`
@@ -60,7 +74,7 @@ package the workflows above so they don't get re-derived by hand each time —
 they fire automatically when a request matches their intent (no need to recall
 exact names; typing `/` also lists everything available with descriptions):
 
-- **`asl-verify`** — runs `ci-check.mjs` → `selftest.html` (164+ checks) →
+- **`asl-verify`** — runs `ci-check.mjs` → `selftest.html` (174+ checks) →
   checks the `sw.js` VERSION bump → commits → (with confirmation) pushes and
   confirms CI green. Triggers on "verify/ship/test/deploy this."
 - **`asl-resume`** — reconstructs exactly where a prior session left off (plan
@@ -75,7 +89,10 @@ exact names; typing `/` also lists everything available with descriptions):
 There's also a **`Stop` hook** in `.claude/settings.json`: on every session
 end in this directory, if the working tree is dirty it makes a silent local
 `git add -A && git commit -m "WIP checkpoint (auto)"` — never pushes — purely
-so an abrupt crash/close never loses uncommitted work.
+so an abrupt crash/close never loses uncommitted work. **It currently
+hard-codes the old Windows path (`C:\Users\maila\Asl Claude Code`) and runs
+via PowerShell, so it does nothing on the Mac checkout.** Fixing it is a
+settings change for the owner to approve.
 
 **Before a planned shutdown or stepping away for a while, ask Claude to push**
 rather than relying on the Stop hook alone. The hook only fires on a *normal*
@@ -85,7 +102,7 @@ Only a `git push` gets work off this machine entirely.
 
 ## Architecture
 
-**Everything funnels through one state machine, `js/main.js`** (~2000 lines).
+**Everything funnels through one state machine, `js/main.js`** (~2500 lines).
 It owns the camera lifecycle (`idle → requesting → loading → searching ↔
 tracking`, with an `error` state recoverable via "Try again"), the per-frame
 detection loop, and all four modes' UI wiring (Practice / Challenge / Spell /
@@ -95,7 +112,8 @@ Read) as module-level state living side by side with no per-mode isolation.
 in Challenge mode, never cleared on failure or mode-switch, that could
 auto-trigger Challenge's HUD while the visible mode was Practice). When
 `setMode()` doesn't explicitly reset something a new feature adds, that's
-where the next one will come from.
+where the next one will come from. A proposed split by mode, with an
+`enter()`/`exit()` contract, is in `docs/code-reorg-proposal.md`.
 
 **The recognition pipeline**, run per frame in Practice/Challenge:
 ```
@@ -114,13 +132,15 @@ turns a noisy letter stream into words/sentences).
 **The reusable "engine" core is deliberately DOM-free and runs under plain
 Node**, not just the browser: `normalize`, `knn`, `dataset`, `stabilizer`,
 `transition`, `decode`, `speller`, `curriculum`, `spelldrill`, `reader`,
-`motion`, `swipe`, `twohand`, `heads`, `refine`. This is what makes
+`motion`, `swipe`, `twohand`, `heads`, `refine`, `challenge`, `onefilter`,
+`posekin`, `strokekin`, `config`. `reference.js`'s scoring is pure too; its
+demo-hand player draws to canvas. This is what makes
 `tools/ci-check.mjs` and `tools/sweep-transition.mjs` possible without a
 browser — `dataset.js`/`heads.js` call `fetch()` with relative URLs, so a Node
 script needs a small shim to read from disk instead (see either tool file for
 the pattern) before importing them. Everything DOM/canvas/audio-touching
 (`camera`, `handTracker`, `overlay`, `skeleton`, `sound`, `fx`, `bg`,
-`mediapipe`) only runs in a real browser.
+`mediapipe`, `sheet`) only runs in a real browser.
 
 `js/config.js` centralizes every tunable constant and external URL (MediaPipe
 CDN version, classifier `k`, confidence/stability thresholds) — check there

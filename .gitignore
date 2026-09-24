@@ -22,3 +22,6 @@ __pycache__/
 .claude/skills/skill-creator/
 .agents/
 skills-lock.json
+
+# Claude Code agent worktrees (temporary, per-session)
+.claude/worktrees/
