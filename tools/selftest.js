@@ -413,6 +413,16 @@ function mkHand() {
         const d = ref.describe(L);
         return typeof d === "string" && d.length > 25;
       }));
+    // Stage 7e: every description leads with orientation, and never says the
+    // ambiguous "sideways"
+    ok("reference: all 26 LETTER_GUIDE entries lead with palm/finger direction, no 'sideways'",
+      (() => {
+        const { LETTER_GUIDE } = refm;
+        const keys = Object.keys(LETTER_GUIDE);
+        const bad = keys.filter((L) =>
+          !/^(Palm faces|Fingers point|Start with)/.test(LETTER_GUIDE[L]) || /sideways/i.test(LETTER_GUIDE[L]));
+        return keys.length === 26 && bad.length === 0;
+      })());
     ok("reference: createCanonicalPlayer setTarget/redraw/stop don't throw",
       (() => {
         try {

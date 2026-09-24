@@ -467,7 +467,19 @@ const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
 const HOLD_MS = 1150; // hold a readable sign this long before the reward
 const HOLD_GRACE_MS = 260; // tolerate this much tracking flicker without losing the hold
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
-const BUCKET_LABEL = { off: "keep adjusting", close: "almost there", correct: "hold it…" };
+// Meter labels (Stage 7e): say what to DO, not just how close you are. The
+// first set points at the on-camera ▲ marker; the plain set is for when the
+// guide isn't drawn (guide off, Test blind, J/Z).
+const BUCKET_LABEL = { off: "fix the ▲ finger", close: "almost — nudge the ▲ finger", correct: "hold still…" };
+const BUCKET_LABEL_PLAIN = { off: "keep shaping it", close: "almost there", correct: "hold still…" };
+// When the recogniser reads a letter that differs from the target mainly by
+// which way the hand points, say so instead of a generic shape tip.
+const ORIENT_TIP = {
+  G: "turn your hand so your fingers point across your body",
+  H: "turn your hand so your fingers point across your body",
+  P: "tip your hand so your index finger points down",
+  Q: "point your thumb and index finger down at the floor",
+};
 let lastHintAt = 0;
 let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
@@ -952,13 +964,18 @@ function setHold(v) {
 
 function updateMeter(score, bucket) {
   // runs every frame in Practice — only write when what's shown changes
-  const key = Math.round(score * 100) + "|" + bucket;
+  // directional label only when the on-camera guide (and its ▲) is showing
+  const guideOn =
+    ghostToggle.checked && !blindToggle.checked && !!targetLetter && !MOTION.has(targetLetter);
+  const key = Math.round(score * 100) + "|" + bucket + "|" + guideOn;
   if (key === lastMeterKey) return;
   lastMeterKey = key;
   meterFill.style.width = `${Math.round(score * 100)}%`;
   meterFill.style.background = BUCKET_COLOR[bucket] || "#475569";
   meterFill.classList.toggle("correct", bucket === "correct");
-  meterLabel.textContent = bucket ? BUCKET_LABEL[bucket] : "show your hand";
+  meterLabel.textContent = bucket
+    ? (guideOn ? BUCKET_LABEL : BUCKET_LABEL_PLAIN)[bucket]
+    : "show your hand";
   meterLabel.style.color = BUCKET_COLOR[bucket] || "#94a3b8";
   meterLabel.classList.toggle("correct", bucket === "correct");
   viewport.dataset.match = bucket || "none";
@@ -1769,8 +1786,8 @@ function stop() {
   flipBtn.hidden = true;
   startBtn.textContent = "Turn on camera";
   curtainSub.textContent =
-    "Then pick a letter to learn, or switch to Challenge mode. " +
-    "Runs entirely on your device — nothing is recorded or uploaded.";
+    "Then pick a letter and copy the hand shape. " +
+    "Everything stays on your device. Nothing is recorded or uploaded.";
   if (targetLetter) updateMeter(0, null);
   setState("idle");
 }
@@ -2357,13 +2374,17 @@ function loop() {
         // still has something to act on.
         if (!complete && /looks right/i.test(tip)) {
           tip = guideInfo?.finger
-            ? `Adjust your ${guideInfo.finger} finger — follow the yellow marker`
+            ? `Move your ${guideInfo.finger} finger toward the ▲ marker`
             : guideInfo?.part
-            ? `Nudge your ${guideInfo.part} to the marker`
+            ? `Move your ${guideInfo.part} toward the ▲ marker`
             : m.bucket === "close"
-            ? "So close — tiny adjustments"
+            ? "So close — tiny changes now"
             : "Keep shaping it";
         }
+        // "(reading as X)" was cryptic; say what it looks like and what to change
+        const misreadTip = misread
+          ? `Looks like ${lastPred.label} right now — ${ORIENT_TIP[targetLetter] || tip.charAt(0).toLowerCase() + tip.slice(1)}`
+          : "";
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         const prefix = stuckShown && !complete ? "Still tricky? " : "";
         // "Test blind" keeps the pass/fail state (Nailed it / Hold it…) — that's
@@ -2371,11 +2392,11 @@ function loop() {
         refHint.textContent = rewarded
           ? `Nailed it — that's ${targetLetter} ✓`
           : complete
-          ? `Hold it…  ${dots}`
+          ? `Hold still…  ${dots}`
           : blindToggle.checked
           ? ""
           : misread
-          ? `${prefix}${tip}  ·  (reading as ${lastPred.label})`
+          ? `${prefix}${misreadTip}`
           : `${prefix}${tip}`;
       }
     } else {

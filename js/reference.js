@@ -58,35 +58,38 @@ const GAP_PAIRS = [
 ];
 
 // A plain-language picture of each handshape — shown while you learn it, so the
-// panel isn't just "copy this diagram". Kept to one or two sentences with a
-// real-world image where there's a good one.
+// panel isn't just "copy this diagram". Stage 7e: every description now starts
+// with which way the palm faces (or the fingers point), then the shape, in
+// short plain English. "Sideways" was ambiguous: fingers that point to the
+// side are "pointing across your body"; a palm turned to the side "faces your
+// other hand". Keep a real-world image where there's a good one.
 export const LETTER_GUIDE = {
-  A: "Close your hand into a fist and lay your thumb flat along the outside, against your index finger — like a thumbs-up that never went up.",
-  B: "Flat hand, fingers straight and pressed together pointing up, thumb folded across your palm — a little wall facing the camera.",
-  C: "Curve your whole hand into the shape of a C, fingers together — as if you're holding a soda can.",
-  D: "Point your index finger straight up; curl the other three down so their tips meet your thumb in a circle — a candle above its holder.",
-  E: "Curl all four fingertips down to press against your thumb, knuckles facing forward — a closed claw.",
-  F: "Touch the tip of your thumb to the tip of your index finger to make a small circle; the other three fingers stand up straight — the 'OK' sign.",
-  G: "Hold your index finger and thumb out flat and parallel, pointing sideways, a small gap between them — pinching the air.",
-  H: "Index and middle fingers together and straight, pointing sideways; thumb tucked, ring and pinky curled — two barrels laid flat.",
-  I: "Stand your pinky straight up on its own; curl the rest into a fist — a tiny antenna.",
-  K: "Index finger up, middle finger up and spread toward it, thumb pressed into the notch between them — a little catapult.",
-  L: "Thumb straight out to the side, index finger straight up, the rest curled down — a clean capital L.",
-  M: "Fold your first three fingers down over your thumb, so the thumb tip peeks out between your ring and pinky — three fingers over the thumb.",
-  N: "Fold your first two fingers down over your thumb, so the thumb tip peeks out between your middle and ring finger — two fingers over the thumb.",
-  O: "Bring all your fingertips and thumb together into a round O — like holding a single Cheerio.",
-  P: "Make a K, then tip it forward so the index points down at the floor and the middle finger and thumb sit under it.",
-  Q: "Point your thumb and index finger straight down toward the floor, a small gap between them — a downward pinch.",
-  R: "Cross your middle finger tightly over the front of your index finger and hold both up; curl the rest — fingers twisted for 'good luck'.",
-  S: "Make a fist and wrap your thumb across the front of your fingers — a knuckle punch.",
-  T: "Make a fist and poke your thumb up between your index and middle finger.",
-  U: "Index and middle fingers together and straight up; thumb holds the ring and pinky down — a two-prong fork.",
-  V: "Index and middle fingers up in a spread V, the rest held down by the thumb — 'peace' or 'victory'.",
-  W: "Index, middle and ring fingers spread and straight up; thumb pins the pinky down — three prongs.",
-  X: "Hold your index finger up but bend it into a hook at the top knuckle; curl the rest — a beckoning finger.",
-  Y: "Stretch your thumb and pinky out as far apart as they go; fold the three middle fingers down — 'hang loose'.",
-  J: "Start in the letter I — a fist with just the little finger pointing up. Then drop that finger straight down and curl it back toward you, drawing a hook (a fish-hook) in the air.",
-  Z: "Point your index finger straight out; the rest stay in a fist. Draw a big Z in the air exactly how you'd write one: straight across the top, a slash down to the left, then straight across the bottom.",
+  A: "Palm faces forward. Make a fist. Rest your thumb against the side of your index finger, pointing up — a thumbs-up that never went up.",
+  B: "Palm faces forward. Hold four fingers straight up and pressed together. Fold your thumb across your palm — a little wall.",
+  C: "Palm faces your other hand. Curve your fingers and thumb into a C, fingers together — like holding a soda can.",
+  D: "Palm faces forward. Point your index finger straight up. Curl the other fingers so their tips touch your thumb in a circle.",
+  E: "Palm faces forward. Bend all four fingertips down to touch your thumb, which is tucked across your palm — a closed claw.",
+  F: "Palm faces forward. Touch your thumb tip to your index fingertip in a small circle. The other three fingers stand up — the 'OK' sign.",
+  G: "Fingers point across your body, palm facing you. Hold your index finger and thumb out straight and parallel, a small gap between them.",
+  H: "Fingers point across your body, palm facing you. Hold your index and middle fingers straight and together. Curl the others, thumb tucked.",
+  I: "Palm faces forward. Make a fist and stand your pinky straight up — a tiny antenna.",
+  K: "Palm faces forward. Index finger up, middle finger up and spread out a little. Press your thumb between them — a little catapult.",
+  L: "Palm faces forward. Index finger straight up, thumb straight out to the side, other fingers curled — a capital L.",
+  M: "Palm faces forward. Fold your first three fingers down over your thumb. The thumb tip peeks out between your ring finger and pinky.",
+  N: "Palm faces forward. Fold your first two fingers down over your thumb. The thumb tip peeks out between your middle and ring fingers.",
+  O: "Palm faces your other hand. Curve all your fingertips to meet your thumb in a round O — like holding a single Cheerio.",
+  P: "Fingers point down. Make a K, then tip your hand so your index finger points forward and your middle finger points down at the floor.",
+  Q: "Fingers point down. Point your thumb and index finger at the floor, a small gap between them — a downward pinch.",
+  R: "Palm faces forward. Hold your index and middle fingers up and cross them tightly, like crossing your fingers for luck. Curl the rest.",
+  S: "Palm faces forward. Make a fist and wrap your thumb across the front of your fingers.",
+  T: "Palm faces forward. Make a fist and tuck your thumb up between your index and middle fingers.",
+  U: "Palm faces forward. Hold your index and middle fingers straight up and together. Your thumb holds the other two down.",
+  V: "Palm faces forward. Hold your index and middle fingers up in a spread V. Your thumb holds the other two down — 'peace'.",
+  W: "Palm faces forward. Hold your index, middle and ring fingers up and spread. Your thumb holds your pinky down.",
+  X: "Palm faces your other hand. Hold your index finger up and bend it into a hook. Curl the rest into a fist.",
+  Y: "Palm faces forward. Stretch your thumb and pinky out wide. Fold the three middle fingers down — 'hang loose'.",
+  J: "Start with I: palm forward, fist, pinky up. Then draw a J with your pinky: move it down and curve it toward your body, turning your palm to face you.",
+  Z: "Palm faces forward. Point your index finger up, the rest in a fist. Draw a big Z in the air: across the top, a slash down to the left, then across the bottom.",
 };
 
 // Render a letter's canonical hand shape (its class-mean vector) as a clean,
