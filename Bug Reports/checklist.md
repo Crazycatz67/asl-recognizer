@@ -94,7 +94,7 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    for these letters. May be genuine data spread, not a quick threshold fix —
    needs live re-test before touching constants blindly.
 5. **J registers without real movement; I repeatedly triggers J.**
-   `OPEN`. `motion.js`'s pinky-move/pinky-drop thresholds look reasonably
+   `FIXED (needs live confirm)` — see item 22 (`8f463d3`).. `motion.js`'s pinky-move/pinky-drop thresholds look reasonably
    guarded in code (a held I-hand shouldn't clear them per the code's own
    documented math). May need retuning against real signing — `fs_sequences.json`
    replay numbers are known-unreliable in absolute terms (Holistic vs
@@ -281,7 +281,7 @@ references are as of commit `41c43f0` and will drift.
 
     The fix is `openFrac` over moving frames, a 1.2 ratio, a buffer clear,
     and cooldown > window. (Stage 2.) See also item 14.
-22. **J accepts a tilt or a relaxing I-hand as a J.** `OPEN`.
+22. **J accepts a tilt or a relaxing I-hand as a J.** `FIXED (needs live confirm)` — `8f463d3` (Stage 3 rewrite; ci-check #13c runs 12 synthetic scenarios incl. tilt/relax/drop).
     - In `motion.js` `match()`, the gate is `(pinkyUp >= 0.3 || pinkyMoved)`.
       The `||` fallback means the "I" shape isn't required.
     - There's no trajectory/shape check: any pinky travel > 1.2 spans that
@@ -292,7 +292,7 @@ references are as of commit `41c43f0` and will drift.
 
     The fix is the Stage 3 rewrite (hold-start, template match, orientation
     channel). The ship fallback is the quick guards.
-23. **Z barely registers, especially when drawn with the arm.** `OPEN`.
+23. **Z barely registers, especially when drawn with the arm.** `FIXED (needs live confirm)` — `8f463d3` (image-space aspect-corrected paths; 2 reversals + descent).
     - The Z test needs only `rev >= 1` (one reversal).
     - The path is wrist-relative, so drawing with the whole arm (the natural
       way) cancels out.
@@ -351,7 +351,7 @@ references are as of commit `41c43f0` and will drift.
 32. **`transition.js` `votes` grows forever during a still hold** (~108k
     entries/hour). `OPEN`, low — push only while settling.
 33. **Tiny hands (radius ~5% of frame) + jitter fire spurious J/Z and fluid
-    commits.** `OPEN`, low — add a minimum hand-span gate (fold into Stage 3).
+    commits.** `FIXED (needs live confirm)` for J/Z — `8f463d3` MIN_SPAN gate; fluid-mode transition.js part still, low — add a minimum hand-span gate (fold into Stage 3).
 34. **Edge cases:** speller `flush()` separator can exceed `maxLen` by 1;
     `insert()` can split a surrogate pair; `normalizeLandmarks` throws on
     <21 points (unreachable from main.js guards); `fluidLastLetterAt`/
