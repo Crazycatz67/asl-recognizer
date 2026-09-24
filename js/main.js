@@ -488,7 +488,8 @@ let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you c
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
 const GUIDE_MIN_REVEAL = 0.4; // guide strength the moment a hand is scored (Stage 7c)
 let motionChargeAmt = 0; // eased J/Z charge-tone input — see the charge() call below
-let handVote = 0; // frames the on-camera hand has disagreed with trackedHand
+let handVote = 0; // when the on-camera hand started disagreeing with trackedHand (ms, 0 = agrees)
+const HAND_FLIP_MS = 1000; // Stage 7d: that long before the reference auto-flips
 let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
 let handOverride = "auto"; // "auto" | "right" | "left" — the Hand control
 let toastTimer = 0;
@@ -937,7 +938,15 @@ function applyHand() {
   const flipForHand = facingMode === "user" ? "right" : "left";
   const motionLetter = MOTION.has(targetLetter);
   refPanel.classList.toggle("mirror", trackedHand === flipForHand && !motionLetter);
-  if (refHand) refHand.textContent = trackedHand ? `· ${trackedHand} hand` : "";
+  // Stage 7d: a clear chip instead of a tiny "· right hand" suffix
+  if (refHand) {
+    const selfie = facingMode === "user";
+    refHand.hidden = !trackedHand;
+    refHand.textContent = trackedHand ? `Your ${trackedHand} hand${selfie ? " · mirrored" : ""}` : "";
+    refHand.title = selfie
+      ? "The camera is a mirror, like a selfie. The pictures are flipped to match."
+      : "Back camera: you see the hand the way other people do.";
+  }
 }
 
 // Crisp canvas: back the animated reference diagram with real device pixels.
@@ -1896,11 +1905,15 @@ function loop() {
 
   // which hand is signing — follows whatever's on camera in near real time, so
   // you can swap hands mid-session (A→Z run, practice, challenge) and the
-  // reference re-orients. Just a 3-frame confirm to shrug off a stray misread.
+  // reference re-orients. Stage 7d: it must disagree for HAND_FLIP_MS straight
+  // (was 3 frames, ~0.1 s) — a single misread burst mid-sign used to flip the
+  // reference photo back and forth, which read as the app glitching.
   if (hasHand && handOverride === "auto" && realHand) {
     if (realHand === trackedHand) {
       handVote = 0;
-    } else if (++handVote >= 3) {
+    } else if (!handVote) {
+      handVote = now;
+    } else if (now - handVote >= HAND_FLIP_MS) {
       trackedHand = realHand;
       handVote = 0;
       applyHand();

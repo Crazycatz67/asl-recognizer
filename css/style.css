@@ -903,7 +903,19 @@ body {
 }
 .ref-head  { grid-area: head;  font-size: 0.82rem; color: var(--muted); }
 .ref-head b { color: var(--fg); font-size: 1.05rem; }
-.ref-hand { margin-left: 0.4rem; font-size: 0.72rem; opacity: 0.8; text-transform: capitalize; }
+/* Stage 7d: "Your right hand · mirrored" chip (was a faint "· right hand") */
+.ref-hand {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: #e0f2fe;
+  font: 700 0.72rem system-ui, sans-serif;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
 /* lefty on camera -> show the reference as a left hand */
 .reference.mirror .ref-photo-wrap,
 .reference.mirror .ref-canvas-wrap { transform: scaleX(-1); }
