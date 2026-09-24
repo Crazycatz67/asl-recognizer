@@ -15,6 +15,13 @@
   --off: #f87171;
   --close: #f59e0b;
   --correct: #22c55e;
+
+  /* the live correction guide's states (js/overlay.js GUIDE_RGB — keep in sync) */
+  --guide-good: #38bdf8;
+  --guide-close: #fb923c;
+  --guide-fix: #ec4899;
+  --guide-worst: #fde047;
+  --guide-target: #e2e8f0;
 }
 
 * { box-sizing: border-box; }
@@ -539,6 +546,65 @@ body {
   color: rgba(248, 250, 252, 0.55);
   font: 0.62rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- colour key chip for the correction guide (Stage 7c) ---- */
+.color-key {
+  position: absolute;
+  left: 0.7rem;
+  top: 0.7rem;
+  z-index: 40;
+  max-width: calc(100% - 1.4rem);
+  pointer-events: auto;
+}
+.ck-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--fg);
+  font: 800 0.8rem system-ui, sans-serif;
+  cursor: pointer;
+}
+.ck-toggle:hover { border-color: var(--accent); }
+.ck-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+.ck-dot.ck-good { background: var(--guide-good); }
+.ck-dot.ck-close { background: var(--guide-close); }
+.ck-dot.ck-fix { background: var(--guide-fix); }
+.ck-q { margin-left: 0.1rem; }
+.ck-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.86);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #cbd5e1;
+}
+.ck-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.18rem 0.25rem;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.ck-list li b { color: var(--fg); white-space: nowrap; }
+.ck-list li.live { background: rgba(148, 163, 184, 0.16); }
+/* each swatch is a little bone drawn the way the guide draws it: solid,
+   dashed or thick — so the key works without colour vision too */
+.ck-sw { flex: none; width: 1.5rem; height: 0; border-top: 3px solid; border-radius: 2px; }
+.ck-sw.ck-good { border-color: var(--guide-good); }
+.ck-sw.ck-close { border-top-style: dashed; border-color: var(--guide-close); }
+.ck-sw.ck-fix { border-top-width: 5px; border-color: var(--guide-fix); }
+.ck-sw.ck-target { border-top: 2px dashed var(--guide-target); opacity: 0.7; }
+.ck-sw.ck-worst { border-top-width: 5px; border-color: var(--guide-worst); }
 
 .curtain {
   position: absolute;

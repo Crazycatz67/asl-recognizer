@@ -57,31 +57,69 @@ const FINGER_BONES = [
 
 const PLAIN_RGB = [56, 189, 248]; // the calm default skeleton blue
 
-// green -> amber -> red as t goes 0 -> 1 (t = normalized joint error). rgb array.
-function errRGB(t) {
-  const x = Math.max(0, Math.min(1, t));
-  return [
-    x < 0.5 ? 34 + (245 - 34) * (x / 0.5) : 245 + (248 - 245) * ((x - 0.5) / 0.5),
-    x < 0.5 ? 197 + (159 - 197) * (x / 0.5) : 159 + (113 - 159) * ((x - 0.5) / 0.5),
-    x < 0.5 ? 94 + (11 - 94) * (x / 0.5) : 11 + (113 - 11) * ((x - 0.5) / 0.5),
-  ];
-}
-const rgb = (a) => `rgb(${a[0] | 0}, ${a[1] | 0}, ${a[2] | 0})`;
+// ---- guide colour ramp (Stage 7c) -------------------------------------
+// Safer for colour-blind users than the old green -> amber -> red, which is
+// the red/green pair most colour-vision deficiencies can't tell apart. Blue
+// (on target) -> orange (close) -> magenta (fix): blue and orange stay apart
+// for every common deficiency, and the magenta is darker than the orange so
+// those two also differ in lightness. Colour is never the only signal: good
+// bones are solid, close bones dashed, fix bones thicker, and every fingertip
+// carries a glyph (GUIDE_GLYPH). The on-camera colour key (#colorKey) and the
+// tour's legend use the same colours through the CSS custom properties
+// --guide-good / --guide-close / --guide-fix in style.css — keep them in sync.
+export const GUIDE_RGB = {
+  good: PLAIN_RGB, // #38bdf8 blue
+  close: [251, 146, 60], // #fb923c orange
+  fix: [236, 72, 153], // #ec4899 magenta
+};
+export const GUIDE_GLYPH = { good: "✓", close: "~", fix: "✕" };
+// the close/fix cut on the normalized error band (0 = just past tolerance,
+// 1 = ERR_FULL or worse)
+const FIX_BAND = 0.5;
+
 const mix = (a, b, t) => [
   a[0] + (b[0] - a[0]) * t,
   a[1] + (b[1] - a[1]) * t,
   a[2] + (b[2] - a[2]) * t,
 ];
-function errColor(t) {
-  return rgb(errRGB(t));
+const rgb = (a) => `rgb(${a[0] | 0}, ${a[1] | 0}, ${a[2] | 0})`;
+
+// Which of the three legend states an error is in. tol = the per-joint "on
+// target" error; full = the error that counts as fully off.
+export function guideState(e, tol, full) {
+  if (!(e > tol)) return "good";
+  const t = (e - tol) / Math.max(1e-9, full - tol);
+  return t < FIX_BAND ? "close" : "fix";
 }
+
+// orange -> magenta as t goes 0 -> 1 (t = normalized error band, already past
+// tol). Flat inside each state with a short blend across the cut, so what you
+// see on the hand matches the legend's swatches instead of a continuous
+// rainbow no key can name. Returns an rgb array.
+export function errRGB(t) {
+  const x = Math.max(0, Math.min(1, t));
+  const lo = FIX_BAND - 0.1, hi = FIX_BAND + 0.1;
+  if (x <= lo) return GUIDE_RGB.close.slice();
+  if (x >= hi) return GUIDE_RGB.fix.slice();
+  return mix(GUIDE_RGB.close, GUIDE_RGB.fix, (x - lo) / (hi - lo));
+}
+
+const FINGERTIPS = [4, 8, 12, 16, 20];
 
 export function createOverlay(canvas) {
   const ctx = canvas.getContext("2d");
+  // what the last drawGuide() call showed, for the colour key and the tour:
+  // { tips: [state x5, thumb..pinky], counts: {good, close, fix},
+  //   worstFinger: name|null, ghost: bool }. null when the last call drew nothing.
+  let lastStats = null;
 
   return {
     canvas,
     ctx,
+
+    guideStats() {
+      return lastStats;
+    },
 
     resizeToVideo(video) {
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
@@ -163,13 +201,20 @@ export function createOverlay(canvas) {
     // the target so it sits at the live hand's tilt.
     //
     // `reveal` (0..1) is progressive disclosure: at 0 this is just the plain
-    // blue skeleton (nothing to distract from your hand); as it rises the
-    // skeleton takes on error colour and — only past ~0.15 — a faint target
-    // ghost and correction markers for the WORST 3 joints fade in. The caller
-    // ramps `reveal` up once you're actually attempting the shape.
+    // blue skeleton; as it rises the skeleton takes on error colour and — past
+    // ~0.15 — the faint "target" ghost, the fingertip glyphs and the worst-
+    // finger marker fade in. The caller keeps `reveal` at a low floor as soon
+    // as a hand is scored (Stage 7c: a guide that stayed plain blue until the
+    // shape was already half right looked broken) and ramps it up from there.
+    //
+    // Encoding (never colour alone — see GUIDE_RGB):
+    //   good  blue, solid bone,   ✓ at the fingertip
+    //   close orange, dashed bone, ~ at the fingertip
+    //   fix   magenta, thicker bone, ✕ at the fingertip
+    //   worst finger: yellow highlight + ▲ and its name at the destination
     //
     // Returns { part, err } for the worst-off joint (always, even at reveal 0)
-    // so the text hint can name it.
+    // so the text hint can name it; per-fingertip states via guideStats().
     drawGuide(
       live,
       target,
@@ -187,6 +232,7 @@ export function createOverlay(canvas) {
         screenMirror = false,
       } = {}
     ) {
+      lastStats = null;
       if (!live?.length || !target) return null;
       const w = canvas.width;
       const h = canvas.height;
@@ -250,17 +296,39 @@ export function createOverlay(canvas) {
       for (let i = 0; i < 21; i++) if (err[i] > tol) offJoints.push(i);
       offJoints.sort((a, b) => err[b] - err[a]);
       const worst = offJoints[0] ?? -1;
-      // segment/joint colour: plain blue at reveal 0, error-graded as reveal rises
+      const shown = rv >= 0.15; // the guide layer (styles, glyphs, ghost) is on
+      const stateOf = (e) => guideState(e, tol, ERR_FULL);
+      // segment/joint colour: plain blue at reveal 0, state-coloured as reveal
+      // rises. "good" is the same blue as the plain skeleton, so a matching
+      // hand never changes colour — only the off parts do.
       const segColor = (e) => {
-        if (e <= tol) return rv < 0.15 ? rgb(PLAIN_RGB) : "#22c55e";
+        if (e <= tol) return rgb(GUIDE_RGB.good);
         return rgb(mix(PLAIN_RGB, errRGB(band(e)), rv));
+      };
+
+      // screen-readable text at (x, y): the stage is CSS-mirrored for the
+      // front camera, so counter-flip each label around its own anchor (see
+      // the finger-name label below for the bug this avoids)
+      const label = (str, x, y, { fill, font, stroke = "rgba(2, 6, 23, 0.85)", lw = 4 }) => {
+        ctx.save();
+        ctx.translate(x, y);
+        if (screenMirror) ctx.scale(-1, 1);
+        ctx.font = font;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = stroke;
+        ctx.strokeText(str, 0, 0);
+        ctx.fillStyle = fill;
+        ctx.fillText(str, 0, 0);
+        ctx.restore();
       };
 
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      // (1) faint target ghost — only once you're engaged
+      // (1) faint dashed target ghost, labelled "target"
       if (rv > 0.15) {
         ctx.globalAlpha = 0.32 * rv;
         ctx.setLineDash([baseW * 1.6, baseW * 1.6]);
@@ -273,27 +341,60 @@ export function createOverlay(canvas) {
         }
         ctx.stroke();
         ctx.setLineDash([]);
+        // label beside the ghost's outermost point (away from the fingertips,
+        // where the worst-finger label goes)
+        let side = 0;
+        for (let i = 1; i < 21; i++) if (Math.abs(tp[i][0] - tp[0][0]) > Math.abs(tp[side][0] - tp[0][0])) side = i;
+        const dir = Math.sign(tp[side][0] - tp[0][0]) || 1;
+        const fsT = Math.max(10, baseW * 1.6);
+        ctx.globalAlpha = Math.min(0.85, 0.6 * rv + 0.15);
+        label("target", tp[side][0] + dir * fsT * 2.2, tp[side][1], {
+          fill: "#e2e8f0",
+          font: `600 ${fsT}px system-ui, sans-serif`,
+          lw: 3,
+        });
         ctx.globalAlpha = 1;
       }
 
-      // (2) the live skeleton — dark halo, then colour
-      ctx.strokeStyle = "rgba(2, 6, 23, 0.5)";
-      ctx.lineWidth = baseW + 3;
-      ctx.beginPath();
-      for (const [a, b] of HAND_CONNECTIONS) {
-        ctx.moveTo(lp[a][0], lp[a][1]);
-        ctx.lineTo(lp[b][0], lp[b][1]);
-      }
-      ctx.stroke();
-      for (const [a, b] of HAND_CONNECTIONS) {
+      // (2) the live skeleton — dark halo, then colour + line style per state:
+      // solid = good, dashed = close, thicker = fix
+      const segs = HAND_CONNECTIONS.map(([a, b]) => {
         const e = (err[a] + err[b]) / 2;
-        ctx.strokeStyle = segColor(e);
-        ctx.lineWidth = e <= tol && rv >= 0.15 ? baseW * 1.3 : baseW;
+        const st = shown ? stateOf(e) : "good";
+        return { a, b, e, st, lw: st === "fix" ? baseW * 1.45 : baseW };
+      });
+      // worst finger: a wide yellow glow beneath its bones
+      const worstF = worst >= 0 ? FINGER_OF[worst] : -1;
+      if (shown && worstF >= 0 && !settled) {
+        ctx.globalAlpha = rv;
+        ctx.strokeStyle = "rgba(253, 224, 71, 0.55)";
+        ctx.lineWidth = baseW * 3.4;
         ctx.beginPath();
-        ctx.moveTo(lp[a][0], lp[a][1]);
-        ctx.lineTo(lp[b][0], lp[b][1]);
+        for (const [a, b] of FINGER_BONES[worstF]) {
+          ctx.moveTo(lp[a][0], lp[a][1]);
+          ctx.lineTo(lp[b][0], lp[b][1]);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = "rgba(2, 6, 23, 0.5)";
+      for (const s of segs) {
+        ctx.lineWidth = s.lw + 3;
+        ctx.beginPath();
+        ctx.moveTo(lp[s.a][0], lp[s.a][1]);
+        ctx.lineTo(lp[s.b][0], lp[s.b][1]);
         ctx.stroke();
       }
+      for (const s of segs) {
+        ctx.strokeStyle = segColor(s.e);
+        ctx.lineWidth = s.lw;
+        ctx.setLineDash(s.st === "close" ? [baseW * 1.3, baseW * 0.9] : []);
+        ctx.beginPath();
+        ctx.moveTo(lp[s.a][0], lp[s.a][1]);
+        ctx.lineTo(lp[s.b][0], lp[s.b][1]);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
       for (let i = 0; i < 21; i++) {
         const r = baseW * 0.7;
         ctx.fillStyle = "rgba(2, 6, 23, 0.5)";
@@ -301,6 +402,46 @@ export function createOverlay(canvas) {
         ctx.fillStyle = segColor(err[i]);
         dot(lp[i], r);
       }
+
+      // (2b) a glyph just past each fingertip: ✓ good / ~ close / ✕ fix —
+      // the shape-coded twin of the colour, readable without colour vision
+      const tips = FINGERTIPS.map((i) => stateOf(err[i]));
+      if (shown) {
+        const fsG = Math.max(10, baseW * 1.7);
+        ctx.globalAlpha = rv;
+        FINGERTIPS.forEach((i, k) => {
+          const st = tips[k];
+          const prev = lp[i - 1];
+          let dx = lp[i][0] - prev[0], dy = lp[i][1] - prev[1];
+          const d = Math.hypot(dx, dy) || 1;
+          dx /= d;
+          dy /= d;
+          const gx = lp[i][0] + dx * fsG * 1.25, gy = lp[i][1] + dy * fsG * 1.25;
+          ctx.fillStyle = "rgba(2, 6, 23, 0.78)";
+          dot([gx, gy], fsG * 0.62);
+          ctx.strokeStyle = rgb(GUIDE_RGB[st]);
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(gx, gy, fsG * 0.62, 0, Math.PI * 2);
+          ctx.stroke();
+          label(GUIDE_GLYPH[st], gx, gy + fsG * 0.04, {
+            fill: rgb(GUIDE_RGB[st]),
+            font: `800 ${fsG * 0.8}px system-ui, sans-serif`,
+            lw: 0.01,
+            stroke: "transparent",
+          });
+        });
+        ctx.globalAlpha = 1;
+      }
+      const counts = { good: 0, close: 0, fix: 0 };
+      for (const st of tips) counts[st]++;
+      lastStats = {
+        tips,
+        counts,
+        worstFinger: worst >= 0 ? FINGER_NAME[FINGER_OF[worst]] || null : null,
+        ghost: rv > 0.15,
+        shown,
+      };
 
       // (3) focus the ONE finger that's most off — highlight its whole length
       // bright, draw one bold lead to a filled destination disc, and label it
@@ -310,19 +451,8 @@ export function createOverlay(canvas) {
         const f = FINGER_OF[worst];
         ctx.globalAlpha = rv;
 
-        if (f >= 0) {
-          // glow pass + bright pass over that finger's bones
-          for (const pass of [0, 1]) {
-            ctx.strokeStyle = pass ? "#fde047" : "rgba(253, 224, 71, 0.35)";
-            ctx.lineWidth = pass ? baseW * 1.5 : baseW * 3;
-            ctx.beginPath();
-            for (const [a, b] of FINGER_BONES[f]) {
-              ctx.moveTo(lp[a][0], lp[a][1]);
-              ctx.lineTo(lp[b][0], lp[b][1]);
-            }
-            ctx.stroke();
-          }
-        }
+        // (the finger's yellow glow is drawn UNDER the skeleton, in step 2,
+        // so its own close/fix colour and dash stay visible)
 
         // lead line + filled pulsing destination for the worst joint
         const p0 = lp[worst], p1 = tp[worst];
@@ -352,26 +482,14 @@ export function createOverlay(canvas) {
         // "the suggestion text is backwards"). Counter-flip just the text
         // draw around its own anchor point so it reads normally once the
         // CSS mirror is applied on top.
-        if (f >= 0) {
-          const fs = Math.max(11, baseW * 2.1);
-          ctx.font = `700 ${fs}px system-ui, sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          const ly = p1[1] - rr - fs * 0.7;
-          ctx.save();
-          if (screenMirror) {
-            ctx.translate(p1[0], ly);
-            ctx.scale(-1, 1);
-          } else {
-            ctx.translate(p1[0], ly);
-          }
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "rgba(2, 6, 23, 0.85)";
-          ctx.strokeText(FINGER_NAME[f], 0, 0);
-          ctx.fillStyle = "#fde047";
-          ctx.fillText(FINGER_NAME[f], 0, 0);
-          ctx.restore();
-        }
+        // The ▲ is the worst-finger mark in the colour key — a shape, so
+        // it reads without relying on the yellow.
+        const fs = Math.max(11, baseW * 2.1);
+        const ly = p1[1] - rr - fs * 0.7;
+        label(f >= 0 ? `▲ ${FINGER_NAME[f]}` : "▲", p1[0], ly, {
+          fill: "#fde047",
+          font: `700 ${fs}px system-ui, sans-serif`,
+        });
         ctx.globalAlpha = 1;
       }
       ctx.restore();

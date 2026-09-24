@@ -309,6 +309,71 @@ const buzz = (p) => {
   } catch {}
 };
 
+// ---- on-camera colour key (Stage 7c) -----------------------------
+// A "● ● ● ?" chip in the camera's top-left corner whenever the correction
+// guide is on; tap it for the legend (good / close / fix / target / worst
+// finger). It also opens by itself the first COLOR_KEY_AUTO_MAX times a "fix"
+// state stays on the hand for COLOR_KEY_FIX_MS — the moment a new user is
+// looking at magenta bones and wondering what they mean — and closes again
+// after COLOR_KEY_AUTO_CLOSE_MS unless the user taps it. Legend rows for the
+// states currently on the hand get a .live highlight.
+const colorKey = $("colorKey");
+const colorKeyBtn = $("colorKeyBtn");
+const colorKeyList = $("colorKeyList");
+const COLOR_KEY_FIX_MS = 3000;
+const COLOR_KEY_AUTO_MAX = 2;
+const COLOR_KEY_AUTO_CLOSE_MS = 8000;
+let colorKeyAutoCount = Number(loadPref("colorkey-auto", "0")) || 0;
+let colorKeyShown = false;
+let colorKeyFixSince = 0;
+let colorKeyAutoTimer = 0;
+let colorKeyLiveKey = "";
+function setColorKeyOpen(open) {
+  colorKeyList.hidden = !open;
+  colorKeyBtn.setAttribute("aria-expanded", String(open));
+  colorKey.classList.toggle("open", open);
+}
+colorKeyBtn.addEventListener("click", () => {
+  clearTimeout(colorKeyAutoTimer);
+  colorKeyAutoTimer = 0;
+  setColorKeyOpen(colorKeyList.hidden);
+});
+function updateColorKey(visible, stats, now) {
+  if (visible !== colorKeyShown) {
+    colorKeyShown = visible;
+    colorKey.hidden = !visible;
+    colorKeyFixSince = 0;
+  }
+  if (!visible) return;
+  const live = stats?.shown
+    ? `${stats.counts.good ? "g" : ""}${stats.counts.close ? "c" : ""}${stats.counts.fix ? "f" : ""}${stats.ghost ? "t" : ""}${stats.worstFinger ? "w" : ""}`
+    : "";
+  if (live !== colorKeyLiveKey) {
+    colorKeyLiveKey = live;
+    for (const li of colorKeyList.children) li.classList.toggle("live", live.includes(li.dataset.k));
+  }
+  if (stats?.counts.fix) {
+    if (!colorKeyFixSince) colorKeyFixSince = now;
+    else if (
+      now - colorKeyFixSince > COLOR_KEY_FIX_MS &&
+      colorKeyAutoCount < COLOR_KEY_AUTO_MAX &&
+      colorKeyList.hidden
+    ) {
+      colorKeyAutoCount++;
+      savePref("colorkey-auto", String(colorKeyAutoCount));
+      setColorKeyOpen(true);
+      colorKeyFixSince = 0;
+      clearTimeout(colorKeyAutoTimer);
+      colorKeyAutoTimer = setTimeout(() => {
+        colorKeyAutoTimer = 0;
+        setColorKeyOpen(false);
+      }, COLOR_KEY_AUTO_CLOSE_MS);
+    }
+  } else {
+    colorKeyFixSince = 0;
+  }
+}
+
 // first-visit walkthrough. The "Got it" button stays disabled for a couple
 // seconds — people were tapping straight through without reading the privacy
 // line or the per-feature rundown, so the popup wasn't actually informing
@@ -444,6 +509,7 @@ let lastGoodAt = 0; // last frame the sign was complete — for the grace window
 let rewarded = false;
 let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you can repeat it
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
+const GUIDE_MIN_REVEAL = 0.4; // guide strength the moment a hand is scored (Stage 7c)
 let motionChargeAmt = 0; // eased J/Z charge-tone input — see the charge() call below
 let handVote = 0; // frames the on-camera hand has disagreed with trackedHand
 let trackedHand = "right"; // the signing hand (real, not MediaPipe's mirrored label)
@@ -1649,6 +1715,7 @@ function setState(next, detail) {
     rewarded = false;
     landmarkFilter.reset();
     guideAmt = 0;
+    updateColorKey(false, null, 0);
     motionChargeAmt = 0;
     setHold("0");
     sound.charge(0);
@@ -1917,10 +1984,12 @@ function loop() {
     m.bucket = "correct";
   }
 
-  // progressive disclosure: the correction guide only fades in once you're
-  // actually attempting the shape (score climbing out of "way off"), so the
-  // default view stays a clean plain skeleton.
-  const revealTarget = m ? Math.max(0, Math.min(1, (m.score - 0.35) / 0.3)) : 0;
+  // progressive disclosure: the correction guide is on at a low floor as soon
+  // as a hand is scored (Stage 7c — staying plain blue until score >= 0.35
+  // read as "the guide is broken"), then strengthens as you get closer.
+  const revealTarget = m
+    ? GUIDE_MIN_REVEAL + (1 - GUIDE_MIN_REVEAL) * Math.max(0, Math.min(1, (m.score - 0.35) / 0.3))
+    : 0;
   guideAmt += (revealTarget - guideAmt) * 0.12;
 
   let guideInfo = null; // { part } for the worst-off joint — named in the hint
@@ -1965,6 +2034,10 @@ function loop() {
     missStreak++;
     if (missStreak >= LOST_HAND_FRAMES && state !== "searching") setState("searching");
   }
+
+  // on-camera colour key (Stage 7c) + the tour's live legend
+  const guideStats = hasHand && guiding ? overlay.guideStats() : null;
+  updateColorKey(guiding, guideStats, now);
 
   // recognition -> corner badge (hidden during the challenge — no peeking)
   if (classifier) {

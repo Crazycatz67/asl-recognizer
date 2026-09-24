@@ -121,6 +121,21 @@
         <div class="letter-badge" id="letterBadge" hidden></div>
         <p class="stats" id="stats" hidden></p>
 
+        <!-- colour key for the correction guide (Stage 7c) -->
+        <div class="color-key" id="colorKey" hidden>
+          <button class="ck-toggle" id="colorKeyBtn" type="button" aria-expanded="false"
+            aria-controls="colorKeyList" aria-label="What the colors mean">
+            <span class="ck-dot ck-good" aria-hidden="true"></span><span class="ck-dot ck-close" aria-hidden="true"></span><span class="ck-dot ck-fix" aria-hidden="true"></span><span class="ck-q" aria-hidden="true">?</span>
+          </button>
+          <ul class="ck-list" id="colorKeyList" hidden>
+            <li data-k="g"><span class="ck-sw ck-good" aria-hidden="true"></span><b>✓ Good</b> this part matches</li>
+            <li data-k="c"><span class="ck-sw ck-close" aria-hidden="true"></span><b>~ Close</b> nearly right</li>
+            <li data-k="f"><span class="ck-sw ck-fix" aria-hidden="true"></span><b>✕ Fix</b> move this part</li>
+            <li data-k="t"><span class="ck-sw ck-target" aria-hidden="true"></span><b>Target</b> where your hand should go</li>
+            <li data-k="w"><span class="ck-sw ck-worst" aria-hidden="true"></span><b>▲ Fix first</b> the finger that is most off</li>
+          </ul>
+        </div>
+
         <!-- shown once the camera is on but nothing's picked yet -->
         <div class="pick-hint" id="pickHint" hidden>
           <span>👆</span> Pick a letter above to start learning

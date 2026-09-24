@@ -132,6 +132,33 @@ function mkHand() {
     ok("overlay: drawGuide returns null or a worst-joint {part}",
       guideRet === null || (typeof guideRet === "object" && typeof guideRet.part === "string"),
       JSON.stringify(guideRet));
+    // Stage 7c: colour-blind-safer ramp + redundant (non-colour) encoding
+    ok("overlay: guideState splits good / close / fix at tol and mid-band",
+      ov.guideState(0.05, 0.06, 0.36) === "good" &&
+      ov.guideState(0.06, 0.06, 0.36) === "good" &&
+      ov.guideState(0.10, 0.06, 0.36) === "close" &&
+      ov.guideState(0.30, 0.06, 0.36) === "fix" &&
+      ov.guideState(9, 0.06, 0.36) === "fix");
+    ok("overlay: errRGB is orange at the low end, magenta at the high end, never green/red",
+      (() => {
+        const lo = ov.errRGB(0), hi = ov.errRGB(1), mid = ov.errRGB(0.5);
+        const same = (a, b) => a.every((x, i) => Math.abs(x - b[i]) < 1e-9);
+        const noGreen = [lo, mid, hi].every((c) => !(c[1] > c[0] && c[1] > c[2]));
+        return same(lo, ov.GUIDE_RGB.close) && same(hi, ov.GUIDE_RGB.fix) &&
+          same(ov.errRGB(-3), lo) && same(ov.errRGB(7), hi) && noGreen;
+      })());
+    ok("overlay: each guide state has a distinct glyph (✓ ~ ✕)",
+      new Set(["good", "close", "fix"].map((k) => ov.GUIDE_GLYPH[k])).size === 3);
+    ok("overlay: guideStats() reports 5 fingertip states + counts after drawGuide, null after a no-op",
+      (() => {
+        overlay.drawGuide(mkHand(), new Array(74).fill(0.1), { aspect: 4 / 3, reveal: 1 });
+        const s = overlay.guideStats();
+        const good = s && s.tips.length === 5 &&
+          s.tips.every((t) => ["good", "close", "fix"].includes(t)) &&
+          s.counts.good + s.counts.close + s.counts.fix === 5 && s.shown === true;
+        overlay.drawGuide(mkHand(), null);
+        return good && overlay.guideStats() === null;
+      })());
     ok("overlay: drawMotionGuide (J/Z swoosh) doesn't throw",
       (() => {
         try {
