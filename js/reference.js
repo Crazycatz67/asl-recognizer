@@ -347,12 +347,21 @@ export function buildReference(samples, letters) {
 // A relaxed open right hand in the normalized frame (wrist ~origin, fingers up
 // = negative y). The animated player eases from this into the target shape so
 // you see the sign FORM, not just a still.
-const NEUTRAL_HAND = [
-  [0.0, 0.0], [-0.16, -0.09], [-0.31, -0.2], [-0.42, -0.31], [-0.52, -0.41],
-  [-0.1, -0.42], [-0.12, -0.63], [-0.13, -0.77], [-0.14, -0.9],
-  [0.02, -0.45], [0.02, -0.67], [0.02, -0.82], [0.02, -0.96],
-  [0.14, -0.42], [0.16, -0.62], [0.17, -0.76], [0.18, -0.88],
-  [0.25, -0.36], [0.29, -0.52], [0.31, -0.63], [0.33, -0.73],
+//
+// Same side convention as the dataset centroids it animates INTO: thumb and
+// index at +x, pinky at -x (checked against A/B/L/N centroids). It used to be
+// the mirror image — thumb at -x — and a mirror image can't be reached by
+// rotating bones, so every letter's palm squeezed to a sliver and turned
+// inside-out mid-animation while the thumb swept across it (measured: palm
+// area fell to 0-7% of its endpoints for all 24 static letters; now it never
+// drops below them). That was the "impossible movement" in live QA and
+// checklist #16's N "sliver". tools/ci-check.mjs guards it.
+export const NEUTRAL_HAND = [
+  [0.0, 0.0], [0.16, -0.09], [0.31, -0.2], [0.42, -0.31], [0.52, -0.41],
+  [0.1, -0.42], [0.12, -0.63], [0.13, -0.77], [0.14, -0.9],
+  [-0.02, -0.45], [-0.02, -0.67], [-0.02, -0.82], [-0.02, -0.96],
+  [-0.14, -0.42], [-0.16, -0.62], [-0.17, -0.76], [-0.18, -0.88],
+  [-0.25, -0.36], [-0.29, -0.52], [-0.31, -0.63], [-0.33, -0.73],
 ];
 
 // start handshapes for the motion letters (wrist ~origin, +y down, span units)
@@ -365,9 +374,11 @@ const I_HAND = [
   [0.13, -0.30], [0.13, -0.13], [0.12, -0.03], [0.11, 0.03],
   [0.22, -0.34], [0.24, -0.60], [0.25, -0.80], [0.26, -0.98],
 ];
+// (thumb on the index side, like I_HAND — it used to sit on the pinky side,
+// a hand that can't exist from either view)
 const POINT_HAND = [
   [0.0, 0.0],
-  [0.16, -0.05], [0.25, -0.13], [0.22, -0.21], [0.15, -0.25],
+  [-0.16, -0.05], [-0.25, -0.13], [-0.22, -0.21], [-0.15, -0.25],
   [-0.08, -0.34], [-0.08, -0.60], [-0.08, -0.80], [-0.08, -0.98],
   [0.03, -0.32], [0.03, -0.15], [0.03, -0.04], [0.03, 0.03],
   [0.14, -0.30], [0.14, -0.13], [0.13, -0.03], [0.12, 0.03],

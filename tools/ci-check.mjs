@@ -552,6 +552,54 @@ await check("onefilter.js: first-sample passthrough, converges on a held signal,
   return "first-sample passthrough exact, held signal converges (<1e-3), non-increasing dt and reset both safe, fast motion tracked with low lag";
 });
 
+// ---- 13b. demo-hand neutral pose is on the same side as the letters -------
+// The demo hand animates NEUTRAL_HAND -> each letter's dataset centroid. If
+// the neutral is the mirror image of the centroids (thumb on the other side,
+// as it was until 2026-09-23), no bone rotation can get there, so the palm
+// polygon (wrist + 4 knuckles) squeezes to a sliver and turns inside-out
+// mid-animation — the "impossible movement" live testers reported. Assert
+// that for every static letter the palm's signed area never flips sign and
+// never shrinks below half of the smaller endpoint's area.
+await check("reference.js: demo-hand palm never collapses or turns inside-out (NEUTRAL_HAND -> every centroid)", async () => {
+  const { NEUTRAL_HAND } = await import(pathToFileURL(path.join(ROOT, "js", "reference.js")));
+  const { makeInterpolator } = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "dataset.json"), "utf8"));
+  const PALM = [0, 5, 9, 13, 17];
+  const area = (p) => {
+    let a = 0;
+    for (let i = 0; i < PALM.length; i++) {
+      const [x1, y1] = p[PALM[i]], [x2, y2] = p[PALM[(i + 1) % PALM.length]];
+      a += x1 * y2 - x2 * y1;
+    }
+    return a / 2;
+  };
+  const sums = new Map();
+  for (const s of data.samples) {
+    if (s.label === "J" || s.label === "Z" || !/^[A-Z]$/.test(s.label)) continue;
+    const e = sums.get(s.label) || { acc: new Array(63).fill(0), n: 0 };
+    for (let i = 0; i < 63; i++) e.acc[i] += s.v[i];
+    e.n++;
+    sums.set(s.label, e);
+  }
+  let worst = Infinity, worstL = "";
+  for (const [L, e] of sums) {
+    const c = e.acc.map((x) => x / e.n);
+    const tgt = Array.from({ length: 21 }, (_, i) => [c[i * 3], c[i * 3 + 1], c[i * 3 + 2]]);
+    const at = makeInterpolator(NEUTRAL_HAND, tgt);
+    const a0 = area(NEUTRAL_HAND), a1 = area(tgt);
+    const ref = Math.min(Math.abs(a0), Math.abs(a1));
+    if (Math.sign(a0) !== Math.sign(a1)) throw new Error(`${L}: neutral and target palms face opposite ways (mirrored poses)`);
+    for (let k = 1; k < 40; k++) {
+      const a = area(at(k / 40));
+      if (Math.sign(a) !== Math.sign(a1)) throw new Error(`${L}: palm turns inside-out at t=${k / 40}`);
+      const r = Math.abs(a) / ref;
+      if (r < worst) { worst = r; worstL = L; }
+    }
+  }
+  if (worst < 0.5) throw new Error(`palm collapses to ${(worst * 100).toFixed(0)}% on ${worstL}`);
+  return `${sums.size} letters, smallest mid-animation palm ${(worst * 100).toFixed(0)}% of endpoints (${worstL})`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
