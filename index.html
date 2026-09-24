@@ -32,6 +32,7 @@
     </button>
     <button class="topbar-link contrast-btn" id="contrastBtn" type="button" aria-pressed="false" aria-label="Toggle high contrast" title="High contrast">◐</button>
     <button class="topbar-link" id="muteBtn" type="button" aria-label="mute sound" title="sound">🔊</button>
+    <button class="topbar-link tour-btn" id="tourBtn" type="button" aria-label="How it works — replay the tour" title="How it works">?</button>
     <a class="topbar-link" href="about.html">About</a>
   </header>
   <div class="app-stage" id="appStage">
@@ -335,22 +336,8 @@
     </div>
   </div>
 
-  <!-- first-visit walkthrough -->
-  <div class="intro" id="intro" hidden>
-    <div class="intro-inner">
-      <p class="intro-privacy">
-        🔒 <b>Private by design.</b> Everything runs in your browser, on your device.
-        Your camera feed is never recorded, saved, or sent anywhere — not even to us.
-      </p>
-      <h2>How it works</h2>
-      <ol>
-        <li><b>Turn on your camera</b>, pick a letter, and match the shape shown — the guide points to the finger to fix; hold it steady to lock it in.</li>
-        <li><b>Practice</b> one letter, run the whole alphabet in <b>A→Z run</b>, or beat the clock in <b>Challenge</b>.</li>
-        <li><b>Spell</b> strings letters into whole words as you sign continuously. <b>Read</b> shows you a word to fingerspell back.</li>
-      </ol>
-      <button class="cta" id="introClose" type="button" disabled>Got it — let's start<span id="introCloseTimer"></span></button>
-    </div>
-  </div>
+  <!-- first-visit walkthrough: built by js/tour.js (Stage 7a; replaced the
+       static #intro popup, keeping its privacy note in scene 1) -->
 
   <div class="controls" hidden>
     <button id="stopBtn" type="button" hidden>Stop</button>

@@ -28,7 +28,7 @@ const CORE = [
   "./js/main.js", "./js/mediapipe.js", "./js/motion.js", "./js/normalize.js",
   "./js/onefilter.js", "./js/overlay.js", "./js/posekin.js", "./js/reader.js", "./js/reference.js", "./js/refine.js",
   "./js/sheet.js", "./js/skeleton.js", "./js/sound.js", "./js/spelldrill.js", "./js/speller.js",
-  "./js/stabilizer.js", "./js/strokekin.js", "./js/swipe.js", "./js/transition.js", "./js/twohand.js",
+  "./js/stabilizer.js", "./js/strokekin.js", "./js/swipe.js", "./js/tour.js", "./js/transition.js", "./js/twohand.js",
   "./icons/icon-192.png", "./icons/icon-512.png",
   "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png",
 ];

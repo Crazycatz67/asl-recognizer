@@ -97,10 +97,11 @@ browser.
 | File | Purpose |
 |---|---|
 | `main.js` | The app. It holds the state machine, the per-frame `loop()`, `setMode()`, and all of the Practice, Challenge, Spell and Read UI wiring. |
-| `overlay.js` | The live camera overlay. `drawHands` draws a plain skeleton. `drawGuide` colours every joint by its error and adds "move this way" arrows. `drawMotionGuide` draws the J/Z trace. |
+| `overlay.js` | The live camera overlay. `drawHands` draws a plain skeleton. `drawGuide` colours every joint by its error (blue good / orange close / magenta fix, plus solid / dashed / thick bones and ✓ ~ ✕ fingertip glyphs), labels the dashed "target" ghost and marks the worst finger with ▲. `guideStats()` reports what the last frame showed. `drawMotionGuide` draws the J/Z trace. |
 | `skeleton.js` | Shared 21-point hand drawing, used by the overlay, the reference panel and the demo hand. |
 | `reference.js` | Practice-mode scoring (`buildReference`: `score`, `hint`, `orient`, `regionErrors`, calibrated per letter) and the animated demo hand (`createCanonicalPlayer`). |
 | `sheet.js` | A reusable controller for bottom sheets and modal dialogs, with a focus trap, inert background and Escape handling. |
+| `tour.js` | The first-run walkthrough (six scenes, replayable from the "?" button). A pure scene state machine plus a DOM card; `main.js` lends it camera/Hand/Practice hooks and calls `tour.feed()` each frame. |
 | `fx.js` | A celebration particle burst and a screen-edge glow. |
 | `bg.js` | The ambient background. Its colour follows the match score, and each screen region reacts to that region's error. |
 

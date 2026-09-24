@@ -1932,3 +1932,161 @@ summary:focus-visible,
   padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/* ---- first-run tour (Stage 7a, js/tour.js) ------------------------------
+   A card docked at the bottom (phone) / bottom-right (desktop) rather than a
+   full-screen dim: several scenes happen live on the camera behind it, so
+   the camera has to stay visible. sheet.js makes the rest of the page inert
+   while it's open; closed = no .sheet-open class (sheet.js never re-hides). */
+.tour-btn {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font: 800 0.9rem system-ui, sans-serif;
+  min-width: 2rem;
+}
+.tour {
+  position: fixed;
+  z-index: 140;
+  left: 50%;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(26rem, calc(100% - 2rem));
+}
+.tour:not(.sheet-open) { display: none; }
+@media (min-width: 900px) {
+  .tour { left: auto; right: 1.25rem; transform: none; }
+}
+.tour-card {
+  max-height: min(62svh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.9rem 1.1rem 0;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #1e293b, #16202f);
+  box-shadow: 0 24px 70px -20px rgba(0, 0, 0, 0.85);
+  color: #cbd5e1;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.tour-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.tour-step { font: 700 0.75rem system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.tour-dots { display: flex; gap: 0.3rem; flex: 1; }
+.tour-dots i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #334155; }
+.tour-dots i.on { background: var(--accent); transform: scale(1.25); }
+.tour-dots i.done { background: #7dd3fc80; }
+.tour-skip, .tour-back {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  padding: 0.35rem 0.7rem;
+  font: 700 0.8rem system-ui, sans-serif;
+  cursor: pointer;
+}
+.tour-skip:hover, .tour-back:hover { border-color: var(--accent); }
+.tour-title { margin: 0.2rem 0 0.4rem; font-size: 1.15rem; color: var(--fg); outline: none; }
+.tour-body p { margin: 0 0 0.6rem; }
+.tour-body b { color: var(--fg); }
+.tour-note { font-size: 0.82rem; color: var(--muted); }
+.tour-body .intro-privacy { font-size: 0.8rem; }
+.tour-cam {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin: 0.2rem 0 0.4rem; padding: 0.5rem 0.6rem;
+  border-radius: 10px; background: #0b1220; border: 1px dashed var(--line);
+  font-size: 0.82rem;
+}
+.tour-cam-btn {
+  background: var(--accent); color: #0b1220; border: 0; border-radius: 8px;
+  padding: 0.4rem 0.75rem; font: 800 0.82rem system-ui, sans-serif; cursor: pointer;
+}
+.tour-status { min-height: 1.4em; margin: 0.2rem 0 0.3rem; font-weight: 700; color: var(--fg); }
+.tour-nav {
+  position: sticky; bottom: 0;
+  display: flex; justify-content: space-between; gap: 0.6rem;
+  padding: 0.5rem 0 0.9rem;
+  background: linear-gradient(180deg, transparent, #16202f 30%);
+}
+.tour-nav .tour-next { margin-left: auto; padding: 0.6rem 1.3rem; font-size: 0.95rem; }
+
+/* scene 1: dashed "put your hand here" box on the camera */
+.tour-frame {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: min(46%, 18rem); height: 68%;
+  transform: translate(-50%, -50%);
+  border: 3px dashed rgba(248, 250, 252, 0.8);
+  border-radius: 24px;
+  z-index: 38;
+  pointer-events: none;
+  animation: tour-pulse 1.6s ease-in-out infinite;
+}
+.tour-frame.found { border-style: solid; border-color: var(--guide-good); animation: none; }
+.tour-frame-tick {
+  position: absolute; right: -0.9rem; top: -0.9rem;
+  width: 2rem; height: 2rem; border-radius: 50%;
+  display: none; place-items: center;
+  background: var(--guide-good); color: #0b1220; font: 900 1.1rem system-ui, sans-serif;
+}
+.tour-frame.found .tour-frame-tick { display: grid; }
+@keyframes tour-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* scene 2: which hand */
+.tour-hands { display: flex; gap: 0.6rem; margin: 0.2rem 0 0.6rem; }
+.tour-choice {
+  flex: 1; padding: 0.6rem; border-radius: 10px;
+  border: 1px solid var(--line); background: #0b1220; color: var(--fg);
+  font: 800 0.92rem system-ui, sans-serif; cursor: pointer;
+}
+.tour-choice:hover { border-color: var(--accent); }
+.tour-choice[aria-pressed="true"] { border-color: var(--accent); background: #10263a; box-shadow: 0 0 0 2px var(--accent) inset; }
+.tour-choice[aria-pressed="true"]::before { content: "✓ "; }
+.tour-mirror-art { display: block; width: 100%; max-width: 20rem; height: auto; margin: 0 auto 0.5rem; }
+
+/* scene 3: palm orientation */
+.tour-palm { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.6rem; align-items: center; }
+.tour-palm-big { width: 7.5rem; height: 7.5rem; border-radius: 12px; background: #0b1220; }
+.tour-orients { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.tour-orients li {
+  display: grid; grid-template-columns: 2.6rem 1.4rem 1fr; align-items: center; column-gap: 0.35rem;
+  padding: 0.2rem 0.35rem; border-radius: 10px; border: 1px solid transparent;
+  font-size: 0.8rem; line-height: 1.2;
+}
+.tour-orients li.on { border-color: var(--accent); background: #10263a; }
+.tour-orients canvas { width: 2.6rem; height: 2.6rem; grid-row: span 2; }
+.tour-orient-icon { grid-row: span 2; font-size: 1.1rem; }
+.tour-orient-sub { grid-column: 3; color: var(--muted); font-size: 0.74rem; }
+.tour-palm.mirror canvas { transform: scaleX(-1); }
+
+/* scene 4: live legend */
+.tour-legend { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.25rem; }
+.tour-legend li {
+  display: grid; grid-template-columns: 1.6rem auto 1fr auto; align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.5rem; border-radius: 8px; border: 1px solid #33415580;
+  font-size: 0.84rem; opacity: 0.6; transition: opacity 0.25s, background 0.25s;
+}
+.tour-legend li span:nth-child(3) { color: var(--muted); font-size: 0.78rem; }
+.tour-legend li.seen { opacity: 1; background: rgba(148, 163, 184, 0.14); border-color: #94a3b8; }
+.tour-seen { visibility: hidden; font-weight: 900; color: var(--fg); }
+.tour-legend li.seen .tour-seen { visibility: visible; }
+
+/* scene 5: the hold ring, driven live by the camera's --hold value */
+.tour-ring-row { display: flex; justify-content: center; margin: 0.2rem 0 0.5rem; }
+.tour-ring {
+  --p: 0;
+  width: 4.2rem; height: 4.2rem; border-radius: 50%;
+  display: grid; place-items: center; font-size: 1.6rem;
+  background:
+    radial-gradient(closest-side, #16202f 74%, transparent 76%),
+    conic-gradient(var(--correct) calc(var(--p) * 360deg), #33415599 0);
+}
+.tour-modes { margin: 0 0 0.6rem; padding-left: 1.1rem; font-size: 0.86rem; }
+.tour-modes li { margin: 0 0 0.25rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-frame { animation: none; }
+  .tour-dots i.on { transform: none; }
+  .tour-legend li { transition: none; }
+}

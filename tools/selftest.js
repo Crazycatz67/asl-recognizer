@@ -1369,6 +1369,44 @@ function mkHand() {
       return backdropShown && closedByBackdrop;
     })());
 
+    // ---- tour.js (Stage 7a — first-run walkthrough) ----
+    const tourMod = await import("../js/tour.js");
+    ok("tour: 6 scenes, hand first, first letter A last", (() => {
+      const ids = tourMod.TOUR_SCENES.map((s) => s.id);
+      return ids.length === 6 && ids[0] === "hand" && ids.at(-1) === "first" &&
+        tourMod.TOUR_SCENES.at(-1).letter === "A" && new Set(ids).size === 6;
+    })());
+    ok("tour: machine steps forward/back, clamps at 0, finishes 'done' on the last Next", (() => {
+      const t = tourMod.createTourMachine(3);
+      const a = t.index === 0 && t.back() === 0 && t.next() === 1 && t.next() === 2 && t.isLast();
+      const b = t.back() === 1 && t.next() === 2 && t.finished === null;
+      t.next();
+      const c = t.finished === "done" && t.next() === 2 && t.back() === 2; // frozen once finished
+      return a && b && c;
+    })());
+    ok("tour: succeed() counts once per scene; skip() ends 'skipped'; reset() clears", (() => {
+      const t = tourMod.createTourMachine(3);
+      const first = t.succeed(), again = t.succeed();
+      const passed0 = t.passed(0) && !t.passed(1);
+      t.skip();
+      const skipped = t.finished === "skipped" && t.succeed() === false;
+      t.next(); // no-op once finished
+      const frozen = t.index === 0;
+      t.reset();
+      return first && !again && passed0 && skipped && frozen && t.finished === null && !t.passed(0);
+    })());
+    ok("tour: legend accumulates good/close/fix/worst from guideStats and needs good + an off state", (() => {
+      const st = (g, c, f, w) => ({ shown: true, counts: { good: g, close: c, fix: f }, worstFinger: w });
+      let s = {};
+      s = tourMod.accumulateLegend(s, st(5, 0, 0, null));
+      const onlyGood = s.good && !s.close && !tourMod.legendComplete(s);
+      s = tourMod.accumulateLegend(s, { shown: false, counts: { good: 0, close: 0, fix: 5 } }); // guide not drawn
+      const ignored = !s.fix;
+      s = tourMod.accumulateLegend(s, st(3, 0, 2, "ring"));
+      return onlyGood && ignored && s.fix && s.worst && s.good && tourMod.legendComplete(s) &&
+        tourMod.accumulateLegend(s, null) !== s && !tourMod.legendComplete(null);
+    })());
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

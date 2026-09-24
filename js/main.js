@@ -33,6 +33,7 @@ import { createTransitionMatcher } from "./transition.js";
 import { buildLexicon, createDecoder, mergeConfusion } from "./decode.js";
 import { createReader } from "./reader.js";
 import { createCourse } from "./curriculum.js";
+import { createTour } from "./tour.js";
 import {
   TARGET_FPS,
   LOST_HAND_FRAMES,
@@ -155,9 +156,6 @@ const runCard = $("runCard");
 const runCardTitle = $("runCardTitle");
 const runCardBody = $("runCardBody");
 const runCardClose = $("runCardClose");
-const intro = $("intro");
-const introClose = $("introClose");
-const introCloseTimer = $("introCloseTimer");
 const spellPanel = $("spellPanel");
 const spText = $("spText");
 const spPending = $("spPending");
@@ -374,41 +372,8 @@ function updateColorKey(visible, stats, now) {
   }
 }
 
-// first-visit walkthrough. The "Got it" button stays disabled for a couple
-// seconds — people were tapping straight through without reading the privacy
-// line or the per-feature rundown, so the popup wasn't actually informing
-// anyone. A short forced pause, not a wall, fixes that.
-const INTRO_READ_MS = 2500;
-if (loadPref("seen-intro") !== "1") {
-  intro.hidden = false;
-  let left = Math.ceil(INTRO_READ_MS / 1000);
-  introCloseTimer.textContent = ` (${left})`;
-  const tick = setInterval(() => {
-    left--;
-    if (left <= 0) {
-      clearInterval(tick);
-      introClose.disabled = false;
-      introCloseTimer.textContent = "";
-    } else {
-      introCloseTimer.textContent = ` (${left})`;
-    }
-  }, 1000);
-}
-function dismissIntro() {
-  intro.hidden = true;
-  savePref("seen-intro", "1");
-}
-introClose.addEventListener("click", () => {
-  if (introClose.disabled) return;
-  dismissIntro();
-});
-// A forced multi-second read-pause is reasonable for a mouse click through a
-// popup, but a keyboard user hitting Escape is making a deliberate, explicit
-// "close this" gesture — the same disabled-button wait would just be an a11y
-// trap with no benefit. Escape always closes immediately, timer or not.
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && intro && !intro.hidden) dismissIntro();
-});
+// (the first-visit walkthrough is js/tour.js, wired near the end of this file —
+// it replaced the static #intro popup in Stage 7a)
 
 const HARD_LETTERS = new Set(["M", "N", "D"]); // recogniser is weaker on these
 const statsMap = loadJSON("stats", {});
@@ -2430,6 +2395,11 @@ function loop() {
     bg.setMatch(null);
   }
 
+  // first-run tour: scenes that react to your hand (Stage 7a)
+  if (tour.isOpen()) {
+    tour.feed({ hasHand, guideStats, hold: Number(lastHold) || 0, rewarded, target: targetLetter });
+  }
+
   // "pick a letter" nudge — only in practice, camera live, nothing chosen yet
   pickHint.hidden = !(mode === "practice" && !targetLetter);
 
@@ -2814,16 +2784,16 @@ demoZoom.addEventListener("click", () => {
 // keyboard: arrows step letters, space starts/skips the challenge, a-z jump
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // the tour is modal: its own keys (Escape = skip, via sheet.js) only
+  if (tour?.isOpen()) return;
   // Escape closes whatever overlay is open
   if (e.key === "Escape") {
     if (!demoZoom.hidden) { demoZoom.hidden = true; demoZoomPlayer?.setTarget(null); return; }
     if (!progressPanel.hidden) { progressPanel.hidden = true; return; }
-    if (!intro.hidden) { introClose.click(); return; }
     if (!runCard.hidden) { runCardClose.click(); return; }
   }
   const tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
-  if (!intro.hidden && e.key === "Enter") { introClose.click(); return; }
 
   if (mode === "spell") {
     if (e.key === "Backspace") { e.preventDefault(); speller?.backspace(); syncSpellText(); return; }
@@ -2843,3 +2813,42 @@ document.addEventListener("keydown", (e) => {
     if (ALL_LETTERS.includes(L)) setTarget(L);
   }
 });
+
+// ---- first-run walkthrough (Stage 7a) — js/tour.js ------------------------
+// Opens by itself on a first visit (same "seen-intro" pref the old static
+// #intro used, so returning users aren't shown it again) and from the "?"
+// button in the top bar. main.js only lends it hooks into the camera, the Hand
+// control and Practice; the tour decides everything else. Fed once per camera
+// frame from loop().
+const tourBtn = $("tourBtn");
+const tour = createTour({
+  hud: viewport.querySelector(".hud"),
+  cameraState: () => state,
+  startCamera: () => start(),
+  reference: () => reference,
+  hand: () => handOverride,
+  setHand: (side) => handPick.querySelector(`button[data-hand="${side}"]`)?.click(),
+  // same rule as applyHand(): the selfie view flips the demo for a right hand
+  mirrored: () => trackedHand === (facingMode === "user" ? "right" : "left"),
+  practice: (letter) => {
+    if (!reference || !challenge) return false;
+    if (mode !== "practice") setMode("practice");
+    if (azRun) setAzRun(false);
+    ghostToggle.checked = true;
+    blindToggle.checked = false;
+    if (targetLetter !== letter) setTarget(letter);
+    else {
+      // same letter again (scene 4 -> 5): start a fresh hold
+      holdStart = 0;
+      rewarded = false;
+      setHold("0");
+    }
+    return true;
+  },
+  onDone: () => {
+    savePref("seen-intro", "1");
+    tourBtn.focus();
+  },
+});
+tourBtn.addEventListener("click", () => tour.open());
+if (loadPref("seen-intro") !== "1") tour.open();

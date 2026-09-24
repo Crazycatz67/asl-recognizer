@@ -64,7 +64,9 @@ flowchart LR
 4. **Feedback.** `js/reference.js` scores the live vector against each
    letter's class centroid, with a per-joint tolerance learned from that
    letter's own training spread. `js/overlay.js` colors the user's own
-   skeleton by that per-joint error.
+   skeleton by that per-joint error, in a colour-blind-safer blue / orange /
+   magenta with matching line styles and ✓ ~ ✕ fingertip glyphs, so colour is
+   never the only signal.
 5. **Words.** In Spell mode, `js/transition.js` commits a letter when the hand
    *settles after a move*, because real signing never holds still. Then
    `js/decode.js` runs a CTC-style collapse plus a beam search over a 25k-word
@@ -207,6 +209,7 @@ docs/     changelog, research notes, archived plan, code-reorg proposal
 | `overlay.js` | Live-camera canvas: skeleton and per-joint correction guide |
 | `skeleton.js` | Shared 21-point hand rendering for the overlay and demos |
 | `sheet.js` | Reusable bottom-sheet / modal controller (focus trap, inert background) |
+| `tour.js` | Interactive first-run walkthrough: hand in view, which hand + mirror, palm orientation, the guide's colors live on your hand, hold to lock, first letter |
 | `sound.js` | Synthesized Web Audio cues (no audio files) |
 | `fx.js` | Particle burst and glow celebrations |
 | `bg.js` | Reactive ambient background |
