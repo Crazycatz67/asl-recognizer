@@ -1,6 +1,18 @@
-// js/sheet.js — a reusable bottom-sheet / dialog controller (S4b; this is
-// also S6's dialog fix — built once, reused by every sheet/dialog rather
-// than each one hand-rolling its own show/hide + escape handling).
+// =============================================================================
+// js/sheet.js — reusable bottom-sheet / modal dialog controller (Browser UI)
+// =============================================================================
+// WHAT: One show/hide controller for every sheet and dialog in the app (S4b;
+//   this is also S6's dialog fix — built once, reused by every sheet/dialog
+//   rather than each one hand-rolling its own show/hide + escape handling).
+//   Modal sheets get the full accessible-dialog treatment (focus trap, inert
+//   background, Escape and backdrop close, focus restore).
+//
+// WHERE IT SITS: UI plumbing only. Today main.js uses it once, for the
+//   non-modal reference panel (`refSheet`); the modal path is exercised by
+//   tools/selftest.js and ready for future dialogs. Not part of recognition.
+//
+// PUBLIC API:
+//   createSheet(el, opts) → { open, close, toggle, isOpen, destroy }
 //
 //   const sheet = createSheet(el, opts);
 //   sheet.open()      -> show it. modal: traps Tab focus inside `el`,
@@ -28,9 +40,17 @@
 //              modal) — an element whose click closes the sheet; pass
 //              `false` to skip the backdrop entirely
 //   onOpen / onClose — lifecycle hooks, called after the DOM update
+//
+// GOTCHA: open() sets `el.hidden = false` but close() only removes the open
+//   class (it never sets hidden back), so the closed look must come from CSS
+//   on `openClass`, not from the `hidden` attribute.
 
+// ---- focus helpers ----
+
+// Selector for natively focusable, enabled elements (tabindex=-1 excluded).
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+// Focusable descendants of `el` that are actually rendered (have a layout box).
 function focusablesIn(el) {
   return [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.getClientRects().length > 0);
 }
@@ -45,6 +65,16 @@ function siblingsToInert(el, root) {
   return [...root.children].filter((c) => c !== node);
 }
 
+// ---- public factory ----
+
+/**
+ * Wrap an element as an open/close-able sheet or modal dialog.
+ * @param {HTMLElement} el  the sheet element
+ * @param {{modal?: boolean, openClass?: string, inertRoot?: HTMLElement,
+ *   backdrop?: HTMLElement|false, onOpen?: () => void, onClose?: () => void}} [opts]
+ * @returns {{open: () => void, close: () => void, toggle: () => void,
+ *   isOpen: () => boolean, destroy: () => void}}
+ */
 export function createSheet(el, opts = {}) {
   const modal = !!opts.modal;
   const openClass = opts.openClass || "sheet-open";
@@ -63,6 +93,7 @@ export function createSheet(el, opts = {}) {
     backdrop.addEventListener("click", () => close());
   }
 
+  // ---- keyboard: Escape closes, Tab / Shift+Tab wrap inside a modal ----
   function onKeydown(e) {
     if (!modal || !open) return;
     if (e.key === "Escape") {
@@ -92,6 +123,8 @@ export function createSheet(el, opts = {}) {
   }
   document.addEventListener("keydown", onKeydown);
 
+  // ---- open / close ----
+  // (named open_ because `open` is the state flag above)
   function open_() {
     if (open) return;
     open = true;

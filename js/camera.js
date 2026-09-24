@@ -1,6 +1,32 @@
-// Thin wrapper around getUserMedia. Keeps all the browser-quirk handling
-// (iOS playsinline, waiting for real frame data) in one spot.
+// =============================================================================
+// js/camera.js — webcam start/stop via getUserMedia (Browser I/O)
+// =============================================================================
+// WHAT: Thin wrapper around getUserMedia. Keeps all the browser-quirk
+//   handling (iOS needing an explicit play(), waiting for real frame data,
+//   soft resolution/facing constraints) in one spot so main.js's state
+//   machine only sees "a <video> that is playing" or a thrown error.
+//
+// PIPELINE: [camera.js] → <video> → handTracker.js (MediaPipe) → … — the very
+//   first stage. main.js start() / stop() / flip() are the only callers.
+//
+// PUBLIC API:
+//   startCamera(video, { facingMode }) → Promise<MediaStream>  (video is playing)
+//   stopCamera(stream)                 → stop every track (null-safe)
+//   countCameras()                     → Promise<number> of video inputs (0 on error)
+//   facingOf(stream)                   → "user" | "environment" | undefined
+//
+// GOTCHAS: needs a secure context (https or http://localhost) — a bare
+//   file:// page has no navigator.mediaDevices. Errors (NotAllowedError,
+//   NotFoundError, …) propagate to the caller, which maps them to friendly
+//   text in main.js friendlyError().
 
+/**
+ * Open the camera and start it playing into `video`.
+ * @param {HTMLVideoElement} video  element to attach the stream to
+ * @param {{facingMode?: "user"|"environment"}} [opts]  preferred camera (a soft "ideal")
+ * @returns {Promise<MediaStream>} resolves once the first frame is decodable
+ * @throws if getUserMedia is unsupported, denied, or no camera exists
+ */
 export async function startCamera(video, { facingMode = "user" } = {}) {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("This browser does not support camera access (getUserMedia).");
@@ -37,6 +63,10 @@ export async function startCamera(video, { facingMode = "user" } = {}) {
   return stream;
 }
 
+/**
+ * Stop every track of a stream (turns the camera light off).
+ * @param {MediaStream | null | undefined} stream
+ */
 export function stopCamera(stream) {
   stream?.getTracks().forEach((track) => track.stop());
 }
@@ -44,6 +74,7 @@ export function stopCamera(stream) {
 // Number of video input devices. Used to decide whether a "flip camera"
 // control is worth showing. Labels are empty until permission is granted,
 // but the count is still accurate, so call this after startCamera().
+/** @returns {Promise<number>} number of video input devices, or 0 if enumeration fails */
 export async function countCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -55,6 +86,10 @@ export async function countCameras() {
 
 // What the running stream actually resolved to ("user" | "environment" |
 // undefined), which may differ from what we asked for.
+/**
+ * @param {MediaStream | null | undefined} stream
+ * @returns {"user"|"environment"|undefined} the first video track's actual facing mode
+ */
 export function facingOf(stream) {
   return stream?.getVideoTracks?.()[0]?.getSettings?.().facingMode;
 }

@@ -1,6 +1,21 @@
-// Loads the labelled landmark dataset produced by the extraction pass.
+// =============================================================================
+// js/dataset.js — loads the labelled training set (Engine, DOM-free)
+// =============================================================================
+// WHAT: Fetches data/dataset.json (the hand vectors produced offline by
+//   tools/extract.html), validates its shape, and expands the stored
+//   originals with rotated copies so the kNN has neighbours at every hand
+//   tilt. Everything that trains or evaluates — the live app, the test/lab
+//   pages, tools/sweep-transition.mjs — goes through this one loader.
 //
-// File shape:
+// PIPELINE: runs once at startup, before the per-frame loop:
+//   dataset.json → [dataset.js] → knn.js createClassifier() and
+//   reference.js buildReference().
+//
+// PUBLIC API:
+//   loadDataset(url) → Promise<{ samples, labels, vectorLength,
+//                                originalCount, meta }>
+//
+// FILE SHAPE:
 //   {
 //     vectorLength: 74,               // 63 raw coords + 11 engineered features
 //     extendedFeatures: bool,
@@ -9,16 +24,31 @@
 //     samples: [ { label: "A", v: [74 numbers], g: 12 }, ... ]   // ORIGINALS only
 //   }
 //
-// Only the ~6k original hands are stored. Rotation-augmented copies (so kNN has
-// neighbours at every hand tilt) are generated in-memory here — keeps the file
-// ~3 MB instead of ~18 MB. Each augmented row keeps its parent's `g` (group id)
-// and gets `rot: <angle>` so evaluation can split without leakage.
+// WHY AUGMENT AT LOAD: only the ~6k original hands are stored. Rotation-
+//   augmented copies are generated in memory here, which keeps the file ~3 MB
+//   instead of ~18 MB. Each augmented row keeps its parent's `g` (group id)
+//   and gets `rot: <angle in degrees>` so evaluation can split by group
+//   without leaking a hand's rotated twin into the test set.
+//
+// GOTCHAS: uses fetch() with a relative URL, so a plain-Node script must shim
+//   global.fetch to read from disk first (see tools/sweep-transition.mjs).
+//   Throws (with err.status on an HTTP failure) rather than returning null —
+//   main.js catches that and runs "skeleton only" without recognition.
 
 import { rotateVector } from "./normalize.js";
 
-const MIN_LEN = 63;
+const MIN_LEN = 63; // 21 landmarks × (x, y, z) — anything shorter is malformed
 
+/**
+ * Fetch, validate and rotation-augment the training dataset.
+ * @param {string} url  path to dataset.json (relative to the page)
+ * @returns {Promise<{samples: {label: string, v: number[], g?: number, rot?: number}[],
+ *   labels: string[], vectorLength: number, originalCount: number, meta: object}>}
+ *   samples includes the augmented copies; originalCount is before expansion.
+ * @throws {Error} on HTTP failure (err.status set), no samples, or bad rows
+ */
 export async function loadDataset(url) {
+  // ---- fetch ----
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     const err = new Error(`dataset ${res.status}`);
@@ -27,6 +57,7 @@ export async function loadDataset(url) {
   }
   const data = await res.json();
 
+  // ---- validate: every row must be { label, v } with one shared length ----
   if (!Array.isArray(data.samples) || data.samples.length === 0) {
     throw new Error("dataset has no samples");
   }
@@ -40,6 +71,7 @@ export async function loadDataset(url) {
   );
   if (bad) throw new Error(`dataset rows must all be { label, v:[${len}] }`);
 
+  // ---- augment: add an in-plane rotated copy per angle, per original ----
   let samples = data.samples;
   const angles = Array.isArray(data.augmentRotations) ? data.augmentRotations : [];
   if (angles.length) {

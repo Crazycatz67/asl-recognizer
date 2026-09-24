@@ -1,7 +1,30 @@
-// Lightweight celebration effects on a full-viewport overlay canvas: a particle
-// burst and a soft screen glow. Self-manages a rAF that only runs while
-// something is animating. Respects prefers-reduced-motion.
+// =============================================================================
+// js/fx.js — celebration particles + screen glow (Browser UI)
+// =============================================================================
+// WHAT: Lightweight celebration effects on a full-viewport overlay canvas: a
+//   particle burst (e.g. confetti from the fingertip when a letter is
+//   nailed) and a soft coloured glow around the screen edge (success, delete,
+//   copy/paste feedback). Self-manages a requestAnimationFrame loop that only
+//   runs while something is animating, so it costs nothing when idle.
+//
+// WHERE IT SITS: pure presentation — main.js calls it from reward() and the
+//   Spell-mode gesture handlers. Not part of recognition.
+//
+// PUBLIC API:
+//   const fx = createFx();      // appends a fixed, click-through <canvas>
+//   fx.burst(x, y)              // ~40 particles from page coords (CSS px)
+//   fx.flash(color?)            // ~440 ms edge glow (any CSS colour)
+//
+// ACCESSIBILITY: respects prefers-reduced-motion live — burst() is skipped
+//   and flash() is shortened to 160 ms while it's on.
+//
+// GOTCHA: particle physics is stepped per animation frame (not per ms), so a
+//   burst plays faster on a 120 Hz display than on a 60 Hz one.
 
+/**
+ * Create the overlay canvas and return the effect triggers.
+ * @returns {{burst: (x: number, y: number) => void, flash: (color?: string) => void}}
+ */
 export function createFx() {
   // Read once AND stay live — a user who turns on reduced-motion mid-session
   // (e.g. feeling motion-sick) needs the next burst()/flash() to respect it
@@ -39,6 +62,7 @@ export function createFx() {
 
   const FLASH_MS = 440;
 
+  // ---- animation loop: draw glow, then step + draw particles ----
   function tick() {
     const W = window.innerWidth;
     const H = window.innerHeight;

@@ -1,22 +1,44 @@
-// Receptive fingerspelling practice: pick a word for the animated hand to spell,
-// check what the user typed, keep score. Pure — no DOM, no player. The UI glue
-// (driving createCanonicalPlayer, wiring the form) lives in main.js.
+// =============================================================================
+// js/reader.js — Read mode: receptive fingerspelling quiz (Engine, DOM-free)
+// =============================================================================
+// WHAT: Receptive practice — the app's animated hand spells a word, the user
+//   types what they read. This module picks the word, checks the typed guess,
+//   explains a wrong answer, and keeps score. Pure — no DOM, no player. The
+//   UI glue (driving reference.js createCanonicalPlayer, wiring the form)
+//   lives in main.js (playWord / nextReadWord / judgeRead).
 //
+// WHERE IT SITS: not part of the camera pipeline at all — Read mode runs with
+//   the camera off. Words come from data/practice-words.json (free play) or
+//   curriculum.js course.words() (course style).
+//
+// PUBLIC API:
 //   const rd = createReader(bank, { confusion });  // bank: { category: ["word", ...], ... }
 //   rd.next()                        -> a fresh word (avoids repeats until the pool is exhausted)
+//   rd.next(["a","b"])              -> same, but from a caller-supplied list (Course mode)
 //   rd.check("sarah")               -> { ok, diff, confusables } (+ updates score / streak)
 //   rd.reveal()                     -> the current word, breaks the streak
 //   rd.toggleCategory("names")      -> add/remove a category from the pool (never empties it)
 //   rd.setConfusion(map)            -> swap in confusion data that arrives after construction
-//   rd.score / rd.streak / rd.current / rd.categories / rd.activeCategories
+//   rd.reset()                      -> zero score/streak/best, forget seen words
+//   rd.score / rd.streak / rd.best / rd.current / rd.categories /
+//   rd.activeCategories / rd.poolSize
 //
-// `diff`/`confusables` (S3): a wrong guess on a fingerspelling test is rarely
-// a random miss — it's usually one letter mistaken for one that looks like
-// it (M/N, D/O). `check()` reports exactly which positions diverged and,
+// WHY `diff`/`confusables` (S3): a wrong guess on a fingerspelling test is
+// rarely a random miss — it's usually one letter mistaken for one that looks
+// like it (M/N, D/O). `check()` reports exactly which positions diverged and,
 // where `opts.confusion` (the same shape as data/confusion.json: {truth:
 // {observed: weight}}) says a pair is a KNOWN look-alike, flags it — so the
 // UI can say "you read O for D" instead of just "wrong", which is the whole
 // point of practicing a confusable-heavy skill.
+//
+// GOTCHA: bank keys starting with "_" (e.g. "_comment") are metadata, not
+//   categories, and are ignored.
+
+// ---- helpers ----
+
+// Position-by-position comparison of guess vs answer (a length mismatch shows
+// up as null on the shorter side). Mismatched pairs the confusion map knows
+// about (either direction) are also returned as confusables with their weight.
 function diffWords(guess, answer, confusion) {
   const n = Math.max(guess.length, answer.length);
   const diff = [];
@@ -34,6 +56,15 @@ function diffWords(guess, answer, confusion) {
   return { diff, confusables };
 }
 
+// ---- public factory ----
+
+/**
+ * Create a Read-mode quiz over a categorised word bank.
+ * @param {Object<string, string[]>} [bank]  { category: [words] } (data/practice-words.json)
+ * @param {{confusion?: Object<string, Object<string, number>>}} [opts]
+ *   confusion: {truth: {observed: weight}} look-alike map (may arrive later via setConfusion)
+ * @returns {object} the reader API described above
+ */
 export function createReader(bank = {}, opts = {}) {
   // `let`, not `const`: main.js loads the word bank and the confusion matrix
   // as two independent fetches, and on a real network the (much larger)

@@ -1,21 +1,42 @@
-// Rhythm-based letter segmentation for continuous fingerspelling.
+// =============================================================================
+// js/transition.js — rhythm-based letter segmentation for Spell mode (Engine)
+// =============================================================================
+// WHAT: Decides WHEN a letter has been signed during continuous
+//   fingerspelling. The stabiliser waits for a letter to be *held still* for
+//   N frames — which never happens at real signing speed, so Spell mode feels
+//   stuck. This watches the hand's motion instead: a letter is committed the
+//   moment the hand SETTLES after a MOVE. The move-between-settles
+//   requirement is also what lets doubled letters (the two L's in HELLO)
+//   register — you have to bounce between them.
 //
-// The stabiliser waits for a letter to be *held still* for N frames — which
-// never happens at real signing speed, so Spell mode feels stuck. This watches
-// the hand's motion instead: a letter is committed the moment the hand SETTLES
-// after a MOVE. The move-between-settles requirement is also what lets doubled
-// letters (the two L's in HELLO) register — you have to bounce between them.
+// PIPELINE (Spell mode, "fluid" path): webcam → MediaPipe → onefilter →
+//   normalize → kNN → heads → [transition.js] → speller.addLetter() →
+//   decode.js. It replaces stabilizer.js on this path.
 //
-//   const tr = createTransitionMatcher();
+// PUBLIC API:
+//   const tr = createTransitionMatcher({ moveThr, stillThr, minConf });
 //   tr.push(landmarks, prediction, now);   // every frame; prediction = {label, confidence}
 //   tr.read()                              // -> {letter, conf} once per settle, else null
 //   tr.state / tr.metrics()                // "moving" | "settling" | "settled", + live numbers
+//   tr.reset()
 //
-// Emits the majority letter seen across the settled window, with its mean
-// confidence — that averaged posterior is what feeds js/decode.js.
+// STATE MACHINE (per frame, from `travel` = motion over the last WIN_MS):
+//   travel ≥ moveThr            → "moving"   (arms the next commit, clears votes)
+//   travel ≤ stillThr           → "settling" → after SETTLE_MS with votes → commit → "settled"
+//   in between ("drifting")     → keep the current state, keep collecting votes
+//
+// OUTPUT: the majority letter seen across the settled window, with its mean
+//   confidence — that averaged posterior is what feeds js/decode.js.
+//
+// UNITS: landmarks are normalized 0..1 frame coords; `now` is performance.now()
+//   ms; travel/moveThr/stillThr are in hand-spans (tracked-point travel
+//   divided by wrist→knuckle size), so thresholds don't depend on distance
+//   from the camera. Tune with tools/sweep-transition.mjs (relative numbers
+//   only — see the caveat at the top of that file).
 
+// ---- timing (ms) ----
 const WIN_MS = 110; // motion is measured over this trailing window
-// 90ms was too quick to tell a real settle from a hand just slowing down
+// SETTLE_MS history: 90ms was too quick to tell a real settle from a hand just slowing down
 // mid-transition — a fast fingerspeller's hand can dip under stillThr for a
 // beat between two letters without actually landing on either one, and that
 // was enough to lock in whatever shape it happened to be passing through.
@@ -28,8 +49,10 @@ const WIN_MS = 110; // motion is measured over this trailing window
 // 115ms leaves enough slack for a normal-speed hold while still being
 // meaningfully stricter than the old 90ms.
 const SETTLE_MS = 115; // must be still this long after a move to commit
+// MediaPipe landmark indices tracked for motion:
 const TIPS = [0, 8, 12, 16]; // wrist + 3 fingertips — enough to catch a transition
 
+// Hand size ("span"): wrist → mean of the four knuckles (5, 9, 13, 17).
 function spanOf(lm) {
   const w = lm[0];
   let mx = 0, my = 0;
@@ -37,6 +60,18 @@ function spanOf(lm) {
   return Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
 }
 
+// ---- public factory ----
+
+/**
+ * Create a settle-after-move letter segmenter.
+ * @param {{moveThr?: number, stillThr?: number, minConf?: number}} [opts]
+ *   moveThr/stillThr in hand-spans of travel over WIN_MS; minConf = lowest
+ *   prediction confidence (0..1) allowed to vote
+ * @returns {{push: (landmarks: ({x: number, y: number}[] | null),
+ *   prediction: ({label: string, confidence: number} | null), now: number) => void,
+ *   read: () => ({letter: string, conf: number} | null),
+ *   metrics: () => object, reset: () => void, readonly state: string}}
+ */
 export function createTransitionMatcher(opts = {}) {
   const moveThr = opts.moveThr ?? 0.55; // span-units of tracked-point travel over WIN_MS
   const stillThr = opts.stillThr ?? 0.27; // below this = still
@@ -47,11 +82,12 @@ export function createTransitionMatcher(opts = {}) {
   let settledAt = 0;
   let movedSince = true; // has there been a real move since the last commit?
   let heldLetter = null; // last committed letter
-  let voteFrom = 0; // when the current settling episode began collecting votes
   let votes = []; // { label, conf } during the current settle
   let pending = null; // {letter, conf} to hand back on the next read()
 
-  // total travel of the tracked points across the trailing WIN_MS, in span-units
+  // How far the tracked points moved across the trailing WIN_MS, in span-units:
+  // each point's straight-line displacement from the oldest buffered frame to
+  // the newest, averaged over the points and divided by the mean hand span.
   function travel() {
     if (buf.length < 2) return 0;
     const a = buf[0], b = buf.at(-1);
@@ -89,7 +125,7 @@ export function createTransitionMatcher(opts = {}) {
       }
 
       if (v <= stillThr) {
-        if (state === "moving") { state = "settling"; settledAt = now; voteFrom = now; votes = []; }
+        if (state === "moving") { state = "settling"; settledAt = now; votes = []; }
         if (prediction && prediction.label && (prediction.confidence ?? 0) >= minConf) {
           votes.push({ label: prediction.label, conf: prediction.confidence });
         }

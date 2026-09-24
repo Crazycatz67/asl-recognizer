@@ -1,14 +1,38 @@
-// js/strokekin.js — pure rigid-motion + spline math for the demo-hand's
-// motion-letter animation (S2d part 2) and word-level coarticulation (S2e).
+// =============================================================================
+// js/strokekin.js — rigid-motion + spline math for the demo hand (Engine)
+// =============================================================================
+// WHAT: Pure rigid-motion + spline math for the demo-hand's motion-letter
+//   animation (S2d part 2) and word-level coarticulation (S2e). No DOM, no
+//   canvas — just functions over [x, y] points.
 //
-// posekin.js interpolates a hand's OWN bone angles between two shapes (a
-// hand reconfiguring itself — right for every static letter). J needs a
-// different model: the "I" handshape never changes, only the wrist's
-// position and orientation do — a rigid body moving through space, not a
-// hand curling. This module provides that: rotate a fixed pose around its
-// own wrist, glide the wrist along a short spline, and read the fingertip's
-// resulting path back out. The hook in a real J falls out of that rotation;
-// it is never hand-plotted as a polyline.
+// WHY: posekin.js interpolates a hand's OWN bone angles between two shapes (a
+//   hand reconfiguring itself — right for every static letter). J needs a
+//   different model: the "I" handshape never changes, only the wrist's
+//   position and orientation do — a rigid body moving through space, not a
+//   hand curling. This module provides that: rotate a fixed pose around its
+//   own wrist, glide the wrist along a short spline, and read the fingertip's
+//   resulting path back out. The hook in a real J falls out of that rotation;
+//   it is never hand-plotted as a polyline.
+//
+// WHERE IT SITS: output side only (the animated demo hand in Practice's
+//   reference panel and Read mode) — imported by reference.js's canonical
+//   player. Not part of recognition.
+//
+// PUBLIC API (all pure):
+//   rotate2D(v, theta)                  → v rotated by theta radians
+//   catmullRom2D(pts, t)                → point on a smooth spline through pts, t ∈ [0,1]
+//   delayedEase(t, start, ease)         → 0 until `start`, then ease() over the rest
+//   rigidPoseAt(basePose, theta, wrist) → pose rotated about its wrist, moved to `wrist`
+//   bump(t, center, width)              → raised-cosine pulse, 1 at center, 0 beyond width
+//   translatePose(pose, [dx, dy])       → every point shifted
+//   easeOutBack(t, overshoot?)          → 0→1 ease with a small overshoot
+//   arcFractions(pts)                   → cumulative arc-length fraction per waypoint
+//
+// UNITS: poses are 21 [x, y] landmarks in whatever 2D space the caller uses
+//   (reference.js works in normalized hand units, +y down); angles in
+//   radians; t is a 0..1 animation progress fraction.
+
+// ---- pose, spline and easing helpers ----
 
 // Rotate a 2D vector by theta (radians) around the origin.
 export function rotate2D([x, y], theta) {
@@ -90,6 +114,8 @@ export function easeOutBack(t, overshoot = 1.3) {
   const x = t - 1;
   return 1 + c3 * x * x * x + c1 * x * x;
 }
+
+// ---- path measurement ----
 
 // Cumulative arc-length fraction (0..1) at each point of a polyline —
 // where along a hand-authored path (like STROKE.Z) each original waypoint

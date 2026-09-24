@@ -1,15 +1,33 @@
-// Spell-mode practice targets: give the signer a word to fingerspell and check
-// what they spelled against it. Pure — no DOM, no speller. The UI glue (reading
-// the pending word out of speller.js, colouring the prompt) lives in main.js.
+// =============================================================================
+// js/spelldrill.js — Spell-mode "sign this word" drill (Engine, DOM-free)
+// =============================================================================
+// WHAT: Gives the signer a target word to fingerspell and checks what they've
+//   spelled so far against it, letter by letter, with score and streak.
+//   Pure — no DOM, no speller. The UI glue (reading the pending word out of
+//   speller.js, colouring each prompt letter) lives in main.js.
 //
+// WHERE IT SITS: downstream of the Spell pipeline — each frame main.js takes
+//   speller.pending (or the last committed word) and calls match(); on an
+//   exact match it calls submit() and then next().
+//
+// PUBLIC API:
 //   const d = createSpellDrill(words);   // words: flat ["brown", "seven", ...]
 //   d.setWords(list)                     // swap the pool (e.g. the current course tier)
 //   d.next()                             // -> a fresh target (avoids repeats until exhausted)
 //   d.match("bro")                       // -> { n: 3, ok: false, bad: false, target: "brown" }
 //   d.submit("brown")                    // -> true  (+ score / streak / done)
 //   d.skip()                             // -> next target, breaks the streak
+//   d.reset()                            // zero score/streak/best/done, no target
 //   d.target / d.score / d.streak / d.best / d.done / d.size
+//
+// GOTCHA: every word and attempt is normalised to lowercase a–z only (spaces,
+//   digits and punctuation are stripped) before comparing.
 
+/**
+ * Create a word drill over a pool of target words.
+ * @param {string[]} [words]  candidate targets (deduplicated after normalising)
+ * @returns {object} the drill API described above
+ */
 export function createSpellDrill(words = []) {
   const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
   let pool = [...new Set(words.map(norm).filter(Boolean))];
@@ -20,6 +38,7 @@ export function createSpellDrill(words = []) {
   let done = 0;
   const seen = new Set();
 
+  // random target not yet seen this cycle; once all are seen, start a new cycle
   const pick = () => {
     let fresh = pool.filter((w) => !seen.has(w));
     if (!fresh.length) { seen.clear(); fresh = pool; }

@@ -1,16 +1,46 @@
-// k-nearest-neighbours over 63-D normalized landmark vectors. Plain JS, no
-// training step: it just stores the labelled vectors and, per query, finds
-// the k closest by Euclidean distance and returns the majority label.
+// =============================================================================
+// js/knn.js — k-nearest-neighbour letter classifier (Engine, DOM-free)
+// =============================================================================
+// WHAT: The core static-letter recogniser. There is no training step: it
+//   stores every labelled hand vector and, per query, finds the k closest by
+//   Euclidean distance and returns the majority label plus how decisive the
+//   vote was. Chosen over a neural net because it's tiny, instant to "train"
+//   (just load the data), and easy to inspect when it gets a letter wrong.
 //
-//   const clf = createClassifier(samples, { k: 5 });
-//   clf.classify(vec63) -> { label, confidence, votes, distance } | null
+// PIPELINE: webcam → MediaPipe → normalize.js → [knn.js] → heads.js →
+//   stabilizer.js → overlay.js. main.js calls classify() once per frame.
 //
-// Training vectors are packed into one contiguous Float32Array so the
-// hot loop stays cache-friendly even at tens of thousands of samples.
+// PUBLIC API:
+//   createClassifier(samples, { k }) → classifier
+//     classifier.classify(vec) → { label, votes, confidence, distance,
+//                                  runnerUp, margin } | null
+//     classifier.classes       → sorted unique labels
+//     classifier.size / .dims  → number of stored samples / vector length
 //
-// Vector length is taken from the data, so this works for the raw 63-value
-// vectors or the extended 74-value ones without changing anything here.
+// INPUTS / OUTPUTS:
+//   samples: [{ label, v }] where v is a normalized hand vector from
+//     normalize.js — 63 values (21 landmarks × x,y,z, wrist-centred and
+//     scaled to hand size) or 74 with the 11 engineered shape features.
+//     The length is read from the data, so either works unchanged.
+//   confidence = votes / k (0..1; k clamped to the sample count); distance = Euclidean distance to the single
+//     nearest neighbour (same normalized units as the vector); margin = vote
+//     gap between winner and runner-up.
+//
+// PERFORMANCE: training vectors are packed into one contiguous Float32Array
+//   so the hot loop stays cache-friendly at tens of thousands of samples, and
+//   classify() allocates no scratch per call (see "partial distance search").
+//
+// GOTCHAS: classify() returns null for a missing vector or one whose length
+//   doesn't match the training data (e.g. extended features toggled on only
+//   one side — config.js USE_EXTENDED_FEATURES must match the dataset).
 
+/**
+ * Build a kNN classifier over labelled hand vectors.
+ * @param {{label: string, v: ArrayLike<number>}[]} samples  non-empty training set
+ * @param {{k?: number}} [opts]  k = neighbours to vote (clamped to samples.length)
+ * @returns {{classify: (vec: ArrayLike<number>) => (object|null),
+ *            classes: string[], size: number, dims: number}}
+ */
 export function createClassifier(samples, { k = 5 } = {}) {
   const n = samples.length;
   if (n === 0) throw new Error("createClassifier: no samples");
@@ -32,6 +62,7 @@ export function createClassifier(samples, { k = 5 } = {}) {
   function classify(vec) {
     if (!vec || vec.length !== DIMS) return null;
 
+    // ---- 1. find the k nearest training vectors ----
     // Maintain the k smallest squared distances seen so far (insertion sort,
     // k is tiny). Once we have k candidates, most training vectors are far
     // away, so we abandon the per-vector distance sum the moment it exceeds
@@ -69,7 +100,10 @@ export function createClassifier(samples, { k = 5 } = {}) {
       if (filled === kEff) worst = nearDist[kEff - 1];
     }
 
-    // majority vote among the k neighbours; ties broken by the closer sum
+    // ---- 2. majority vote among the k neighbours ----
+    // Ties go to the label whose nearest member is closest: nearIdx is sorted
+    // nearest-first, the Map keeps that insertion order, and the strict `>`
+    // below never lets a later (farther) label displace an equal count.
     const tally = new Map();
     for (let i = 0; i < filled; i++) {
       const lab = labels[nearIdx[i]];
