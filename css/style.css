@@ -73,7 +73,10 @@ body {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  /* column gap tightened (was 1rem) once the tour "?" made six right-side
+     items — at ~800px wide "About" wrapped onto its own line; the title
+     keeps its breathing room via its own margin below */
+  gap: 0.6rem 0.4rem;
   flex-wrap: wrap;
   padding: 0.6rem 1rem;
   padding-top: max(0.6rem, env(safe-area-inset-top)); /* S4: notch/status-bar clearance */
@@ -81,7 +84,7 @@ body {
   max-width: 1180px;
   margin: 0 auto;
 }
-.topbar h1 { margin: 0; font-size: 1rem; font-weight: 700; flex: none; }
+.topbar h1 { margin: 0 0.6rem 0 0; font-size: 1rem; font-weight: 700; flex: none; }
 .topbar-link {
   margin-left: auto;
   flex: none;

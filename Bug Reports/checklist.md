@@ -175,7 +175,7 @@ once shipped. Statuses: `OPEN` · `FIXED (verified offline)` ·
    while the scorer's "correct" bucket forgives up to 1.8x that. Added
    `reference.matchTolerance()` as the shared threshold; 2 new regression
    checks added to `selftest.html` (166/166 passing).
-9. **Ghost overlay should be more prominent/consistent.** `OPEN`, not
+9. **Ghost overlay should be more prominent/consistent.** `FIXED (needs live confirm)` — `ffb4f6c` (guide shown at low alpha from the first scored frame; ghost labelled "target"). Was, not
    investigated — reads as a design/tuning request rather than a defect.
 
 ## Review & Challenge Modes
@@ -318,13 +318,13 @@ references are as of commit `41c43f0` and will drift.
     time. See item 2. The fix is Stage 1.2. (An uncommitted change to this
     throttle was appearing in the working tree on 2026-09-23. Verify it
     before marking anything.)
-26. **Overlay colors have no legend.** `OPEN`. Nothing in the UI explains the
+26. **Overlay colors have no legend.** `FIXED (needs live confirm)` — `ffb4f6c`: colorblind-safe blue/orange/magenta + solid/dashed/thick + ✓~✕ glyphs, labelled target ghost, guide visible from the start, collapsible color-key chip (auto-opens first 2 persistent fixes); tour scene 4 teaches it live.. Nothing in the UI explains the
     colors: blue skeleton, green/amber→red per-joint error, dashed ghost,
     yellow worst-finger marker (`overlay.js`). Below score 0.35 the guide
     also stays plain blue, which looks broken. The red/green ramp isn't
     colorblind-safe either. The fix is Stage 7c (a color-key chip, redundant
     encoding, and a colorblind-safe ramp).
-27. **Palm orientation is never taught or checked.** `OPEN`. Only B's and E's
+27. **Palm orientation is never taught or checked.** `PARTLY FIXED` — taught: tour scene 3 + all 26 descriptions lead with orientation (`628c57f`, `4444fc8`), misread hint says which way to turn. Still OPEN: live palm-facing detection (plan 7b).. Only B's and E's
     `LETTER_GUIDE` descriptions mention palm direction. The matcher and
     `hint()` ignore palm facing, so an upright H just reads as "U". The
     reference panel also auto-flips silently. The fix is Stages 7a (tour
