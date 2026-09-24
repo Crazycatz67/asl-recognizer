@@ -109,7 +109,8 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 export function createOverlay(canvas) {
   const ctx = canvas.getContext("2d");
   // what the last drawGuide() call showed, for the colour key and the tour:
-  // { tips: [state x5, thumb..pinky], counts: {good, close, fix},
+  // { tips: [state x5, thumb..pinky], counts: {good, close, fix} (tips),
+  //   joints: {good, close, fix} (all 21),
   //   worstFinger: name|null, ghost: bool }. null when the last call drew nothing.
   let lastStats = null;
 
@@ -435,9 +436,14 @@ export function createOverlay(canvas) {
       }
       const counts = { good: 0, close: 0, fix: 0 };
       for (const st of tips) counts[st]++;
+      // every joint's state, not just the tips — main.js's reward gate uses
+      // this so a sign can't count while joints are still drawn off
+      const joints = { good: 0, close: 0, fix: 0 };
+      for (let i = 0; i < 21; i++) joints[stateOf(err[i])]++;
       lastStats = {
         tips,
         counts,
+        joints,
         worstFinger: worst >= 0 ? FINGER_NAME[FINGER_OF[worst]] || null : null,
         ghost: rv > 0.15,
         shown,

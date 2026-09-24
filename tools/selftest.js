@@ -273,6 +273,32 @@ function mkHand() {
     // ---- reference.js (practice mode) ----
     const refm = await import("../js/reference.js");
     const ref = refm.buildReference(train, cfg.LETTERS);
+    // 2026-09-24: the live guide must agree with the scorer about a TILTED
+    // hand. reference.score() rotates the live hand by +deg; the guide draws
+    // the letter in the live frame, so it must rotate the target by -deg
+    // (unless the target is mirrored). The old +deg drew the ghost 2x the
+    // tilt off, so a hand the meter called matched still showed red tips.
+    ok("overlay+reference: a hand tilted to exactly match a letter draws every joint 'good' (guide rotation sign)", (() => {
+      const L = "L", aspect = 4 / 3, c = ref.centroid(L);
+      const results = [];
+      for (const deg of [14, -14]) {
+        const t = (-deg * Math.PI) / 180, cs = Math.cos(t), sn = Math.sin(t);
+        const lm = [];
+        for (let i = 0; i < 21; i++) {
+          const x = c[i * 3], y = c[i * 3 + 1];
+          lm.push({ x: 0.5 + ((x * cs - y * sn) * 0.2) / aspect, y: 0.55 + (x * sn + y * cs) * 0.2, z: c[i * 3 + 2] * 0.2 });
+        }
+        const vec = nz.normalizeLandmarks(lm, { extended: cfg.USE_EXTENDED_FEATURES, aspect });
+        const o = ref.orient(vec, L);
+        const draw = (align) => {
+          overlay.drawGuide(lm, c, { aspect, mirror: o.mirrored, tol: ref.matchTolerance(L), align, reveal: 1 });
+          return overlay.guideStats()?.joints?.good ?? -1;
+        };
+        const fixed = draw(o.mirrored ? o.deg : -o.deg), old = draw(o.deg);
+        results.push({ deg: o.deg, mirrored: o.mirrored, fixed, old });
+      }
+      return results.every((r) => Math.abs(r.deg) > 5 && r.fixed === 21 && r.old < 21) ? true : (console.log(results), false);
+    })());
     ok("reference: letters == 24 present classes", ref.letters.length === clf.classes.length);
     const cN = ref.centroid("N");
     ok("reference: centroid('N') is a vlen vector", Array.isArray(cN) && cN.length === ds.vectorLength && cN.every(Number.isFinite));

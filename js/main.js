@@ -465,7 +465,9 @@ contrastBtn.addEventListener("click", () => {
 const DETECT_INTERVAL = 1000 / TARGET_FPS;
 const HINT_INTERVAL = 250; // ms — throttle the text hint so it doesn't jitter
 const HOLD_MS = 1150; // hold a readable sign this long before the reward
-const HOLD_GRACE_MS = 260; // tolerate this much tracking flicker without losing the hold
+const HOLD_GRACE_MS = 260; // hand LOST: tolerate this much tracking flicker without losing the hold
+const HOLD_PRESENT_GRACE_MS = 100; // hand in view but shape broken: ~3 frames of noise, no more
+const RELEASE_SETTLE_MS = 400; // after a new letter appears, ignore the hand this long
 const BUCKET_COLOR = { off: "#f87171", close: "#f59e0b", correct: "#22c55e" };
 // Meter labels (Stage 7e): say what to DO, not just how close you are. The
 // first set points at the on-camera ▲ marker; the plain set is for when the
@@ -483,6 +485,11 @@ const ORIENT_TIP = {
 let lastHintAt = 0;
 let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
+let needRelease = false; // new letter: wait for the old sign to be released
+let releaseFrom = null; // the letter whose hand must be released
+let armedAt = 0; // performance.now() before which the new letter can't count
+let azAdvancePending = false; // a reward is waiting to advance the A->Z run
+let targetLetterBefore = null; // the target before the current setTarget() call
 let rewarded = false;
 let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you can repeat it
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
@@ -765,7 +772,33 @@ function updateLetterStat() {
     : "";
 }
 
+// Everything that carries "how the LAST letter was going" — reset whenever the
+// target changes so it can't leak into the next one (2026-09-24 live QA:
+// the A->Z run didn't reset the guide between letters; the old letter's
+// confirmed recognition, full-strength guide, hold and tone all carried over).
+function resetPracticeFeedback(nextLetter) {
+  releaseFrom = targetLetterBefore;
+  needRelease = !!(nextLetter && targetLetterBefore && nextLetter !== targetLetterBefore);
+  armedAt = performance.now() + (nextLetter ? RELEASE_SETTLE_MS : 0);
+  holdStart = 0;
+  lastGoodAt = 0;
+  rewarded = false;
+  azAdvancePending = false;
+  guideAmt = 0;
+  motionChargeAmt = 0;
+  lastPred = null;
+  stabilizer?.reset();
+  sound.chargeStop();
+  bg.setMatch(null);
+  setHold("0");
+}
+// while a reward is waiting to advance the run, the letter stays "done" —
+// dropping and re-making the sign mustn't fire a second reward (that used to
+// double-count stats and could skip the NEXT letter)
+const rewardLatched = () => azAdvancePending || azAdvancing;
+
 function setTarget(letter) {
+  targetLetterBefore = targetLetter;
   targetLetter = letter;
   for (const b of letterPicker.children) b.classList.toggle("on", b.textContent === letter);
   clearTargetBtn.hidden = !letter;
@@ -779,8 +812,7 @@ function setTarget(letter) {
   learnRow.classList.toggle("compact", !!letter);
   learnCurrent.textContent = letter || "";
 
-  holdStart = 0;
-  rewarded = false;
+  resetPracticeFeedback(letter);
   motionRewardAt = 0;
   firstHandAt = 0;
   stuckSince = 0;
@@ -1342,6 +1374,10 @@ function setMode(next) {
   mode = next;
   savePref("mode", mode);
   tracker?.setNumHands(mode === "spell" ? 2 : 1);
+  // live QA: "when switching modes the audio gets bugged and loud ... stuck".
+  // Only Practice feeds the hold tone, so leaving it mid-hold froze the
+  // voice at its last pitch forever.
+  sound.chargeStop();
   stabilizer?.reset(); // a letter confirmed in one mode must not carry into the next
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) {
@@ -1658,7 +1694,15 @@ function reward(originLandmark) {
   void letterBadge.offsetWidth; // restart the animation
   letterBadge.classList.add("pop");
   showToast(`Nailed ${targetLetter}!  ✓`);
-  if (azRun) setTimeout(advanceAz, 950); // let the reward land, then move on
+  if (azRun) {
+    // let the reward land, then move on — only if we're still on that letter
+    azAdvancePending = true;
+    const doneLetter = targetLetter;
+    setTimeout(() => {
+      azAdvancePending = false;
+      if (targetLetter === doneLetter) advanceAz();
+    }, 950);
+  }
 }
 
 function showToast(msg) {
@@ -1967,8 +2011,13 @@ function loop() {
   const m = hasHand && vec && reference && targetLetter && !motionTarget
     ? reference.score(vec, targetLetter)
     : null;
-  // a "close" shape the recogniser confidently reads AS the target counts as
-  // correct — a functioning, readable sign, not a perfect one
+  // strict = the shape itself matches: every joint within the tolerance the
+  // live guide colours "good" (reference.js `matched`). Only this can earn
+  // the reward (2026-09-24 live QA: letters registered "despite the skeleton
+  // overlay being incomplete ... red or nowhere near fully green").
+  if (m) m.strict = m.bucket === "correct";
+  // a "close" shape the recogniser confidently reads AS the target shows as
+  // correct on the METER (a readable sign) — encouragement only, no reward
   if (
     m &&
     m.bucket === "close" &&
@@ -1997,13 +2046,19 @@ function loop() {
       // target in that same orientation or the arrows point where the wrist
       // can't go
       const o = vec ? reference.orient(vec, targetLetter) : { mirrored: false, deg: 0 };
+      // reference.score() rotates the LIVE hand by +deg to meet the letter, so
+      // the letter drawn in the live frame is rotated by -deg — unless the
+      // target is also mirrored (M·R(-d) = R(d)·M). Passing +deg always drew
+      // the ghost 2x the tilt off for an unmirrored fit (up to 44°): tips
+      // showed "fix" while the meter said matched.
+      const guideMirror = (MIRROR_LEFT_HAND && left) !== o.mirrored;
       guideInfo = overlay.drawGuide(hand, reference.centroid(targetLetter), {
         aspect: aspectOf(video),
-        mirror: (MIRROR_LEFT_HAND && left) !== o.mirrored,
+        mirror: guideMirror,
         tol: reference.matchTolerance(targetLetter),
-        align: o.deg,
+        align: guideMirror ? o.deg : -o.deg,
         reveal: guideAmt,
-        settled: m?.bucket === "correct", // don't nag once it already counts
+        settled: !!m?.strict, // don't nag once it really counts
         screenMirror: facingMode === "user", // the stage is CSS-mirrored for the front camera
       });
     } else if (mode === "spell" && result.landmarks?.length > 1) {
@@ -2284,9 +2339,14 @@ function loop() {
     // "buzz" artifact, worst on Z (reported live QA) since Z's back-and-forth
     // motion is the noisiest input of the two. Ease it the same way guideAmt
     // is eased above — the on-screen meter/text still show the raw prog.
-    const chargeTarget = prog > 0.15 ? 0.05 + 0.95 * prog : 0;
+    // hysteresis: start the tone at 0.25, keep it until prog falls below
+    // 0.12 (the old hard 0.15 edge made it pop on and off while struggling);
+    // snap to silence instead of decaying for ~85s toward a 240Hz hum
+    const chargeOn = motionChargeAmt > 0 ? prog > 0.12 : prog > 0.25;
+    const chargeTarget = hasHand && chargeOn ? 0.05 + 0.95 * prog : 0;
     motionChargeAmt += (chargeTarget - motionChargeAmt) * 0.25;
-    if (!rewarded) sound.charge(motionChargeAmt);
+    if (motionChargeAmt < 0.03 || !hasHand) motionChargeAmt = 0;
+    if (!rewarded) sound.charge(motionChargeAmt, { soft: true });
 
     if (now - lastHintAt >= HINT_INTERVAL) {
       lastHintAt = now;
@@ -2315,7 +2375,7 @@ function loop() {
       reward(hand?.[targetLetter === "J" ? 20 : 8]);
     }
     // re-arm after the celebration so the next swoosh counts too
-    if (rewarded && motionRewardAt && now - motionRewardAt > 1500) {
+    if (rewarded && motionRewardAt && now - motionRewardAt > 1500 && !rewardLatched()) {
       rewarded = false;
       motionRewardAt = 0;
       firstHandAt = 0; // fresh "time to complete" clock for the next rep
@@ -2344,16 +2404,28 @@ function loop() {
       // reward when the sign is readable (m.bucket === "correct" — a decent
       // shape OR one the recogniser reads as the target) and held for HOLD_MS.
       // Small tracking dropouts inside HOLD_GRACE_MS don't reset the timer.
-      const complete = m.bucket === "correct";
+      // A NEW letter only counts after the previous one's hand is released
+      // (hand dropped, clearly off, or the recogniser confirms something
+      // other than the letter just done) and a short settle (armedAt) —
+      // live QA: in an A->Z run a hand still up from Q would count for R or
+      // be flagged instantly.
+      if (needRelease && (!hasHand || m.bucket === "off" ||
+          (stabilizer.current && stabilizer.current !== releaseFrom))) needRelease = false;
+      // the recogniser mustn't be confidently reading a DIFFERENT letter
+      const notContradicted = !stabilizer.current || stabilizer.current === targetLetter;
+      const complete = m.strict && notContradicted && !needRelease && now >= armedAt;
       if (complete) {
         if (!holdStart) holdStart = now;
         lastGoodAt = now;
         stuckSince = 0;
         stuckShown = false;
         refPanel.classList.remove("nudge");
-      } else if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
+      } else if (holdStart && now - lastGoodAt > HOLD_PRESENT_GRACE_MS) {
+        // hand in view but the shape broke: drop the hold fast (the long
+        // grace below is for tracking dropouts only — it used to let one
+        // good frame every 260ms carry a whole hold)
         holdStart = 0;
-        rewarded = false;
+        if (!rewardLatched()) rewarded = false;
       }
       // "stuck" assist: ~12s on one letter without landing it -> replay the
       // demo and flag the panel
@@ -2421,12 +2493,13 @@ function loop() {
       // hand lost mid-hold: keep the timer alive briefly (grace), else drop it
       if (holdStart && now - lastGoodAt > HOLD_GRACE_MS) {
         holdStart = 0;
-        rewarded = false;
+        if (!rewardLatched()) rewarded = false;
         setHold("0");
       }
     }
   } else {
     bg.setMatch(null);
+    if (mode !== "practice" || !targetLetter) sound.charge(0); // nothing to charge toward
   }
 
   // first-run tour: scenes that react to your hand (Stage 7a)
@@ -2466,6 +2539,9 @@ function releaseWakeLock() {
   wakeLock = null;
 }
 document.addEventListener("visibilitychange", () => {
+  // the rAF loop (the only thing that updates the hold tone) pauses in a
+  // hidden tab — stop the tone instead of leaving it droning
+  if (document.visibilityState === "hidden") sound.chargeStop();
   const live = state === "searching" || state === "tracking";
   if (live && document.visibilityState === "visible" && !wakeLock) acquireWakeLock();
 });

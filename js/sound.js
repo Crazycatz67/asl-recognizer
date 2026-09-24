@@ -82,12 +82,22 @@ export function createSound() {
     },
 
     // p: 0..1 hold progress. call repeatedly while holding; <=0 stops.
-    charge(p) {
+    // { soft: true } — J/Z motion progress: a lower, narrower range and no
+    //   octave shimmer (live QA: "really loud or screechy when you are
+    //   struggling" — the motion metric swings frame to frame).
+    //
+    // Smoothing (2026-09-24): the old version queued a fresh
+    // linearRampToValueAtTime every frame without cancelling, so each ramp
+    // started from the previous one's end — pitch effectively followed the
+    // frame-to-frame jitter ~33ms late, and the param's event list grew for
+    // as long as the voice lived. Now: tiny changes are ignored, pending
+    // automation is cancelled, and setTargetAtTime glides (tau 80ms).
+    charge(p, { soft = false } = {}) {
       if (muted || !ensure()) {
         chargeStop(0.03);
         return;
       }
-      if (p <= 0) {
+      if (!(p > 0)) {
         chargeStop();
         return;
       }
@@ -99,17 +109,35 @@ export function createSound() {
         o.type = "triangle";
         const o2 = ctx.createOscillator();
         o2.type = "sine";
+        const g2 = ctx.createGain(); // shimmer level (0 for soft)
         o.connect(g);
-        o2.connect(g);
+        o2.connect(g2).connect(g);
         g.connect(ctx.destination);
+        o.frequency.value = 240;
+        o2.frequency.value = 480;
         o.start();
         o2.start();
-        chg = { o, o2, g };
+        chg = { o, o2, g, g2, p: -1, soft: null };
       }
-      const f = 240 + p * 540; // ~240 -> ~780 Hz
-      chg.o.frequency.linearRampToValueAtTime(f, n + 0.09);
-      chg.o2.frequency.linearRampToValueAtTime(f * 2.01, n + 0.09); // shimmer
-      chg.g.gain.linearRampToValueAtTime(0.03 + p * 0.06, n + 0.09);
+      if (Math.abs(p - chg.p) < 0.02 && chg.soft === soft) return;
+      chg.p = p;
+      chg.soft = soft;
+      const f = soft ? 240 + p * 240 : 240 + p * 540; // soft: 240->480, hold: 240->780 Hz
+      const gain = soft ? 0.02 + p * 0.035 : 0.03 + p * 0.06;
+      for (const [param, v] of [
+        [chg.o.frequency, f],
+        [chg.o2.frequency, f * 2.01],
+        [chg.g.gain, gain],
+        [chg.g2.gain, soft ? 0 : 1],
+      ]) {
+        param.cancelScheduledValues(n);
+        param.setValueAtTime(param.value, n);
+        param.setTargetAtTime(v, n, 0.08);
+      }
+    },
+    // stop any held tone right away (mode switch, tab hidden, letter change)
+    chargeStop() {
+      chargeStop(0.06);
     },
 
     // triumphant little rising arpeggio + a sparkle tail
