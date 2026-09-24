@@ -337,7 +337,8 @@ body {
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: 1180px;
+  max-width: 1480px; /* was 1180 — big screens left the camera + reference
+                         cramped in the middle with empty margins */
   margin: 0 auto;
   padding: 0.2rem 1rem 0;
   display: flex;
@@ -753,7 +754,10 @@ body {
     "match match";
   align-items: center;
 }
-.reference.sheet-open { max-height: 44svh; }
+/* was 44svh — a little short once the photo/demo were allowed to grow
+   (below); 50svh still leaves the top half of the camera (and the curtain's
+   "Turn on camera" button) clear */
+.reference.sheet-open { max-height: 50svh; }
 .ref-handle {
   grid-area: handle;
   justify-self: center;
@@ -814,8 +818,12 @@ body {
      (including the full-width desc text row) wider than .reference whenever
      the panel itself gets flex-shrunk below ~200px — overflow-x:hidden then
      clips live text instead of just letting the images get a bit smaller. */
+  /* Live QA (2026-09-23): the reference photo and the demo hand were too
+     small to actually learn a handshape from — they were capped at 160px and
+     sat in mostly-empty half columns. Now they fill their column, bounded by
+     height so the open sheet still leaves the camera visible. */
   width: 100%;
-  max-width: 160px;
+  max-width: min(100%, 27svh);
   min-width: 0;
   justify-self: center;
   aspect-ratio: 1;
@@ -874,10 +882,16 @@ body {
 @media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
   .reference {
     position: static;
-    flex: 0 1 auto;
+    /* don't let the camera squeeze the card back down to thumbnail images
+       (it flex-shrank from 500px to ~410px at 1400px wide); the camera keeps
+       its own min-height floor */
+    flex: 0 0 auto;
     min-height: 0;
-    max-height: 42svh;
-    width: clamp(230px, 26vw, 330px);
+    /* was 42svh / clamp(230px, 26vw, 330px) with 168px images — too small
+       to read finger detail; the side column now takes a real share of the
+       row and its own full height */
+    max-height: calc(100svh - 9rem);
+    width: clamp(300px, 34vw, 560px);
     align-self: center; /* compact card, balanced beside the camera */
     align-content: start;
     align-items: stretch;
@@ -894,7 +908,7 @@ body {
   }
   .ref-photo-wrap,
   .ref-canvas-wrap {
-    max-width: 168px;
+    max-width: min(100%, 34svh);
   }
 }
 .ref-match { display: grid; gap: 0.35rem; align-content: center; }
