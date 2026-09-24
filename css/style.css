@@ -1519,7 +1519,8 @@ body {
   border-radius: 12px;
   padding: 0.5rem;
 }
-#rdCanvas { width: min(100%, 260px); height: auto; aspect-ratio: 1; display: block; }
+/* was min(100%, 260px) — reading a hand needs it big (2026-09-24 QA) */
+#rdCanvas { width: min(100%, 420px, 46svh); height: auto; aspect-ratio: 1; display: block; }
 .rd-playbar { display: flex; align-items: center; gap: 0.7rem; font-size: 0.8rem; color: var(--muted); flex-wrap: wrap; }
 #rdPlay {
   background: var(--panel); color: var(--fg); border: 1px solid #475569;

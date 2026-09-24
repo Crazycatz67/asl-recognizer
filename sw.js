@@ -9,7 +9,7 @@
 // BUMP `VERSION` on every deploy so old caches are cleared. Paths are relative
 // so this works both at "/" (dev) and "/asl-recognizer/" (GitHub Pages).
 
-const VERSION = "v81";
+const VERSION = "v82";
 const SHELL = `asl-shell-${VERSION}`;
 const RUNTIME = `asl-runtime-${VERSION}`;
 const MP = `asl-mediapipe-${VERSION}`;

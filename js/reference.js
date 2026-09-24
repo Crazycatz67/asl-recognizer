@@ -16,7 +16,7 @@ import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
 import { makeInterpolator, angleDistance } from "./posekin.js";
 import {
-  catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions,
+  catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions, rotate2D,
   translatePose, easeOutBack,
 } from "./strokekin.js";
 
@@ -391,28 +391,44 @@ const MOTION_POSE = { J: { hand: I_HAND, tip: 20 }, Z: { hand: POINT_HAND, tip: 
 
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-// --- J: a wrist rotation, not a translating fingertip (S2d part 2) --------
-// Real J holds the rigid "I" handshape and moves it via the wrist: a short
-// glide (the downstroke) while the wrist stays roughly unrotated, then a
-// supination twist (the hook) as the glide curves left. Modelled directly as
-// that — I_HAND rotated around its own wrist while the wrist follows
-// J_WRIST_ARC — so the fingertip's hook is READ OFF the motion, never
-// hand-plotted as a polyline (contrast with STROKE.J in motion.js, which is
-// a live-detection heuristic path used by the on-camera guide in overlay.js
-// and is unrelated to this demo).
-const J_THETA_TO = (-95 * Math.PI) / 180; // supination sweep, 0 -> here
-const J_ROT_START = 0.5; // rotation stays ~0 until halfway; starting it
-                          // immediately makes the downstroke read as a
-                          // diagonal instead of a straight line
-const J_WRIST_ARC = [
-  [0, 0], [0.01, 0.45], [0.0, 0.75], [-0.2, 0.8],
-]; // the wrist's own path: straight down, then hooks left
-
+// --- J: the rigid "I" hand, its pinky riding STROKE.J (2026-09-24) -------
+// Live QA: "the mannequin video guide shows one way and the skeleton overlay
+// guide shows something completely different". The demo used to rotate the
+// I-hand 95° flat around a separately-authored wrist arc — its pinky swept
+// like a clock hand from 12 to 9 — while the on-camera guide (overlay.js
+// drawMotionGuide) draws STROKE.J, a real letter J. Now STROKE.J is the one
+// source of truth: at every moment the pinky tip sits exactly on that path
+// (arc-length paced), and the hand twists gradually into the hook (-50°,
+// the visible part of the forearm supination) instead of spinning flat.
+const J_THETA_TO = (-50 * Math.PI) / 180;
+const J_ROT_START = 0.45; // straight downstroke first, then twist into the hook
+const J_TIP = 20;
+const J_PATH = (() => {
+  // dense Catmull-Rom sampling of STROKE.J + cumulative arc length
+  const pts = [], len = [0];
+  for (let i = 0; i <= 120; i++) pts.push(catmullRom2D(STROKE.J, i / 120));
+  for (let i = 1; i < pts.length; i++)
+    len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return { pts, len, total: len.at(-1) };
+})();
+function jTipAt(f) {
+  const target = Math.max(0, Math.min(1, f)) * J_PATH.total;
+  let i = 1;
+  while (i < J_PATH.len.length - 1 && J_PATH.len[i] < target) i++;
+  const a = J_PATH.pts[i - 1], b = J_PATH.pts[i];
+  const seg = J_PATH.len[i] - J_PATH.len[i - 1] || 1e-9;
+  const u = (target - J_PATH.len[i - 1]) / seg;
+  return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+}
+// exported for tools/ci-check.mjs: the demo's pinky must ride STROKE.J
+export const J_DEMO = { poseAt: (f) => jPoseAt(f), tip: J_TIP };
 function jPoseAt(f) {
-  const e = Math.max(0, Math.min(1, f));
+  const e = easeInOut(Math.max(0, Math.min(1, f)));
   const theta = J_THETA_TO * delayedEase(e, J_ROT_START, easeInOut);
-  const wrist = catmullRom2D(J_WRIST_ARC, e);
-  return rigidPoseAt(I_HAND, theta, wrist);
+  // place the wrist so the rotated hand's pinky tip lands on the path
+  const off = rotate2D([I_HAND[J_TIP][0] - I_HAND[0][0], I_HAND[J_TIP][1] - I_HAND[0][1]], theta);
+  const tip = jTipAt(e);
+  return rigidPoseAt(I_HAND, theta, [tip[0] - off[0], tip[1] - off[1]]);
 }
 
 // Sample a `poseAt(f)` motion's fingertip once (pure function of f, no
@@ -676,7 +692,10 @@ export function createCanonicalPlayer(canvasEl) {
       // poses cover the rest of the hand at min/max rotation
       fit = fitFor(stroke.trail.concat(jPoseAt(0)).concat(jPoseAt(1)));
     } else if (stroke) {
-      fit = fitFor(stroke.path.concat(stroke.poseAt0));
+      // include the hand at the END of the path too — the still diagram draws
+      // it there, and the Z end hand was being cut off the bottom
+      const P = stroke.path, d = [P.at(-1)[0] - P[0][0], P.at(-1)[1] - P[0][1]];
+      fit = fitFor(P.concat(stroke.poseAt0, stroke.poseAt0.map(([x, y]) => [x + d[0], y + d[1]])));
     } else if (target) {
       fit = makeFit(NEUTRAL_HAND.concat(target), canvasEl.width, canvasEl.height, {
         pad: 0.18,
@@ -788,6 +807,12 @@ export function createCanonicalPlayer(canvasEl) {
     ctx.beginPath();
     ctx.arc(tipNow[0], tipNow[1], Math.max(4, w * 0.035), 0, Math.PI * 2);
     ctx.fill();
+    // which way to go — same arrowhead Z gets (the camera guide has one too)
+    if (prog > 0.02 && prog < 0.98) {
+      const ahead = along(px, Math.min(1, prog + 0.04));
+      const behind = along(px, Math.max(0, prog - 0.04));
+      drawArrowhead(tipNow, Math.atan2(ahead[1] - behind[1], ahead[0] - behind[0]));
+    }
   }
 
   function paintRotateCrossfade(outAlpha, inAlpha) {
@@ -1044,6 +1069,30 @@ export function createCanonicalPlayer(canvasEl) {
       if (reduce) { cancelAnimationFrame(raf); raf = 0; paint(1); }
       else if (!raf) raf = requestAnimationFrame(loop);
     },
+    // A still "how to trace it" diagram for J / Z, drawn in the signer's
+    // (selfie) view: the whole path, direction arrows along it, the hand
+    // faded at the start and solid at the end, Z's numbered corners.
+    // main.js shows it in place of the reference photo for motion letters —
+    // the photos are one ambiguous frame of a motion, in the viewer's view
+    // (2026-09-24 live QA: "the photo has a straight finger ... confusing on
+    // how to make the zig zag"). Returns true if it drew something.
+    diagram(letter) {
+      this.setMotion(letter);
+      cancelAnimationFrame(raf);
+      raf = 0;
+      if (!stroke || !fit) return false;
+      paintStroke(1); // full trail + the end hand
+      const px = (stroke.kind === "rotate" ? stroke.trail : stroke.path).map(fit);
+      const start = (stroke.kind === "rotate" ? stroke.getPose(0) : stroke.poseAt0).map(fit);
+      drawHandShape(ctx, start, { alpha: 0.35, nails: false });
+      for (const f of [0.18, 0.5, 0.82]) {
+        const at = along(px, f);
+        const ahead = along(px, Math.min(1, f + 0.03));
+        const behind = along(px, Math.max(0, f - 0.03));
+        drawArrowhead(at, Math.atan2(ahead[1] - behind[1], ahead[0] - behind[0]));
+      }
+      return true;
+    },
     // S2e: a run of STATIC letters (main.js's `playWord` splits a word at
     // any J/Z before calling this — see the module comment above
     // `buildWordSpans`), chained letter-to-letter in bone space instead of
@@ -1068,7 +1117,12 @@ export function createCanonicalPlayer(canvasEl) {
       const entries = items.map((it) => {
         const pose = [], z = [];
         for (let i = 0; i < 21; i++) {
-          pose.push([it.vec[i * 3], it.vec[i * 3 + 1]]);
+          // [x, y, z]: posekin interpolates each bone's TRUE 3D direction, the
+          // same as setTarget (checklist #7). This path still passed 2D only,
+          // so Read's hand kept the old in-plane "impossible" finger swings
+          // (2026-09-24 live QA: "read mode still using the outdated
+          // mannequin model").
+          pose.push([it.vec[i * 3], it.vec[i * 3 + 1], it.vec[i * 3 + 2] ?? 0]);
           z.push(it.vec[i * 3 + 2] ?? 0);
         }
         return { pose, z };

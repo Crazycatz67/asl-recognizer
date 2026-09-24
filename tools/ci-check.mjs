@@ -638,6 +638,34 @@ await check("motion.js: real J/Z strokes fire once; tilt / relax / drift / wave 
   return `${n} scenario runs (12 scenarios x 2 aspects x 2 frame rates)`;
 });
 
+// ---- 13d. J demo hand and the on-camera J guide trace the SAME path --------
+// 2026-09-24 live QA: "the mannequin video guide shows one way and the
+// skeleton overlay guide shows something completely different". The demo's
+// pinky tip must sit on motion.js STROKE.J (what overlay.js draws) at every
+// moment, the I-hand must stay rigid (bone lengths constant), and it must
+// start and end at the path's ends.
+await check("reference.js: J demo's pinky rides STROKE.J (same path as the camera guide), hand stays rigid", async () => {
+  const { J_DEMO } = await import(pathToFileURL(path.join(ROOT, "js", "reference.js")));
+  const { STROKE } = await import(pathToFileURL(path.join(ROOT, "js", "motion.js")));
+  const { catmullRom2D } = await import(pathToFileURL(path.join(ROOT, "js", "strokekin.js")));
+  const curve = Array.from({ length: 401 }, (_, i) => catmullRom2D(STROKE.J, i / 400));
+  const distToCurve = (p) => Math.min(...curve.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
+  const bone = (pose) => Math.hypot(pose[20][0] - pose[17][0], pose[20][1] - pose[17][1]);
+  const b0 = bone(J_DEMO.poseAt(0));
+  let worst = 0;
+  for (let k = 0; k <= 40; k++) {
+    const pose = J_DEMO.poseAt(k / 40);
+    worst = Math.max(worst, distToCurve(pose[J_DEMO.tip]));
+    if (Math.abs(bone(pose) - b0) > 1e-9) throw new Error(`hand not rigid at f=${k / 40}`);
+  }
+  if (worst > 0.02) throw new Error(`pinky leaves STROKE.J by ${worst.toFixed(3)} spans`);
+  const s = J_DEMO.poseAt(0)[J_DEMO.tip], e = J_DEMO.poseAt(1)[J_DEMO.tip];
+  if (Math.hypot(s[0] - STROKE.J[0][0], s[1] - STROKE.J[0][1]) > 1e-6 ||
+      Math.hypot(e[0] - STROKE.J.at(-1)[0], e[1] - STROKE.J.at(-1)[1]) > 1e-6)
+    throw new Error("J demo doesn't start/end at STROKE.J's ends");
+  return `max pinky-to-path distance ${worst.toFixed(4)} spans over 41 samples`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

@@ -489,6 +489,30 @@ let releaseFrom = null; // the letter whose hand must be released
 let armedAt = 0; // performance.now() before which the new letter can't count
 let azAdvancePending = false; // a reward is waiting to advance the A->Z run
 let targetLetterBefore = null; // the target before the current setTarget() call
+// offscreen player that renders the still J/Z "how to trace it" diagrams
+const diagramCanvas = document.createElement("canvas");
+diagramCanvas.width = diagramCanvas.height = 480;
+let diagramPlayer = null;
+const diagramCache = new Map();
+function strokeDiagramURL(letter) {
+  if (diagramCache.has(letter)) return diagramCache.get(letter);
+  if (!diagramPlayer) return null;
+  let url = null;
+  try {
+    const cx = diagramCanvas.getContext("2d");
+    if (diagramPlayer.diagram(letter)) {
+      // paint the dark card background UNDER the drawing (fillStyle set
+      // here — the drawing itself leaves its own last fill colour behind)
+      cx.fillStyle = "#0b1220";
+      cx.globalCompositeOperation = "destination-over";
+      cx.fillRect(0, 0, diagramCanvas.width, diagramCanvas.height);
+      cx.globalCompositeOperation = "source-over";
+      url = diagramCanvas.toDataURL("image/png");
+    }
+  } catch {}
+  if (url) diagramCache.set(letter, url);
+  return url;
+}
 let rewarded = false;
 let motionRewardAt = 0; // when a J/Z stroke last completed — re-arms so you can repeat it
 let guideAmt = 0; // 0..1 eased "how much correction guide to show"
@@ -712,6 +736,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     });
     reference = buildReference(train, LETTERS); // self-calibrates per letter
     refPlayer = createCanonicalPlayer(refCanvas);
+    diagramPlayer = createCanonicalPlayer(diagramCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     readPlayer = createCanonicalPlayer(rdCanvas);
     challenge = createChallenge({ letters: ALL_LETTERS, words: challengeWords, difficulty: chDifficulty }); // incl. J/Z
@@ -830,7 +855,9 @@ function setTarget(letter) {
   reco.hidden = true;
   if (letter) {
     refLetter.textContent = letter;
-    refImg.src = REFERENCE_IMG(letter); // photo always on when learning
+    // photo always on when learning — except J/Z, where a still photo is one
+    // ambiguous frame of a motion: show the traced-path diagram instead
+    refImg.src = (MOTION.has(letter) && strokeDiagramURL(letter)) || REFERENCE_IMG(letter);
     if (refDesc) refDesc.textContent = reference?.describe(letter) || "";
     updateLetterStat();
     if (!azRun && mode === "practice") savePref("letter", letter);
@@ -971,6 +998,26 @@ runCardClose.addEventListener("click", () => {
 // so it's the LEFT hand that needs the flip. J/Z are the exception — the panel
 // plays a *motion* demo, and a mirrored Z reads as a backwards Z, so those
 // always show the plain canonical stroke regardless of which hand is tracked.
+// Read mode shows someone ELSE spelling to you, so it stays in the viewer's
+// view (the letter centroids' own frame). The J/Z motion demos are authored
+// in the signer's (selfie) view, so flip just those segments — otherwise the
+// hand jumped sides at every J/Z mid-word.
+function setReadMotionView(on) {
+  rdCanvas.style.transform = on ? "scaleX(-1)" : "";
+}
+// back the Read canvas with real device pixels (it was a fixed 320px square,
+// visibly softer than Practice's demo)
+function sizeReadCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = Math.max(160, Math.round((rdCanvas.clientWidth || 320) * dpr));
+  if (rdCanvas.width !== size) {
+    rdCanvas.width = size;
+    rdCanvas.height = size;
+    readPlayer?.redraw();
+  }
+}
+window.addEventListener("resize", sizeReadCanvas);
+
 function applyHand() {
   const flipForHand = facingMode === "user" ? "right" : "left";
   const motionLetter = MOTION.has(targetLetter);
@@ -1181,6 +1228,7 @@ function togglePause() {
 }
 
 function playWord(word) {
+  sizeReadCanvas(); // the panel is laid out by now — match its real size
   readTimers.forEach(clearTimeout);
   readTimers = [];
   stopTransportSync();
@@ -1198,6 +1246,7 @@ function playWord(word) {
     const items = letters.map((L) => ({ letter: L, vec: reference?.centroid(L) }));
     readTimers.push(
       setTimeout(() => {
+        setReadMotionView(false);
         readPlayer.setWord(items, { holdMs: speed });
         enableTransport();
       }, 250)
@@ -1221,7 +1270,7 @@ function playWord(word) {
   while (i < letters.length) {
     if (MOTION.has(letters[i])) {
       const L = letters[i];
-      readTimers.push(setTimeout(() => readPlayer.setMotion(L), 250 + i * speed));
+      readTimers.push(setTimeout(() => { setReadMotionView(true); readPlayer.setMotion(L); }, 250 + i * speed));
       i++;
       continue;
     }
@@ -1232,7 +1281,7 @@ function playWord(word) {
       i++;
     }
     readTimers.push(
-      setTimeout(() => readPlayer.setWord(run, { holdMs: speed }), 250 + runStart * speed)
+      setTimeout(() => { setReadMotionView(false); readPlayer.setWord(run, { holdMs: speed }); }, 250 + runStart * speed)
     );
   }
 
