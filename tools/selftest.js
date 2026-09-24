@@ -461,31 +461,19 @@ function mkHand() {
       lm[8] = { x: wx + indexRel[0] * S, y: wy + indexRel[1] * S, z: 0 };
       return lm;
     };
-    ok("motion: a J-shaped pinky path fires 'J'", (() => {
-      const mm = motMod.createMotionMatcher();
-      const idxCurl = [-0.4, -0.3]; // index near its MCP -> not "up"
-      // pinky (extended) sweeps: up -> down -> hook back
-      const path = [
-        [0.2, -2.4], [0.8, -1.6], [1.6, -0.6], [2.0, 0.6],
-        [1.8, 1.6], [2.0, 2.1], [0.6, 2.0], [-0.6, 1.7],
-      ];
-      let out = null;
-      path.forEach((p, i) => { mm.push(fakeHand(p, idxCurl), i * 90); out = mm.match(i * 90) || out; });
-      return out === "J";
-    })());
-    ok("motion: a zigzag index path fires 'Z'", (() => {
-      const mm = motMod.createMotionMatcher();
-      const pinkyCurl = [0.3, -0.3];
-      // index (extended) zigzags: right -> down-left -> right
-      const path = [
-        [-2.2, -2.0], [-0.7, -2.0], [0.9, -2.0], [2.2, -2.0],
-        [0.7, -0.9], [-0.9, 0.0], [-2.2, 0.1],
-        [-0.7, 0.1], [0.9, 0.1], [2.2, 0.1],
-      ];
-      let out = null;
-      path.forEach((p, i) => { mm.push(fakeHand(pinkyCurl, p), i * 90); out = mm.match(i * 90) || out; });
-      return out === "Z";
-    })());
+    // J/Z strokes on a synthetic hand (tools/synth-hand.js): real strokes fire
+    // once; the live-QA false positives (tilting / relaxing an I, a straight
+    // drop, a wave, one wag, far-away jitter) fire nothing
+    {
+      const synth = await import("./synth-hand.js");
+      for (const sc of synth.motionScenarios()) {
+        for (const aspect of [1, 16 / 9]) {
+          const hits = synth.runScenario(motMod.createMotionMatcher, sc, aspect);
+          ok(`motion: ${sc.name} @${aspect === 1 ? "1:1" : "16:9"} -> ${sc.expect || "nothing"}`,
+            JSON.stringify(hits) === JSON.stringify(sc.expect ? [sc.expect] : []), JSON.stringify(hits));
+        }
+      }
+    }
     ok("motion: a still hand fires nothing", (() => {
       const mm = motMod.createMotionMatcher();
       for (let i = 0; i < 16; i++) mm.push(fakeHand([0.2, -2.4], [-0.4, -0.3]), i * 90);

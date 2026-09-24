@@ -1739,7 +1739,9 @@ function loop() {
 
   // J/Z motion buffer — fed the SMOOTHED landmarks so idle jitter doesn't
   // accumulate into a fake "stroke"
-  motion.push(hand, now);
+  // aspect: landmark x/y are fractions of width/height; motion.js measures
+  // paths in true proportions so sideways and vertical travel are comparable
+  motion.push(hand, now, video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 1);
   const stroke = motion.match(now); // "J" | "Z" | null (fires once per stroke)
   // spell-mode gestures use RAW landmarks — EMA smoothing damps exactly the
   // fast motion a swipe is made of
@@ -2064,17 +2066,13 @@ function loop() {
     const mt = motion.metrics();
     let prog = 0;
     if (hasHand && mt) {
-      prog =
-        targetLetter === "J"
-          ? Math.min(mt.pinkyMove / 1.2, mt.pinkyDrop / 0.7)
-          : Math.min(mt.indexMove / 1.2, mt.indexX / 1.6, mt.rev / 1);
-      prog = Math.max(0, Math.min(1, prog));
+      prog = Math.max(0, Math.min(1, mt.progress[targetLetter] ?? 0));
     }
     const shownProg = rewarded ? 1 : prog;
     updateMeter(shownProg, rewarded ? "correct" : prog > 0.55 ? "close" : null);
     setHold(shownProg.toFixed(3));
-    // prog is a live geometric metric (indexMove/indexX/rev for Z, a rolling-
-    // window reversal count that jumps around during a genuine zigzag) — for
+    // prog is a live geometric metric (for Z it includes a rolling-window
+    // reversal count that jumps around during a genuine zigzag) — for
     // a static-letter hold, charge()'s input is a smooth elapsed-time
     // fraction, but here it can swing frame to frame, and charge() restarts a
     // fresh 90ms pitch ramp on every call. Feeding it raw produced a warbling
@@ -2100,10 +2098,7 @@ function loop() {
       // a learner reads raw thresholds as a judgment they failed); otherwise
       // fall back to this letter's practice stats ("done 3× · best 2.1s")
       if (DEBUG && hasHand && mt) {
-        letterStat.textContent =
-          targetLetter === "J"
-            ? `move ${mt.pinkyMove}/1.2 · drop ${mt.pinkyDrop}/0.7`
-            : `move ${mt.indexMove}/1.2 · ↔ ${mt.indexX}/1.6 · turns ${mt.rev}/1`;
+        letterStat.textContent = mt.debug[targetLetter] || "";
       } else {
         updateLetterStat();
       }

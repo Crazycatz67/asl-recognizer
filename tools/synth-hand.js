@@ -1,0 +1,85 @@
+// Synthetic 21-landmark hand for testing js/motion.js (J/Z strokes) without a
+// camera. Used by tools/ci-check.mjs (Node) and tools/selftest.js (browser).
+//
+//   synthHand({ wx, wy, S, theta, sup, ext, aspect }) -> [{x,y,z} x 21]
+//     wx, wy  wrist position (x in aspect-corrected units, i.e. x * aspect)
+//     S       hand size: frame units per hand-span unit
+//     theta   in-plane rotation (radians)
+//     sup     supination 1..0 — the palm's lateral axis foreshortens, as when
+//             the forearm twists (the J motion)
+//     ext     { mcpIndex: 0..1 } — 1 = finger straight out, 0 = curled
+//     aspect  video width / height; output x is a fraction of WIDTH, like
+//             MediaPipe's, so aspect-corrected geometry is the true geometry
+//   motionScenarios() -> [{ name, frames, expect: "J" | "Z" | null }]
+//
+// The scenarios are the live-QA false positives ("tilting / relaxing an I
+// counts as J", "one wag is a Z") plus real strokes that must still fire.
+
+const MCP = { 5: [0.35, -0.9], 9: [0.1, -0.95], 13: [-0.12, -0.92], 17: [-0.32, -0.85] };
+const CHAIN = { 5: [6, 7, 8], 9: [10, 11, 12], 13: [14, 15, 16], 17: [18, 19, 20] };
+export const SHAPE = { I: { 17: 1 }, POINT: { 5: 1 }, OPEN: { 5: 1, 9: 1, 13: 1, 17: 1 } };
+
+export function synthHand({ wx = 0.5, wy = 0.6, S = 0.1, theta = 0, sup = 1, ext = {}, aspect = 1 } = {}) {
+  const pts = Array.from({ length: 21 }, () => [0, 0]);
+  for (const m of [5, 9, 13, 17]) {
+    const b = MCP[m];
+    pts[m] = b.slice();
+    const L = Math.hypot(b[0], b[1]), d = [b[0] / L, b[1] / L];
+    const e = ext[m] ?? 0;
+    const tip = [b[0] + d[0] * 0.95 * e, b[1] + d[1] * 0.95 * e + 0.2 * (1 - e)];
+    CHAIN[m].forEach((j, k) => {
+      const f = (k + 1) / 3;
+      pts[j] = [b[0] + (tip[0] - b[0]) * f, b[1] + (tip[1] - b[1]) * f];
+    });
+  }
+  pts[1] = [0.3, -0.3]; pts[2] = [0.45, -0.45]; pts[3] = [0.5, -0.6]; pts[4] = [0.45, -0.7];
+  const c = Math.cos(theta), s = Math.sin(theta);
+  return pts.map(([x, y]) => {
+    x *= sup;
+    const X = (x * c - y * s) * S + wx * aspect;
+    const Y = (x * s + y * c) * S + wy;
+    return { x: X / aspect, y: Y, z: 0 };
+  });
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const hold = (n, f) => Array.from({ length: n }, () => ({ ...f }));
+const seq = (n, fn) => Array.from({ length: n }, (_, i) => fn(i / (n - 1)));
+const zpath = (k) => {
+  const segs = [[[0, 0], [0.18, 0]], [[0.18, 0], [0, 0.12]], [[0, 0.12], [0.18, 0.12]]];
+  const u = Math.min(2.999, k * 3), i = Math.floor(u), f = u - i;
+  const [a, b] = segs[i];
+  return [lerp(a[0], b[0], f), lerp(a[1], b[1], f)];
+};
+
+export function motionScenarios() {
+  const { I, POINT, OPEN } = SHAPE;
+  return [
+    { name: "true J (drop, then hook with a forearm twist)", expect: "J", frames: [...hold(5, { ext: I }), ...seq(22, (k) => ({ ext: I, wy: 0.6 + 0.06 * Math.min(1, k / 0.55), wx: 0.5 - 0.02 * k, theta: -1.7 * Math.max(0, (k - 0.35) / 0.65), sup: 1 - 0.5 * k }))] },
+    { name: "true J, quick (12 frames)", expect: "J", frames: [...hold(4, { ext: I }), ...seq(12, (k) => ({ ext: I, wy: 0.6 + 0.05 * Math.min(1, k / 0.5), theta: -1.6 * Math.max(0, (k - 0.3) / 0.7), sup: 1 - 0.45 * k }))] },
+    { name: "true J drawn with the arm (little twist)", expect: "J", frames: [...hold(5, { ext: I }), ...seq(22, (k) => ({ ext: I, wy: 0.6 + 0.09 * Math.min(1, k / 0.6), wx: 0.5 - 0.08 * Math.max(0, (k - 0.5) / 0.5), theta: -1.2 * Math.max(0, (k - 0.4) / 0.6), sup: 1 - 0.1 * k }))] },
+    { name: "I tilted in-plane, wrist fixed", expect: null, frames: [...hold(5, { ext: I }), ...seq(20, (k) => ({ ext: I, theta: -1.0 * k }))] },
+    { name: "I relaxing (pinky curls down)", expect: null, frames: [...hold(5, { ext: I }), ...seq(15, (k) => ({ ext: { 17: 1 - k } }))] },
+    { name: "I held with drift", expect: null, frames: [...hold(5, { ext: I }), ...seq(40, (k) => ({ ext: I, wx: 0.5 + 0.01 * Math.sin(k * 9), wy: 0.6 + 0.01 * k }))] },
+    { name: "I moved straight down", expect: null, frames: [...hold(5, { ext: I }), ...seq(20, (k) => ({ ext: I, wy: 0.6 + 0.2 * k }))] },
+    { name: "open hand swoosh", expect: null, frames: [...hold(5, { ext: OPEN }), ...seq(20, (k) => ({ ext: OPEN, wy: 0.6 + 0.1 * k, theta: -1.0 * k, sup: 1 - 0.5 * k }))] },
+    { name: "true Z drawn with the arm", expect: "Z", frames: [...hold(5, { ext: POINT, wx: 0.4, wy: 0.5 }), ...seq(30, (k) => { const [dx, dy] = zpath(k); return { ext: POINT, wx: 0.4 + dx, wy: 0.5 + dy }; })] },
+    { name: "pointing hand waving side to side", expect: null, frames: [...hold(5, { ext: POINT, wx: 0.45, wy: 0.6 }), ...seq(30, (k) => ({ ext: POINT, wx: 0.45 + 0.09 * Math.sin(k * Math.PI * 3) }))] },
+    { name: "pointing hand, one wag", expect: null, frames: [...hold(5, { ext: POINT, wx: 0.4, wy: 0.5 }), ...seq(20, (k) => ({ ext: POINT, wx: 0.4 + 0.18 * Math.sin(k * Math.PI), wy: 0.5 + 0.06 * k }))] },
+    { name: "far-away (tiny) I hand with landmark jitter", expect: null, frames: seq(60, (k) => ({ ext: I, S: 0.03, wx: 0.5 + 0.004 * Math.sin(k * 37), wy: 0.6 + 0.004 * Math.cos(k * 53) })) },
+  ];
+}
+
+// run one scenario through a fresh matcher; returns the list of hits
+export function runScenario(createMotionMatcher, sc, aspect = 1, dtMs = 33) {
+  const mm = createMotionMatcher();
+  const hits = [];
+  let t = 0;
+  for (const f of sc.frames) {
+    mm.push(synthHand({ ...f, aspect }), t, aspect);
+    const h = mm.match(t);
+    if (h) hits.push(h);
+    t += dtMs;
+  }
+  return hits;
+}

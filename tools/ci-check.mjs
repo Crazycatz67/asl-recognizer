@@ -600,6 +600,32 @@ await check("reference.js: demo-hand palm never collapses or turns inside-out (N
   return `${sums.size} letters, smallest mid-animation palm ${(worst * 100).toFixed(0)}% of endpoints (${worstL})`;
 });
 
+// ---- 13c. js/motion.js — J/Z strokes vs. the live-QA false positives -------
+// tools/synth-hand.js builds a 21-landmark hand that can drop, tilt in-plane,
+// twist (supination foreshortens the palm), curl fingers and move the arm.
+// Real J/Z strokes must fire exactly once; the reported false positives
+// (tilting or relaxing an I, a straight drop, a wave, one wag, a tiny far-away
+// hand's jitter) must not fire at all — at a square and a 16:9 aspect, and
+// at 30 and 20 fps.
+await check("motion.js: real J/Z strokes fire once; tilt / relax / drift / wave / one-wag / far-away jitter don't", async () => {
+  const { createMotionMatcher } = await import(pathToFileURL(path.join(ROOT, "js", "motion.js")));
+  const { motionScenarios, runScenario } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")));
+  let n = 0;
+  for (const aspect of [1, 16 / 9]) {
+    for (const dt of [33, 50]) {
+      for (const sc of motionScenarios()) {
+        const hits = runScenario(createMotionMatcher, sc, aspect, dt);
+        const want = sc.expect ? [sc.expect] : [];
+        if (JSON.stringify(hits) !== JSON.stringify(want)) {
+          throw new Error(`"${sc.name}" @aspect ${aspect.toFixed(2)}, ${dt}ms/frame: got ${JSON.stringify(hits)}, want ${JSON.stringify(want)}`);
+        }
+        n++;
+      }
+    }
+  }
+  return `${n} scenario runs (12 scenarios x 2 aspects x 2 frame rates)`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
