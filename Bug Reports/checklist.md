@@ -349,7 +349,7 @@ references are as of commit `41c43f0` and will drift.
     lost.** `FIXED (verified offline)` — `35a42af`: non-finite frames are
     treated as no hand. (Stabilizer now also reset on mode switch.)
 32. **`transition.js` `votes` grows forever during a still hold** (~108k
-    entries/hour). `OPEN`, low — push only while settling.
+    entries/hour). `FIXED (verified offline)` — `ba25b98` (votes only while settling).
 33. **Tiny hands (radius ~5% of frame) + jitter fire spurious J/Z and fluid
     commits.** `FIXED (needs live confirm)` for J/Z — `8f463d3` MIN_SPAN gate; fluid-mode transition.js part still, low — add a minimum hand-span gate (fold into Stage 3).
 34. **Edge cases:** speller `flush()` separator can exceed `maxLen` by 1;
@@ -369,6 +369,38 @@ references are as of commit `41c43f0` and will drift.
     3.8–4.1%), then extra heads (P/Q, U/R/V/K, G/H) trained on jittered data.
     Honest held-out number (blocked 5-fold, one signer): 93.6%, weakest
     M 78 / N 80 / H 90 / Q 91. Scripts: session scratchpad `qa/`.
+
+## Found 2026-09-24 (owner live test after the showcase pass)
+
+36. **A→Z run doesn't reset between letters — a hand still up from Q counts
+    for R or is flagged instantly.** `FIXED (needs live confirm)` — `531a198`:
+    `resetPracticeFeedback()` on every target change + a release gate (old
+    sign released or 400ms settle) + reward latched while an advance is
+    pending (a re-made sign could double-count and skip the next letter).
+37. **Letters register while the camera guide is still red.** `FIXED (needs
+    live confirm)` — `531a198`: a raw kNN frame upgraded any "close" shape to
+    "correct" (no per-joint check); the guide rotated the target the wrong way
+    for unmirrored fits (ghost 2× the tilt off — selftest regression added);
+    the 260ms grace let one good frame per 260ms carry a hold. Reward now
+    needs the strict per-joint match.
+38. **Hold tone stuck loud after switching modes; screechy while struggling on
+    J.** `FIXED (needs live confirm)` — `531a198`: stopped on mode switch /
+    letter change / hidden tab; `charge()` glides instead of chasing jitter;
+    soft voice + hysteresis for J/Z.
+39. **Spell: too many accidental letters.** `FIXED (needs live confirm)` —
+    `ba25b98`: non-letter shapes rejected (REJECT_DIST 0.68, measured), 400ms
+    entry grace, longer/stiller holds, drift can't re-arm, gestures suppress,
+    fluid settle needs 3 votes / 60% share. (Also closes #32.)
+40. **J demo and camera guide show different motions.** `FIXED (verified
+    offline)` — `d73d6df`: demo pinky rides STROKE.J exactly (ci-check #13d).
+41. **J/Z photos confusing ("straight finger", how to zigzag).** `FIXED (needs
+    live confirm)` — `d73d6df`: still stroke diagrams replace the photos.
+42. **Read mode uses the outdated mannequin.** `FIXED (needs live confirm)` —
+    `d73d6df`: 3D word interpolation, J/Z segments no longer jump sides,
+    crisp + larger canvas.
+43. **CI syntax check passed ES-module syntax errors.** `FIXED (verified
+    offline)` — `ba25b98`: each js/ file checked as a temp .mjs (proven on a
+    real `,,` import typo).
 
 ---
 
