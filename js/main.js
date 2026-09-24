@@ -465,6 +465,7 @@ let facingMode = "user";
 let lastDetectAt = 0;
 let lastSpellText = null; // syncSpellText(): last text/pending rendered
 let lastSpellPending = null;
+const DECODE_BLANK = { letter: "", conf: 0 }; // see the fluid decode call
 let spellLastCommitAt = 0; // Spell: when the last letter landed (gates J/Z strokes)
 let lastHold = null; // setHold(): last --hold value written
 let lastMeterKey = null; // updateMeter(): last score|bucket shown
@@ -1274,6 +1275,7 @@ function setMode(next) {
   mode = next;
   savePref("mode", mode);
   tracker?.setNumHands(mode === "spell" ? 2 : 1);
+  stabilizer?.reset(); // a letter confirmed in one mode must not carry into the next
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) {
     const on = b.dataset.mode === mode;
@@ -1688,7 +1690,13 @@ function loop() {
   const result = tracker.detect(video, now);
   overlay.clear();
 
-  const hasHand = result.landmarks?.length > 0;
+  // A single non-finite coordinate (rare, but MediaPipe can emit one on a
+  // degenerate frame) would poison the one-euro filter's state until the hand
+  // is lost and read as a confident wrong letter (QA 2026-09-23: NaN -> kNN
+  // "A" at 0.8). Treat such a frame as no hand.
+  const hasHand =
+    result.landmarks?.length > 0 &&
+    result.landmarks[0].every((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
   const mpLabel = hasHand ? result.handedness?.[0]?.[0]?.categoryName : null;
   // MediaPipe classifies handedness from the raw pixels — it doesn't know which
   // camera produced them — and its label was validated against the real hand on
@@ -1987,7 +1995,13 @@ function loop() {
       spDecodedRow.hidden = false;
       if (decoder && speller.raw.length && now - lastDecodeAt > 350) {
         lastDecodeAt = now;
-        const d = decoder.decode(speller.raw);
+        // speller.raw is already one entry per committed letter, so a
+        // repeated letter is a real double (transition.js only commits one
+        // after a deliberate bounce). decode()'s collapse() merges adjacent
+        // repeats — right for per-frame streams, wrong here: HELLO decoded as
+        // "held", COFFEE as "code" (QA 2026-09-23). A blank between entries
+        // keeps every committed letter.
+        const d = decoder.decode(speller.raw.flatMap((r) => [r, DECODE_BLANK]));
         spDecodedText.textContent = d.text || "…";
         spDecodedText.dataset.fallback = d.fallback ? "1" : "";
       } else if (!speller.raw.length) {

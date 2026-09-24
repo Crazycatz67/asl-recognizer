@@ -87,6 +87,10 @@ export function createTwoHandMatcher() {
       if (!two) {
         if (now - (buf.at(-1)?.t ?? 0) > KEEP_ON_GAP_MS) buf = [];
         else buf.push({ t: now, ok: false, dist: 0 });
+        // trim here too — these placeholder frames keep refreshing
+        // buf.at(-1).t, so without it the buffer never empties and grows
+        // forever while only one hand is in view (QA 2026-09-23)
+        while (buf.length && now - buf[0].t > WINDOW_MS) buf.shift();
         return;
       }
       const [a, b] = hands;
@@ -114,6 +118,10 @@ export function createTwoHandMatcher() {
       // apart -> together = copy;  together -> apart = paste  (by which came first)
       const res = far.t < near.t ? "copy" : "paste";
       coolUntil = now + COOLDOWN_MS;
+      // this gesture is spent — the same frames re-matched after every
+      // cooldown (QA repro: one paste re-fired every ~825 ms, re-inserting
+      // the clipboard each time)
+      buf = [];
       return res;
     },
 

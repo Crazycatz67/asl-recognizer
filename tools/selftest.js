@@ -634,6 +634,13 @@ function mkHand() {
       }
       return out === "copy";
     })());
+    ok("twohand: one paste, then one hand dropped, doesn't re-paste every cooldown (QA repro)", (() => {
+      const th = thMod.createTwoHandMatcher();
+      let hits = 0, t = 0;
+      for (let i = 0; i < 9; i++) { const k = i / 8; th.push([openHand(lerp(0.46, 0.20, k), 0.55), openHand(lerp(0.56, 0.82, k), 0.55)], t); if (th.match(t)) hits++; t += 40; }
+      for (let i = 0; i < 125; i++) { th.push([openHand(0.3, 0.55)], t); if (th.match(t)) hits++; t += 40; } // ~5 s, one hand
+      return hits === 1;
+    })());
     ok("twohand: fires once, then a cooldown", (() => {
       const th = thMod.createTwoHandMatcher();
       let hits = 0;
@@ -972,6 +979,13 @@ function mkHand() {
       const r2 = runFluid("CAT", "cat 90\ncar 40");
       ok("fluid: no-double word round-trips (CAT)", r2.raw === "CAT" && r2.decoded === "cat");
     }
+
+    ok("decode: blank-separated committed letters keep real doubles (fluid mode: HELLO not 'held')", (() => {
+      const d2 = dcMod.createDecoder(dcMod.buildLexicon("held 90\nhello 60\ncode 80\ncoffee 40\nsee 50\nse 5"));
+      const B = { letter: "", conf: 0 };
+      const dec = (w) => d2.decode([...w].flatMap((l) => [{ letter: l, conf: 0.85 }, B])).text;
+      return dec("HELLO") === "hello" && dec("COFFEE") === "coffee" && dec("SEE") === "see";
+    })());
 
     // ---- reader.js (receptive practice) ----
     const rdMod = await import("../js/reader.js");
