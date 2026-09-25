@@ -409,6 +409,11 @@ references are as of commit `41c43f0` and will drift.
     M/N, D/O/C). Held-out: correct letters count 44.7% -> 78.1%, wrong 0.4%.
     M still hard (11%) — tune live.
 
+45. **N hard to register; accuracy judged against photo averages instead of
+    the letter.** `FIXED (needs live confirm)` — letter-trait verdict
+    (js/handshape.js): held-out real letters count 87.5%, N 33% -> 75%, wrong
+    letters 2.6%. ci-check #13e.
+
 ---
 
 ## Working the list
