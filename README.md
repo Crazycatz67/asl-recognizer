@@ -212,7 +212,12 @@ docs/     changelog, research notes, archived plan, code-reorg proposal
 | `tour.js` | Interactive first-run walkthrough: hand in view, which hand + mirror, palm orientation, the guide's colors live on your hand, hold to lock, first letter |
 | `sound.js` | Synthesized Web Audio cues (no audio files) |
 | `fx.js` | Particle burst and glow celebrations |
-| `bg.js` | Reactive ambient background |
+| `bg.js` | Reactive ambient background (canvas-2D fallback for `aurora.js`) |
+| `aurora.js` | WebGL2 calm reactive background (match, hand presence/stillness), 1/4 res, <= 20 fps |
+| `fxquality.js` | Effects budget: full / lite / off governor that protects detection fps |
+| `fxmath.js` | Pure colour-contrast + spring helpers for the visual layer |
+| `fluid.js` | Small WebGL2 stable-fluids core (half-float, sim 128 / dye <= 512) |
+| `hero.js` | Landing screen: fluid stirred by pointer or fingertips, kinetic title |
 
 ## Project docs
 

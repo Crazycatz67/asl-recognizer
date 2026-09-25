@@ -1617,6 +1617,30 @@ function mkHand() {
         back === "full" && camOff === "full" && seen.join() === "full>lite,lite>full";
     })());
 
+    ok("fxmath: springStep settles on target, bouncy overshoots, critical doesn't, dt=0.25 stable", (() => {
+      const run = (opt, dt, n) => { let st = { x: 0, v: 0 }, pk = 0; for (let i = 0; i < n; i++) { st = fxm.springStep(st, 1, opt, dt); pk = Math.max(pk, st.x); } return { st, pk }; };
+      const b = run({ k: 190, c: 13 }, 1 / 60, 240), c = run({ k: 100, c: 20 }, 1 / 60, 300), l = run({ k: 260, c: 20 }, 0.25, 40);
+      return fxm.springSettled(b.st, 1) && b.pk > 1.05 && c.pk <= 1 + 1e-6 && Math.abs(l.st.x - 1) < 1e-3;
+    })());
+    // ---- hero.js / fluid.js / aurora.js (visual layer v2 B1/B2) ----
+    const heroMod = await import("../js/hero.js");
+    const fluidMod = await import("../js/fluid.js");
+    const auroraMod = await import("../js/aurora.js");
+    ok("visual layer: hero/fluid/aurora export their factories",
+      typeof heroMod.createHero === "function" && typeof fluidMod.createFluid === "function" && typeof auroraMod.createAurora === "function");
+    ok("fluid: createFluid runs a step + render (or returns null without float targets)", (() => {
+      const c = document.createElement("canvas");
+      c.style.cssText = "position:fixed;left:-9999px;width:64px;height:48px";
+      document.body.appendChild(c);
+      const fl = fluidMod.createFluid(c, { simRes: 32, dyeRes: 64 });
+      if (!fl) { c.remove(); return true; }
+      fl.splat(0.5, 0.5, 100, 0, [1, 0.7, 0.1]);
+      fl.step(1 / 60); fl.render();
+      const r = fl.resolution;
+      fl.dispose(); c.remove();
+      return r.simH === 32 && r.dyeH === 64 && r.simW >= 32;
+    })());
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

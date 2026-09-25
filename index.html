@@ -78,7 +78,7 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>ASL Fingerspelling</h1>
+    <h1><button class="logo-btn" id="logoBtn" type="button" title="Welcome screen" aria-label="ASL Fingerspelling — open the welcome screen">ASL Fingerspelling</button></h1>
     <div class="mode" id="modeToggle" role="group" aria-label="Mode" hidden>
       <button class="mode-btn on" type="button" data-mode="practice" aria-pressed="true">Practice</button>
       <button class="mode-btn" type="button" data-mode="challenge" aria-pressed="false">Challenge</button>
@@ -427,6 +427,28 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <!-- visual layer v2 (B2): landing / hero — js/hero.js. First visit (before
+       the tour) and the logo button. The fluid canvas is created on open and
+       disposed on close; reduced motion / Effects: Off get .hero-static. -->
+  <section class="hero" id="hero" hidden role="dialog" aria-modal="true" aria-labelledby="heroTitle" aria-describedby="heroSub">
+    <div class="hero-stage" aria-hidden="true"><div class="hero-tips"></div></div>
+    <div class="hero-content">
+      <p class="hero-kicker">ASL alphabet trainer</p>
+      <h2 class="hero-title" id="heroTitle">Fingerspell with your hands</h2>
+      <p class="hero-sub" id="heroSub">Learn A to Z with your webcam and get live feedback on every finger. Everything stays on your device.</p>
+      <div class="hero-actions">
+        <button class="hero-cta" id="heroStart" type="button">
+          <span class="hero-goo" aria-hidden="true"><span class="goo-body"></span><span class="goo-blob b1"></span><span class="goo-blob b2"></span></span>
+          <span class="hero-cta-label">Start</span>
+        </button>
+        <button class="hero-hand" id="heroHand" type="button">✋ Try it with your hand</button>
+      </div>
+      <p class="hero-handstatus" id="heroHandStatus" aria-live="polite"></p>
+    </div>
+    <svg class="hero-defs" width="0" height="0" aria-hidden="true" focusable="false">
+      <filter id="heroGoo"><feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b" /><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" /></filter>
+    </svg>
+  </section>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

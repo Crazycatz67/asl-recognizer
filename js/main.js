@@ -25,6 +25,7 @@ import { createSheet } from "./sheet.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
+import { createHero } from "./hero.js";
 import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
@@ -2972,6 +2973,8 @@ function loop() {
   }
 
   // first-run tour: scenes that react to your hand (Stage 7a)
+  // landing screen: fingertips stir the fluid (presentation only)
+  if (hero.isOpen()) hero.feedHands(hasHand ? result.landmarks : null, facingMode === "user");
   if (tour.isOpen()) {
     tour.feed({ hasHand, guideStats, hold: Number(lastHold) || 0, rewarded, target: targetLetter });
   }
@@ -3369,6 +3372,7 @@ document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   // the tour is modal: its own keys (Escape = skip, via sheet.js) only
   if (tour?.isOpen()) return;
+  if (hero?.isOpen()) return; // the hero owns the keyboard (Escape = Start)
   // Escape closes whatever overlay is open
   if (e.key === "Escape") {
     if (!demoZoom.hidden) { demoZoom.hidden = true; demoZoomPlayer?.setTarget(null); return; }
@@ -3434,4 +3438,20 @@ const tour = createTour({
   },
 });
 tourBtn.addEventListener("click", () => tour.open());
-if (loadPref("seen-intro") !== "1") tour.open();
+
+// ---- landing / hero (visual layer v2, B2) — js/hero.js --------------------
+// First visit: the hero, then (on Start) the tour. The logo reopens it any
+// time; ?hero forces it. Its fluid runs only while it's open.
+const hero = createHero({
+  root: $("hero"),
+  governor: fxq,
+  shapeFor: (L) => reference?.centroid?.(L) ?? null,
+  shapesReady: datasetPromise,
+  startCamera: () => start(),
+  cameraLive: () => state === "searching" || state === "tracking",
+  debug: DEBUG,
+});
+if (DEBUG) window.__fx.hero = hero;
+$("logoBtn").addEventListener("click", () => hero.open());
+if (loadPref("seen-intro") !== "1") hero.open({ onStart: () => tour.open() });
+else if (new URLSearchParams(location.search).has("hero")) hero.open();

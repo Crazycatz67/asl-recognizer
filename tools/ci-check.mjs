@@ -1009,6 +1009,23 @@ await check("fxquality.js: governor drops to lite after 3 s under 26 fps, restor
   return "3 s drop / 10 s restore / Race, reduced-motion, manual, no-WebGL2 caps verified";
 });
 
+// ---- 18. fxmath.js springStep: the hero's kinetic-title spring solver -----
+await check("fxmath.js: springStep converges, underdamped overshoots, critical doesn't, long frames stay stable", async () => {
+  const f = await import(pathToFileURL(path.join(ROOT, "js", "fxmath.js")));
+  const run = (opt, dt, n) => { let s = { x: 0, v: 0 }, peak = 0; for (let i = 0; i < n; i++) { s = f.springStep(s, 1, opt, dt); peak = Math.max(peak, s.x); } return { s, peak }; };
+  const bouncy = run({ k: 190, c: 13 }, 1 / 60, 240);
+  if (!f.springSettled(bouncy.s, 1, 1e-3)) throw new Error(`bouncy spring didn't settle: ${JSON.stringify(bouncy.s)}`);
+  if (bouncy.peak < 1.05) throw new Error(`underdamped spring should overshoot, peak ${bouncy.peak}`);
+  const crit = run({ k: 100, c: 20 }, 1 / 60, 300);
+  if (crit.peak > 1 + 1e-6) throw new Error(`critically damped spring overshot: ${crit.peak}`);
+  const coarse = run({ k: 260, c: 20 }, 0.25, 40); // 4 fps frames: sub-stepping keeps it stable
+  if (!Number.isFinite(coarse.s.x) || Math.abs(coarse.s.x - 1) > 1e-3) throw new Error(`unstable at dt=0.25: ${coarse.s.x}`);
+  const nan = f.springStep({ x: NaN, v: NaN }, 2, {}, 1 / 60);
+  if (nan.x !== 2 || nan.v !== 0) throw new Error("NaN state should snap to the target");
+  if (f.springStep({ x: 0, v: 0 }, 1, {}, -1).x !== 0) throw new Error("negative dt must be a no-op");
+  return `bouncy peak ${bouncy.peak.toFixed(3)}, critical peak ${crit.peak.toFixed(4)}, dt=0.25 stable`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

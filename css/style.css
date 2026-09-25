@@ -2266,3 +2266,150 @@ summary:focus-visible,
 }
 /* the aurora is ambience: dim it under high contrast so text/edges stay crisp */
 .high-contrast .fx-aurora { opacity: 0.45; }
+
+/* ---- visual layer v2 (B2): landing / hero (js/hero.js) ------------------- */
+.logo-btn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0.15rem 0.3rem;
+  margin: -0.15rem -0.3rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.logo-btn:hover { color: var(--amber-300); }
+.logo-btn:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
+
+.hero {
+  position: fixed;
+  inset: 0;
+  z-index: 140; /* above the app shell and toasts; the tour opens after it closes */
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--fg);
+  touch-action: none; /* a finger on the glass stirs the ink, no page pan */
+}
+.hero-open body { overflow: hidden; }
+.hero-stage { position: absolute; inset: 0; pointer-events: none; }
+.hero-fluid { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* static equivalent (reduced motion, Effects: Off, no float render targets) */
+.hero.hero-static .hero-stage {
+  background:
+    radial-gradient(60% 50% at 30% 85%, rgba(232, 163, 58, 0.30), transparent 70%),
+    radial-gradient(50% 45% at 75% 90%, rgba(251, 191, 36, 0.22), transparent 70%),
+    radial-gradient(40% 35% at 85% 20%, rgba(56, 189, 248, 0.10), transparent 70%),
+    var(--bg-deep);
+}
+.hero-tips { position: absolute; inset: 0; }
+.hero-tip {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--amber-300);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.hero-tip.thumb { border-color: var(--calm); border-radius: 2px; } /* shape twin: square = thumb */
+
+.hero-content {
+  position: relative;
+  text-align: center;
+  padding: 0 16px;
+  max-width: 60rem;
+  pointer-events: none; /* the ink under the text stays stirrable… */
+}
+.hero-content button { pointer-events: auto; } /* …but the buttons work */
+.hero-kicker {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amber-300);
+}
+.hero-title {
+  margin: 0;
+  font-size: clamp(2.2rem, 7.2vw, 5.4rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 24px rgba(11, 15, 25, 0.9);
+}
+.hk-w { display: inline-block; white-space: nowrap; }
+.hk-l { position: relative; display: inline-block; }
+.hk-g { display: inline-block; will-change: transform, opacity; }
+.hk-shape {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px var(--amber-glow));
+}
+.hero-sub {
+  margin: 1rem auto 0;
+  max-width: 34rem;
+  font-size: clamp(1rem, 2.2vw, 1.2rem);
+  color: #cbd5e1;
+  text-shadow: 0 1px 12px rgba(11, 15, 25, 0.95);
+}
+.hero-actions {
+  margin-top: 1.8rem;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.hero-cta {
+  position: relative;
+  min-width: 10rem;
+  padding: 0.9rem 2.4rem;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--amber-ink); /* 11.1:1 on --amber-400; never white on amber */
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  isolation: isolate;
+}
+.hero-goo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  filter: url(#heroGoo) drop-shadow(0 0 18px var(--amber-glow));
+}
+.goo-body, .goo-blob { position: absolute; background: var(--amber-400); border-radius: 999px; }
+.goo-body { inset: 0; }
+.goo-blob { width: 26px; height: 26px; top: 50%; margin-top: -13px; transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.goo-blob.b1 { left: 8px; }
+.goo-blob.b2 { right: 8px; }
+.hero-cta:hover .goo-blob.b1, .hero-cta:focus-visible .goo-blob.b1 { transform: translate(-26px, -10px) scale(0.9); }
+.hero-cta:hover .goo-blob.b2, .hero-cta:focus-visible .goo-blob.b2 { transform: translate(24px, 9px) scale(0.8); }
+.hero-cta:focus-visible { outline: 3px solid var(--amber-300); outline-offset: 4px; }
+.hero-cta-label { position: relative; }
+.hero-hand {
+  padding: 0.9rem 1.4rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.hero-hand:hover { border-color: var(--amber-400); }
+.hero-hand:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 3px; }
+.hero-handstatus { min-height: 1.4em; margin: 1rem 0 0; color: #cbd5e1; font-size: 0.95rem; }
+.hero-defs { position: absolute; }
+@media (prefers-reduced-motion: reduce) {
+  .goo-blob { transition: none; }
+  .hero-cta:hover .goo-blob { transform: none; }
+}

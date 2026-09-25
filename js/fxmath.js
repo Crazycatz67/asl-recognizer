@@ -10,7 +10,7 @@
 //   hexToRgb("#fbbf24")            -> [251, 191, 36]   (also "#fb2", "fbbf24")
 //   relLuminance([r,g,b])          -> 0..1 (WCAG 2.x)
 //   contrastRatio("#fbbf24", "#0f172a") -> 1..21
-//   springStep(s, target, { k, c }, dt) -> { x, v }   (semi-implicit Euler)
+//   springStep(s, target, { k, c }, dt) -> { x, v }   (semi-implicit Euler, sub-stepped)
 //   springSettled(s, target, eps)  -> true when at rest on the target
 
 /** @param {string} hex */
@@ -36,4 +36,28 @@ export function contrastRatio(a, b) {
   const lb = relLuminance(Array.isArray(b) ? b : hexToRgb(b));
   const [hi, lo] = la > lb ? [la, lb] : [lb, la];
   return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * One step of a damped spring toward `target` (semi-implicit Euler,
+ * sub-stepped to <= 1/120 s so a long frame can't blow it up).
+ * k = stiffness, c = damping; c < 2*sqrt(k) overshoots (bouncy), c >=
+ * 2*sqrt(k) settles without overshoot. Returns a NEW {x, v}.
+ */
+export function springStep(s, target, { k = 170, c = 18 } = {}, dt = 1 / 60) {
+  let x = Number.isFinite(s?.x) ? s.x : target;
+  let v = Number.isFinite(s?.v) ? s.v : 0;
+  let left = Math.max(0, Math.min(Number(dt) || 0, 0.25));
+  while (left > 1e-9) {
+    const h = Math.min(left, 1 / 120);
+    v += (-k * (x - target) - c * v) * h;
+    x += v * h;
+    left -= h;
+  }
+  return { x, v };
+}
+
+/** True once a spring is at rest on its target (within eps). */
+export function springSettled(s, target, eps = 1e-3) {
+  return Math.abs(s.x - target) < eps && Math.abs(s.v) < eps;
 }
