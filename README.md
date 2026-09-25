@@ -213,11 +213,15 @@ docs/     changelog, research notes, archived plan, code-reorg proposal
 | `sound.js` | Synthesized Web Audio cues (no audio files) |
 | `fx.js` | Particle burst and glow celebrations |
 | `bg.js` | Reactive ambient background (canvas-2D fallback for `aurora.js`) |
-| `aurora.js` | WebGL2 calm reactive background (match, hand presence/stillness), 1/4 res, <= 20 fps |
+| `aurora.js` | WebGL2 calm reactive background: match -> energy, amber = presence + streak (clamped 0.15), Challenge ramp, Race split; 1/4 res, <= 20 fps |
 | `fxquality.js` | Effects budget: full / lite / off governor that protects detection fps |
 | `fxmath.js` | Pure colour-contrast + spring helpers for the visual layer |
 | `fluid.js` | Small WebGL2 stable-fluids core (half-float, sim 128 / dye <= 512) |
 | `hero.js` | Landing screen: fluid stirred by pointer or fingertips, kinetic title |
+| `handfx.js` | On-hand feedback: hold-charge ring, landed ring, verdict ripples, tip beads, Race wrist badges, framing judge |
+| `inkbloom.js` | Reward ink bloom from the fingertips (quarter-res transparent `fluid.js`, "full" only) |
+| `glyphfx.js` | First-time / mastery reward: particles assemble into the letter beside the hand |
+| `challengefx.js` | Adaptive Challenge: one intensity (combo, streak, word length, difficulty) drives aurora, frame aura, banner, bursts |
 
 ## Project docs
 

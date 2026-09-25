@@ -20,8 +20,9 @@
 //
 // BUDGET: the sim only runs while the hero is open (its textures are freed on
 //   close; the ONE WebGL context is kept and reused on the next open). Full:
-//   sim 128 / dye 512 at up to 60 fps; with the camera on (detection shares
-//   the GPU) or on "lite": dye 256 at <= 30 fps; "off" / reduced motion: a
+//   sim 128 / dye 512 at up to 60 fps; "lite": dye 256 at <= 30 fps; with the
+//   camera on (detection shares the GPU): sim 96 / dye 256, 12 Jacobi passes,
+//   <= 24 fps; "off" / reduced motion: a
 //   static amber-on-deep gradient and the finished title — no sim, no
 //   springs. Paused while the tab is hidden. ?debug reports "fluid" ms.
 //
@@ -174,8 +175,10 @@ export function createHero({
   }
 
   // ---- fluid --------------------------------------------------------------
+  // with the camera on, detection shares the GPU: coarser sim, fewer Jacobi
+  // passes and <= 24 fps (review: keep detection >= 28/s in the hero)
   function wantRes() {
-    return camMode || level() === "lite" ? [128, 256] : [128, 512];
+    return camMode ? [96, 256] : level() === "lite" ? [128, 256] : [128, 512];
   }
   let fluidFailed = false;
   function startFluid() {
@@ -213,7 +216,7 @@ export function createHero({
   function frame(now) {
     raf = 0;
     if (!open || document.visibilityState === "hidden") return;
-    const cap = camMode || level() === "lite" ? 33 : 15; // ~30 / ~60 fps
+    const cap = camMode ? 41 : level() === "lite" ? 33 : 15; // ~24 / ~30 / ~60 fps
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
@@ -231,6 +234,7 @@ export function createHero({
     const t0 = performance.now();
     const [s, d] = wantRes();
     fluid.setResolution(s, d);
+    fluid.setIterations(camMode ? 12 : 20);
     fluid.step(sdt);
     fluid.render();
     governor?.cost("fluid", performance.now() - t0);
