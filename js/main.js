@@ -28,6 +28,8 @@ import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createHero } from "./hero.js";
 import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
 import { createHandFx, createFramingJudge, handSpanH } from "./handfx.js";
+import { createInkBloom } from "./inkbloom.js";
+import { createGlyphFx } from "./glyphfx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
@@ -231,6 +233,8 @@ const fx = createFx();
 // drawn into the overlay canvas, so it's created once the overlay exists
 let handfx = null;
 let fxHand = null; // the latest smoothed hand, for rewards fired outside loop()
+let inkbloom = null; // B3: fingertip ink bloom (fluid core, "full" only)
+let glyphfx = null; // B3: particles assemble into the letter (first / mastery)
 const framing = createFramingJudge();
 
 // ---- reward juice (2026-09-25) --------------------------------------------
@@ -383,6 +387,10 @@ fxBtn.addEventListener("click", () => {
 });
 fxq.subscribe(syncFxBtn);
 syncFxBtn();
+// CSS effects read the level too (e.g. the liquid hold meter stops flowing on "off")
+const syncFxAttr = () => { document.documentElement.dataset.fx = fxq.level; };
+fxq.subscribe(syncFxAttr);
+syncFxAttr();
 document.addEventListener("visibilitychange", () => fxq.set({ hidden: document.visibilityState === "hidden" }));
 // always-on background (B1): WebGL2 aurora, bg.js canvas blobs as fallback —
 // same setMatch(score, bucket, regions) API either way
@@ -2045,6 +2053,20 @@ function reward(originLandmark, handLm = null) {
     ? ["#fde047", "#facc15", "#fef9c3", "#f8fafc", "#22c55e"]
     : tier === "first" ? ["#38bdf8", "#7dd3fc", "#22c55e", "#f8fafc", "#fde047"] : undefined;
   fx.burst(x, y, { count: plan.particles, stars: plan.stars, ...(colors ? { colors } : {}) });
+  // B3: ink blooms out of the fingertips that made the sign (full quality),
+  // and the big tiers assemble the glyph beside the hand
+  const rh = handLm || fxHand;
+  if (rh) {
+    inkbloom?.bloom(rh, tier);
+    if ((tier === "first" || tier === "mastery") && targetLetter) {
+      const pts = rh.map(pagePoint);
+      const box = {
+        left: Math.min(...pts.map((p) => p.x)), right: Math.max(...pts.map((p) => p.x)),
+        top: Math.min(...pts.map((p) => p.y)), bottom: Math.max(...pts.map((p) => p.y)),
+      };
+      glyphfx?.assemble(targetLetter, { from: [4, 8, 12, 16, 20].map((i) => pts[i]), box, tier });
+    }
+  }
   fx.ring(x, y, { color: plan.color, rings: plan.rings }); // "locked in" on the hand
   fx.flash(plan.color);
   bg.pulse(tier === "mastery" ? 1 : tier === "first" ? 0.75 : 0.45);
@@ -2166,6 +2188,9 @@ async function start() {
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
     handfx = createHandFx({ ctx: overlay.ctx, governor: fxq });
+    inkbloom ||= createInkBloom({ stage: $("stage"), before: canvas, governor: fxq, debug: DEBUG });
+    glyphfx ||= createGlyphFx({ governor: fxq });
+    if (DEBUG) Object.assign(window.__fx, { inkbloom, glyphfx });
     tracker.setNumHands(mode === "spell" ? 2 : 1);
     await acquireWakeLock();
     await datasetPromise;

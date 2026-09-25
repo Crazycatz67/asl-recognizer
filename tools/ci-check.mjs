@@ -1082,6 +1082,34 @@ await check("handfx.js: verdict ripples only go UP and at most 1 per 400 ms; fra
   return `ripples ${fired.join(" ")}; framing near/good/far with 700 ms hold + 0.02 margin`;
 });
 
+// ---- 22. B3 reward moments: bloom splats, glyph sampling, placement -------
+await check("inkbloom/glyphfx: splats follow the fingers + scale by tier; glyph points capped; glyph sits beside the hand", async () => {
+  const ib = await import(pathToFileURL(path.join(ROOT, "js", "inkbloom.js")));
+  const gf = await import(pathToFileURL(path.join(ROOT, "js", "glyphfx.js")));
+  // an open hand pointing UP (y down): tips above their PIP joints
+  const hand = Array.from({ length: 21 }, (_, i) => ({ x: 0.3 + 0.02 * i, y: 0.8 - 0.02 * (i % 4) - 0.1 * ((i % 4) === 0 && i ? 1 : 0), z: 0 }));
+  for (const [tip, pip] of [[4, 3], [8, 6], [12, 10], [16, 14], [20, 18]]) { hand[pip] = { x: hand[tip].x, y: 0.55, z: 0 }; hand[tip] = { x: hand[tip].x, y: 0.4, z: 0 }; }
+  const n = (t) => ib.bloomSplats(hand, t).length;
+  if (n("letter") !== 3 || n("first") !== 5 || n("mastery") !== 10) throw new Error(`splat counts ${n("letter")}/${n("first")}/${n("mastery")} (want 3/5/10)`);
+  const up = ib.bloomSplats(hand, "first").every((s) => s.dy < 0 && Math.abs(s.dx) < 1e-6);
+  if (!up) throw new Error("ink must leave along the finger (tip - PIP): straight up here");
+  if (ib.bloomSplats(null).length || ib.bloomSplats(hand.slice(0, 5)).length) throw new Error("bad hands must give no splats");
+  const maxC = Math.max(...ib.bloomSplats(hand, "mastery").flatMap((s) => s.color));
+  if (maxC > 0.45) throw new Error(`dye too strong (${maxC}) — the bloom must stay translucent over the hand`);
+  // 40x40 bitmap with a filled 20x20 square
+  const W = 40, data = new Uint8ClampedArray(W * W * 4);
+  for (let y = 10; y < 30; y++) for (let x = 10; x < 30; x++) data[(y * W + x) * 4 + 3] = 255;
+  const pts = gf.samplePoints({ data, width: W, height: W }, 50, 1);
+  if (pts.length !== 50 || pts.some((p) => p.x < 0.25 || p.x >= 0.75 || p.y < 0.25 || p.y >= 0.75)) throw new Error("samplePoints must cap and stay on the glyph");
+  const view = { left: 0, top: 0, right: 1000, bottom: 800 };
+  const box = { left: 200, right: 400, top: 300, bottom: 600 };
+  const p = gf.placeBeside(box, 120, view);
+  if (!(p.x >= box.right)) throw new Error("glyph should go on the roomier (right) side, not over the hand");
+  const q = gf.placeBeside({ left: 880, right: 990, top: 10, bottom: 100 }, 120, view);
+  if (!(q.x + 120 <= 880) || q.y < 4) throw new Error("glyph must flip left and clamp into view");
+  return "3/5/10 splats along the fingers, dye <= 0.45; 50-point cap; beside-the-hand placement verified";
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

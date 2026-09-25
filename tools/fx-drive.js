@@ -21,6 +21,10 @@ export async function startDriven() {
     c.port1.onmessage = () => (performance.now() - t0 >= ms ? r() : c.port2.postMessage(0));
     c.port2.postMessage(0);
   });
+  // effects pause in hidden tabs by design; pretend we're foregrounded so
+  // the reward effects actually play under automation
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
   const { createTestHarness } = await import("./testHarness.js");
   const H = createTestHarness();
   H.useSyntheticCamera();

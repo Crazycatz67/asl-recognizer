@@ -1692,6 +1692,26 @@ function mkHand() {
       hf.drawRaceBadges([hand, hand], [0, 1], { locked: [0.5, 0] });
       return true;
     })());
+    const ibMod = await import("../js/inkbloom.js");
+    const gfMod = await import("../js/glyphfx.js");
+    ok("inkbloom: a quarter-res transparent bloom runs a frame + sleeps after (or null without float targets)", (() => {
+      const st = document.createElement("div");
+      st.style.cssText = "position:fixed;left:-9999px;width:320px;height:240px";
+      document.body.appendChild(st);
+      const ib = ibMod.createInkBloom({ stage: st });
+      const r = ib.bench(5);
+      ib.dispose(); st.remove();
+      return r == null || (r.simH === 32 || r.simW === 32) && r.msPerFrame >= 0;
+    })());
+    ok("glyphfx: assembles a glyph (full) and a still glyph (off) without throwing", (() => {
+      const g = gfMod.createGlyphFx({ governor: { level: "full" } });
+      const a = g.assemble("A", { from: [{ x: 100, y: 100 }], box: { left: 50, top: 50, right: 150, bottom: 200 }, tier: "first" });
+      const b = g.bench(10);
+      const g2 = gfMod.createGlyphFx({ governor: { level: "off" } });
+      const c = g2.assemble("B", { box: { left: 50, top: 50, right: 150, bottom: 200 }, tier: "mastery" });
+      document.querySelectorAll("canvas.fx-glyph").forEach((n) => n.remove());
+      return a && c && b.msPerFrame >= 0;
+    })());
     ok("fxmath: coverMap centres + crops like object-fit: cover (4:3 video on 16:9 and portrait)", (() => {
       const a = fxm.coverMap(0.5, 0.5, 640, 480, 1600, 900); // centre stays centre
       const b = fxm.coverMap(0, 0, 640, 480, 1600, 900);     // wide screen: top is cropped
