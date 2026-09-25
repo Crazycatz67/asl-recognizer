@@ -103,6 +103,18 @@ export function handTraits(v) {
   let kf = 0;
   for (const m of [5, 9, 13, 17]) kf += angle(palmAxis, sub(P(v, m + 1), P(v, m)));
   t.knuckleFold = kf / 4;
+  // where the thumb TIP sits along the knuckle line (0 = index knuckle, 1 =
+  // pinky knuckle, negative = out past the index side). The fist letters are
+  // DEFINED by this in ASL: A beside the index (dataset median -0.30), T
+  // poking out between index and middle (-0.63), S across the front (+0.49),
+  // E tucked under the fingertips (+0.62), M/N under the fingers (+0.15 /
+  // +0.12 — too close to split in 2D, the recogniser still settles M vs N).
+  {
+    const i5 = P(v, 5), ax = sub(P(v, 17), i5);
+    const d2 = ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2] || 1e-9;
+    const r = sub(P(v, 4), i5);
+    t.thumbAlong = (r[0] * ax[0] + r[1] * ax[1] + r[2] * ax[2]) / d2;
+  }
   t.spread = angle(sub(P(v, 8), P(v, 5)), sub(P(v, 12), P(v, 9))); // index vs middle
   // which way the hand points in the image: 0 = up, 90 = sideways, 180 = down
   t.dir = Math.abs((Math.atan2(palmAxis[0], -palmAxis[1]) * 180) / Math.PI);
@@ -120,7 +132,7 @@ const IN = "in", OUT = "out";
 // signers' p10 — a floor, no ceiling
 const FOLD = "fold";
 const TRAITS = {
-  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
+  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
   // B's thumb folds across the palm; how far across varies (some signers
   // reach the ring/pinky knuckles — thumbOut 0.60-0.67 from the index
   // knuckle, failing 5 of 30 held-out B hands). thumbNear (tucked against
@@ -128,7 +140,7 @@ const TRAITS = {
   B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbNear: IN, fingerSplay: IN },
   C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
   D: { index: UP, middle: DOWN, ring: DOWN },
-  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
+  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
   F: { middle: UP, ring: UP, pinky: UP, thumbTip: true },
   G: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, dir: true },
   H: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, dir: true },
@@ -145,8 +157,8 @@ const TRAITS = {
   P: { index: true, middle: true, thumbNear: IN, dir: true },
   Q: { index: true, thumbOut: OUT, thumbNear: OUT, dir: true },
   R: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
-  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
-  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN, fingerSplay: IN }, // index bent over the thumb
+  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
+  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN, fingerSplay: IN, thumbAlong: true }, // index bent over the thumb
   U: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true, dir: true },
   V: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   W: { index: UP, middle: UP, ring: UP, pinky: DOWN },
@@ -158,7 +170,7 @@ export const THUMB_GROUP = new Set(["A", "E", "M", "N", "S", "T"]);
 
 // slack beyond the calibrated range: inside SLACK = still "good" (room for
 // user error); inside 2x SLACK = "close"; beyond = "fix"
-const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, fingerSplay: 5, knuckleFold: 15, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
+const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, fingerSplay: 5, knuckleFold: 15, thumbAlong: 0.12, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
 const slackFor = (name) => (name.endsWith("Flex") ? SLACK.flex : SLACK[name]);
 
 const HINTS = {
@@ -168,6 +180,7 @@ const HINTS = {
   thumbTip: { low: "Open the gap between thumb and index", high: "Touch your thumb to your index fingertip" },
   thumbNear: { low: "Move your thumb out, away from your fingers", high: "Tuck your thumb in against your fingers" },
   fingerSplay: { low: "Spread your fingers a little", high: "Keep your fingers together — don't fan them apart" },
+  thumbAlong: { low: "Slide your thumb across, toward your little finger", high: "Move your thumb back toward your index finger" },
   knuckleFold: { low: "Fold your fingers forward at the knuckles, over your thumb", high: "Fold your fingers a little less" },
   spread: { low: "Spread your index and middle fingers apart", high: "Keep index and middle fingers together" },
   dir: { low: "Point your hand more upward", high: "Turn your hand to point more sideways / down" },

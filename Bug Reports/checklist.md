@@ -422,6 +422,11 @@ references are as of commit `41c43f0` and will drift.
     LAB-054 (A->Z bridge timer not cancelled); tiered reward visuals + varied,
     never-louder sounds (js/juice.js). Open lab items: docs/lab/ISSUES.md.
 
+47. **Fist letters (A/E/S/T vs M/N) mixed up — thumb position ignored.**
+    `FIXED (needs live confirm)` — `thumbAlong` trait (thumb tip along the
+    knuckle line) on A E S T: held-out M as A 17%, M as S 15%, N as A/E 11%
+    all -> <10%; own-letter pass unchanged except S 97->95%. ci-check #13k.
+
 ---
 
 ## Working the list

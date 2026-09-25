@@ -915,6 +915,28 @@ await check("sound.js: frequent cues vary, none louder than the old loudest cue 
   return `${frequent.length} frequent cues each >= 3 voicings with 0% back-to-back repeats; loudest peak ${top}`;
 });
 
+// ---- 13k. handshape.js — fist letters told apart by WHERE the thumb sits --
+// A (thumb beside the index), S (thumb across the front), T (thumb between
+// index and middle), E (thumb under the tips) share four DOWN fingers; the
+// thumb's position along the knuckle line (thumbAlong: 0 = index knuckle,
+// 1 = pinky knuckle) is the ASL-defining difference. Before it (2026-09-25),
+// held-out M hands counted as A 17% / S 15%, N as A/E 11%. Applied to
+// A E S T only — on M/N it cost N's own pass 58->51% (M vs N stays with the
+// recogniser tie-break).
+await check("verdict.js: M/N hands don't count as A/S/E (thumb position); A/E/S/T still pass themselves", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const lab = await loadLab();
+  const rate = (X, L) => {
+    const vs = lab.test[X].map((s) => s.v);
+    return vs.filter((v) => lab.countsWith(v, L, lab.predict(v))).length / vs.length;
+  };
+  const leaks = [["M", "A"], ["M", "S"], ["N", "A"], ["N", "E"], ["N", "S"]].map(([x, l]) => [x, l, rate(x, l)]).filter(([, , r]) => r >= 0.1);
+  if (leaks.length) throw new Error(`fist-letter leaks: ${leaks.map(([x, l, r]) => `${x} as ${l} ${Math.round(100 * r)}%`).join(", ")}`);
+  const weak = ["A", "E", "S", "T"].map((L) => [L, rate(L, L)]).filter(([, r]) => r < 0.75);
+  if (weak.length) throw new Error(`own pass too low: ${weak.map(([L, r]) => `${L} ${Math.round(100 * r)}%`).join(", ")}`);
+  return "M/N as A/S/E all < 10%; A/E/S/T own pass >= 75%";
+});
+
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
 // Static check (main.js is DOM-bound): both bridge timers (advanceAz and
 // skipLetter) must be stored in azBridgeTimer, and setAzRun — which every
