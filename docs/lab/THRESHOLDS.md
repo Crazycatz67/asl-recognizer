@@ -18,7 +18,7 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 | K | 90% | — | — | 20 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 3%) | squeezed 33% | V 7%, D 3%, E 3%, G 3% |
 | L | 97% | — | — | — | 60 | index folded 0%, middle raised 0%, ring raised 0%, pinky raised 20% | in 23% | n/a | C 3% |
 | M | 90% | — | — | — | — | index raised 10%, middle raised 27%, ring raised 33%, pinky raised 50% | out 30% | n/a | N 23%, I 7%, O 7%, W 7% |
-| N | 70% | — | — | — | — | index raised 7%, middle raised 7%, ring raised 10%, pinky raised 20% | out 10% | n/a | M 20%, O 7%, E 3%, I 3% |
+| N | 73% | — | — | — | — | index raised 10%, middle raised 10%, ring raised 17%, pinky raised 37% | out 13% | n/a | M 20%, O 7%, E 3%, I 3% |
 | O | 93% | — | — | — | 60 | n/a | out 0% | n/a | D 13%, I 10%, P 7%, R 7% |
 | P | 83% | 45 | — | — | 40 | n/a | out 0% | n/a | A 7%, B 7%, E 7%, D 3% |
 | Q | 87% | 60 | — | — | — | n/a | in 7% | n/a | C 7%, P 7%, F 3%, N 3% |
@@ -33,7 +33,7 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 
 ## Findings
 
-- P1 N: only 70% of real held-out N hands count — own pass 70%
+- P1 N: only 73% of real held-out N hands count — own pass 73%
 - P0 20% of real M hands count as N — M->N 20%
 - P0 23% of real N hands count as M — N->M 23%
 - P0 17% of real Q hands count as C — Q->C 17%

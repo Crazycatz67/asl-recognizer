@@ -325,8 +325,9 @@ export function createTour(hooks) {
 
     if (!ready) {
       if (s.letter) {
+        // true = ready; a string = why not (shown as is); falsy = still loading
         const ok = hooks.practice?.(s.letter);
-        if (!ok) setStatus("Still loading the letters. Tap Next to keep going.");
+        if (ok !== true) setStatus(typeof ok === "string" ? ok : "Still loading the letters. Tap Next to keep going.");
       }
       if (s.id === "which") setupWhich();
       if (s.id === "palm") setupPalm();

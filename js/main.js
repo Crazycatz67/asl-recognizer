@@ -525,6 +525,13 @@ const ORIENT_TIP = {
   P: "tip your hand so your index finger points down",
   Q: "point your thumb and index finger down at the floor",
 };
+// Look-alike pairs the camera can't split by shape alone (M vs N measure the
+// same in the landmarks — tools/lab, 2026-09-25): name the one difference.
+// Keyed target + what it looks like.
+const PAIR_TIP = {
+  NM: "for N only your index and middle fingers go over your thumb; its tip peeks out between your middle and ring fingers",
+  MN: "for M three fingers (index, middle, ring) go over your thumb; its tip peeks out between your ring finger and pinky",
+};
 let lastHintAt = 0;
 let holdStart = 0; // timestamp the current clean hold began (0 = not holding)
 let lastGoodAt = 0; // last frame the sign was complete — for the grace window
@@ -2687,7 +2694,11 @@ function loop() {
   // challenge: you advance when the RECOGNISER reads your hand as the target
   // (a confident, debounced call — not a shape-meter guess). The "seeing"
   // readout uses the raw current prediction so it feels responsive.
-  if (mode === "challenge" && versus?.active) {
+  // the "?" tour pauses a live run: skipping updates while it's open leaves a
+  // frame gap longer than pauseGapMs, so the run's clock resumes where it
+  // was when the tour closes (LAB-055)
+  const runPaused = tour.isOpen();
+  if (mode === "challenge" && versus?.active && !runPaused) {
     const seen = [null, null];
     if (versus.mode === "race") {
       const lms = result.landmarks || [];
@@ -2707,7 +2718,7 @@ function loop() {
     bg.setMatch(null);
   }
 
-  if (mode === "challenge" && challenge?.active) {
+  if (mode === "challenge" && challenge?.active && !runPaused) {
     // a traced J/Z stroke, or the debounced classifier call for a static letter
     // (only while a hand is in view: stabilizer.current latches the last
     // confirmed letter after the hand leaves, and a stale wrong letter must
@@ -2883,7 +2894,7 @@ function loop() {
         }
         // "(reading as X)" was cryptic; say what it looks like and what to change
         const misreadTip = misread
-          ? `Looks like ${lookAs} right now — ${ORIENT_TIP[targetLetter] || tip.charAt(0).toLowerCase() + tip.slice(1)}`
+          ? `Looks like ${lookAs} right now — ${PAIR_TIP[targetLetter + lookAs] || ORIENT_TIP[targetLetter] || tip.charAt(0).toLowerCase() + tip.slice(1)}`
           : "";
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         const prefix = stuckShown && !complete ? "Still tricky? " : "";
@@ -3345,7 +3356,14 @@ document.addEventListener("keydown", (e) => {
 // button in the top bar. main.js only lends it hooks into the camera, the Hand
 // control and Practice; the tour decides everything else. Fed once per camera
 // frame from loop().
+// index.html defers a service-worker update's reload while this is true, so
+// a deploy never wipes a transcript or ends a run mid-session (LAB-056)
+window.__aslBusy = () =>
+  (state !== "idle" && state !== "error") || !!speller?.text || !!speller?.pending ||
+  !!challenge?.active || !!versus?.active || tour.isOpen();
+
 const tourBtn = $("tourBtn");
+let tourReturn = null; // { mode, ghost, blind } the tour borrowed Practice from
 const tour = createTour({
   hud: viewport.querySelector(".hud"),
   cameraState: () => state,
@@ -3357,6 +3375,11 @@ const tour = createTour({
   mirrored: () => trackedHand === (facingMode === "user" ? "right" : "left"),
   practice: (letter) => {
     if (!reference || !challenge) return false;
+    // never end a live Challenge / two-player run for the tour (LAB-055):
+    // it's paused (see runPaused in loop()) and continues when the tour closes
+    if (mode === "challenge" && (challenge.active || versus?.active)) return "Your Challenge run is paused. Finish or close the tour to get back to it.";
+    // borrow Practice (+ its guide toggles); onDone puts you back where you were
+    tourReturn ??= { mode, ghost: ghostToggle.checked, blind: blindToggle.checked };
     if (mode !== "practice") setMode("practice");
     if (azRun) setAzRun(false);
     ghostToggle.checked = true;
@@ -3372,6 +3395,13 @@ const tour = createTour({
   },
   onDone: () => {
     savePref("seen-intro", "1");
+    if (tourReturn) {
+      const r = tourReturn;
+      tourReturn = null;
+      ghostToggle.checked = r.ghost;
+      blindToggle.checked = r.blind;
+      setMode(r.mode);
+    }
     tourBtn.focus();
   },
 });
