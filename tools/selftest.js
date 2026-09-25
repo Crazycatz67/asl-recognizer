@@ -1376,6 +1376,14 @@ function mkHand() {
       typeof fx.burst === "function" && typeof fx.flash === "function");
     ok("fx: burst + flash don't throw",
       (() => { try { fx.burst(100, 100); fx.flash("#22c55e"); return true; } catch { return false; } })());
+    ok("fx: ring / rain / moment exist and don't throw (moment is click-through + aria-hidden)", (() => {
+      try {
+        fx.burst(100, 100, { count: 12, stars: true, colors: ["#fff"] });
+        fx.ring(120, 120, { rings: 3 }); fx.rain({ count: 10 }); fx.moment("First A!", { x: 50, y: 50, tone: "first" });
+        const m = document.querySelector(".fx-moment");
+        return !!m && getComputedStyle(m).pointerEvents === "none" && m.getAttribute("aria-hidden") === "true";
+      } catch { return false; }
+    })());
 
     const bg = (await import("../js/bg.js")).createBackground();
     ok("bg: createBackground returns setMatch + stop",
