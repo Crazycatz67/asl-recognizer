@@ -35,7 +35,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadLab, rng, gauss, ROOT } from "./lab-data.mjs";
-import { upsertIssue } from "./issues.mjs";
+import { upsertIssue, resolveMissing } from "./issues.mjs";
 
 const args = process.argv.slice(2);
 const PER = Number(args[args.indexOf("--per") + 1]) || 30;
@@ -185,5 +185,9 @@ if (ONLY) {
   ];
   fs.writeFileSync(path.join(ROOT, "docs", "lab", "THRESHOLDS.md"), md.join("\n"));
   if (FILE_ISSUES) for (const f of findings) upsertIssue({ key: f.key, title: f.title, severity: f.sev, foundBy: "probe-thresholds", metric: f.metric, area: `letter ${f.L}`, repro: "node tools/lab/probe-thresholds.mjs" });
+  if (FILE_ISSUES) {
+    const resolved = resolveMissing("probe-thresholds", findings.map((f) => f.key));
+    if (resolved.length) console.log(`resolved (no longer found): ${resolved.join(" ")}`);
+  }
 }
 console.log(`probed ${letters.length} letters x ${PER} held-out hands; ${findings.length} findings (${findings.filter((f) => f.sev === "P0").length} P0, ${findings.filter((f) => f.sev === "P1").length} P1)`);

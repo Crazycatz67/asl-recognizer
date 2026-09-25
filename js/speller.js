@@ -45,6 +45,12 @@ export function createSpeller({
   let lastAddAt = 0; // `now` of the last letter added via feed()
   let raw = []; // {letter, conf}[] — the uncorrected letter stream, for decode.js
   let rawWordStart = 0; // raw[] index where the current pending word began
+  // one flag per `text` character: true = a signed letter that has a raw[]
+  // entry (not a space or pasted text). Backspacing into the transcript pops
+  // raw[] only for those, so the decoded/spoken sentence drops the letter
+  // too — before, "CAT" + backspace showed "CA" but still said "CAT" and
+  // raw[] grew forever (LAB-041/042).
+  let fromRaw = [];
 
   const isLetter = (s) => typeof s === "string" && /^[A-Z]$/.test(s);
   const room = () => maxLen - text.length - pending.length;
@@ -68,7 +74,9 @@ export function createSpeller({
 
   function flush() {
     if (!pending) return false;
-    text += (text && !text.endsWith(" ") ? " " : "") + pending;
+    if (text && !text.endsWith(" ")) { text += " "; fromRaw.push(false); }
+    text += pending;
+    for (let i = 0; i < pending.length; i++) fromRaw.push(true);
     pending = "";
     rawWordStart = raw.length;
     last = null;
@@ -144,7 +152,7 @@ export function createSpeller({
     // manual word break: commit whatever's pending, keep a trailing space
     space() {
       const had = flush();
-      if (text && !text.endsWith(" ") && room() > 0) text += " ";
+      if (text && !text.endsWith(" ") && room() > 0) { text += " "; fromRaw.push(false); }
       accepted = true;
       return had || true;
     },
@@ -155,7 +163,9 @@ export function createSpeller({
       flush();
       const r = maxLen - text.length;
       if (r <= 0) return false;
-      text += str.slice(0, r);
+      const add = str.slice(0, r);
+      text += add;
+      for (let i = 0; i < add.length; i++) fromRaw.push(false);
       last = null;
       armed = true;
       return true;
@@ -172,6 +182,8 @@ export function createSpeller({
       }
       if (text) {
         text = text.slice(0, -1);
+        if (fromRaw.pop() && raw.length) raw.pop();
+        rawWordStart = raw.length;
         return true;
       }
       return false;
@@ -193,6 +205,7 @@ export function createSpeller({
       pending = "";
       raw = [];
       rawWordStart = 0;
+      fromRaw = [];
       last = null;
       armed = true;
       accepted = true;

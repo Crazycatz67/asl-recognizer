@@ -26,7 +26,7 @@ import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createBackground } from "./bg.js";
-import { createChallenge, START_LIVES } from "./challenge.js";
+import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
 import { createLeaderboard } from "./leaderboard.js";
 import { createMotionMatcher } from "./motion.js";
@@ -790,7 +790,7 @@ const datasetPromise = loadDataset(DATASET_URL)
     diagramPlayer = createCanonicalPlayer(diagramCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
     readPlayer = createCanonicalPlayer(rdCanvas);
-    challenge = createChallenge({ letters: ALL_LETTERS, words: challengeWords, difficulty: chDifficulty }); // incl. J/Z
+    challenge = createChallenge({ letters: ALL_LETTERS, words: challengeWords, difficulty: chDifficulty, pauseGapMs: PAUSE_GAP_MS }); // incl. J/Z
     renderChBests();
     speller = createSpeller();
     // 10 frames (~1/3 s at 30 fps) at >=4-of-5 kNN votes. Was 6 frames at
@@ -1578,6 +1578,7 @@ function startVersus() {
   // J/Z are traced strokes (one hand's motion) — two-player rounds use the
   // 24 static letters (+ short words later in the game)
   versus = createVersus({
+    pauseGapMs: PAUSE_GAP_MS, // a hidden tab doesn't cost the round
     letters: LETTERS.filter((L) => !MOTION.has(L)),
     words: challengeWords,
     mode: chPlay,

@@ -31,10 +31,11 @@ const LETTER_MS = { normal: (r) => Math.max(2600, 6500 - r * 200), hard: (r) => 
 const LOCK_AFTER_MS = 800, LOCK_FOR_MS = 800;
 const START_LIVES = 3;
 
-export function createVersus({ letters, words = [], mode = "turns", difficulty = "normal", rng = Math.random, raceTo = 7, maxRounds = 15 }) {
+export function createVersus({ letters, words = [], mode = "turns", difficulty = "normal", rng = Math.random, raceTo = 7, maxRounds = 15, pauseGapMs = Infinity }) {
   const diff = difficulty === "hard" ? "hard" : "normal";
   const wordPool = (words || []).map((w) => String(w).toUpperCase())
     .filter((w) => /^[A-Z]{3,4}$/.test(w) && !/(.)\1/.test(w) && [...w].every((c) => letters.includes(c)));
+  let lastNow = 0;
   let active = false, phase = "idle", target = null, round = 0, phaseEnd = 0, playStart = 0, announced = 0;
   let current = 0, roundWinner = -1, lastGain = 0, gameWinner = -1;
   let players = [], progress = [0, 0], wrongSince = [0, 0], lockedUntil = [0, 0];
@@ -86,6 +87,7 @@ export function createVersus({ letters, words = [], mode = "turns", difficulty =
     get mode() { return mode; },
     start(now) {
       active = true;
+      lastNow = now;
       players = [fresh(), fresh()];
       round = 0; announced = 0; current = 0; gameWinner = -1; target = null;
       next(now);
@@ -99,6 +101,15 @@ export function createVersus({ letters, words = [], mode = "turns", difficulty =
     },
     update(now, seen = [null, null]) {
       if (!active) return null;
+      // a hidden tab / stalled camera pauses the clock (see challenge.js)
+      const gap = lastNow ? now - lastNow : 0;
+      lastNow = now;
+      if (gap > pauseGapMs) {
+        phaseEnd += gap;
+        playStart += gap;
+        wrongSince = wrongSince.map((w) => (w ? w + gap : 0));
+        lockedUntil = lockedUntil.map((u) => (u ? u + gap : 0));
+      }
       let event = null;
       if (phase === "study" && announced !== round) { announced = round; event = "letter"; }
       if (phase === "study") {

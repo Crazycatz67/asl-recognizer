@@ -25,8 +25,12 @@ export function upsertIssue(issue) {
   const now = new Date().toISOString().slice(0, 16);
   const existing = db.issues.find((i) => i.key === issue.key);
   if (existing) {
-    const keepStatus = existing.status !== "open" && issue.status == null;
-    Object.assign(existing, issue, { lastSeen: now, status: keepStatus ? existing.status : issue.status || existing.status });
+    // a re-found "fixed-offline" issue has regressed: reopen it. Other
+    // statuses (fixing, needs-live, wontfix) are a human's call — keep them.
+    const regressed = existing.status === "fixed-offline" && issue.status == null;
+    const keepStatus = existing.status !== "open" && issue.status == null && !regressed;
+    Object.assign(existing, issue, { lastSeen: now, status: keepStatus ? existing.status : issue.status || "open" });
+    if (regressed) existing.reopened = now;
   } else {
     db.issues.push({ id: `LAB-${String(db.issues.length + 1).padStart(3, "0")}`, status: "open", created: now, lastSeen: now, ...issue });
   }
@@ -34,6 +38,28 @@ export function upsertIssue(issue) {
   fs.writeFileSync(JSON_PATH, JSON.stringify(db, null, 2) + "\n");
   renderMd(db);
   return db.issues.find((i) => i.key === issue.key);
+}
+
+// After a FULL run of a tool: every open/fixing issue that tool filed but did
+// not re-find this run is resolved offline (the check now passes). Without
+// this the store only ever grows and fixed issues read as open.
+// Returns the ids it resolved.
+export function resolveMissing(foundBy, seenKeys) {
+  const seen = new Set(seenKeys);
+  const db = loadIssues();
+  const now = new Date().toISOString().slice(0, 16);
+  const done = [];
+  for (const i of db.issues) {
+    if (i.foundBy !== foundBy || seen.has(i.key) || !["open", "fixing"].includes(i.status)) continue;
+    i.status = "fixed-offline";
+    i.resolved = now;
+    done.push(i.id);
+  }
+  if (done.length) {
+    fs.writeFileSync(JSON_PATH, JSON.stringify(db, null, 2) + "\n");
+    renderMd(db);
+  }
+  return done;
 }
 
 export function renderMd(db = loadIssues()) {

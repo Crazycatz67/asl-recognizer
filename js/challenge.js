@@ -51,6 +51,12 @@ const WORD_CHANCE = 0.4;
 export const CONFUSABLE = ["M", "N", "S", "T", "A", "E", "K", "V", "P", "Q", "G", "H", "U", "R", "J", "Z"];
 const WRONG_GRACE_MS = 800;
 const NEAR_GRACE_MS = 1000;
+// A frame gap longer than this isn't play time: the tab was hidden (rAF
+// stops) or the camera stalled. The clock pauses across it instead of
+// charging the whole absence to the round (LAB-053: a 15 s hidden tab cost
+// a life). A real frame gap is ~33 ms; 1 s is far outside it. Opt-in
+// (main.js passes it): tests step the clock in big jumps on purpose.
+export const PAUSE_GAP_MS = 1000;
 export const multFor = (streak) => (streak >= 10 ? 4 : streak >= 6 ? 3 : streak >= 3 ? 2 : 1);
 
 const bestKey = (d) => (d === "normal" ? "asl-challenge-best" : `asl-challenge-best-${d}`);
@@ -69,7 +75,7 @@ const save = (k, v) => {
   } catch {}
 };
 
-export function createChallenge({ letters, words = [], difficulty = "normal", rng = Math.random }) {
+export function createChallenge({ letters, words = [], difficulty = "normal", rng = Math.random, pauseGapMs = Infinity }) {
   let diff = difficulty === "hard" ? "hard" : "normal";
   let wordPool = [];
   let active = false;
@@ -227,8 +233,15 @@ export function createChallenge({ letters, words = [], difficulty = "normal", rn
       let comboUp = false;
       let partHit = false;
       let over = null;
-      const dt = Math.max(0, now - lastNow);
+      let dt = Math.max(0, now - lastNow);
       lastNow = now;
+      if (dt > pauseGapMs) {
+        // shift every clock forward by the gap, as if time stood still
+        phaseEnd += dt;
+        playStart += dt;
+        if (wrongSince) wrongSince += dt;
+        dt = 0;
+      }
 
       // announce each fresh target once (covers start + every subsequent round)
       if (phase === "study" && announced !== round) {
@@ -286,6 +299,7 @@ export function createChallenge({ letters, words = [], difficulty = "normal", rn
             lastGain = (10 + Math.round(speed * 20)) * target.length * mult;
             score += lastGain;
             wins++;
+            skipRequested = false; // a Skip tapped on the landing frame is moot (LAB-052)
             times.push({ target, ms: now - playStart, missed: 0 });
             phase = "won";
             phaseEnd = now + WON_MS;

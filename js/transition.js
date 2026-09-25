@@ -86,6 +86,13 @@ export function createTransitionMatcher(opts = {}) {
   let heldLetter = null; // last committed letter
   let votes = []; // { label, conf } during the current settle
   let pending = null; // {letter, conf} to hand back on the next read()
+  // where the hand was when tracking dropped out, and whether it had moved
+  // since its last commit then. A brief dropout with the hand back in the
+  // same place is NOT a move — it used to re-commit the letter being held
+  // ("LL" from one held L, LAB-039). A real double letter bounces/slides.
+  let gap = null; // { t, pts, span, movedSince }
+  const GAP_SAME_MS = 700;
+  let sameAfterGap = false; // refilling the window after such a dropout
 
   // How far the tracked points moved across the trailing WIN_MS, in span-units:
   // each point's straight-line displacement from the oldest buffered frame to
@@ -108,24 +115,43 @@ export function createTransitionMatcher(opts = {}) {
 
     reset() {
       buf = []; state = "moving"; movedSince = true;
-      heldLetter = null; votes = []; pending = null;
+      heldLetter = null; votes = []; pending = null; gap = null; sameAfterGap = false;
     },
 
     push(landmarks, prediction, now) {
       if (!landmarks || landmarks.length < 21) {
         // lost hand — a gap counts as a move, so the next letter (even a repeat) commits
-        if (now - (buf.at(-1)?.t ?? 0) > 200) { buf = []; movedSince = true; state = "moving"; }
+        const lastF = buf.at(-1);
+        if (lastF && now - lastF.t > 200) {
+          gap = { t: lastF.t, pts: lastF.pts, span: lastF.span, movedSince };
+          buf = []; movedSince = true; state = "moving";
+        }
         return;
       }
       const span = spanOf(landmarks);
+      if (gap) {
+        // first frame back: same spot soon after -> the dropout wasn't a move
+        const g = gap;
+        gap = null;
+        let d = 0;
+        for (let i = 0; i < TIPS.length; i++)
+          d += Math.hypot(landmarks[TIPS[i]].x - g.pts[i][0], landmarks[TIPS[i]].y - g.pts[i][1]);
+        if (now - g.t < GAP_SAME_MS && d / (TIPS.length * ((g.span + span) / 2)) < moveThr) {
+          movedSince = g.movedSince;
+          sameAfterGap = true;
+        }
+      }
       buf.push({ t: now, span, pts: TIPS.map((j) => [landmarks[j].x, landmarks[j].y]) });
       while (buf.length && now - buf[0].t > WIN_MS) buf.shift();
 
       const v = travel();
+      // the refilling window reads "unknown" (Infinity) — that's not a move
+      // when the hand came back where it was
+      if (Number.isFinite(v)) sameAfterGap = false;
 
       if (v >= moveThr) {
         state = "moving";
-        movedSince = true;
+        if (!sameAfterGap) movedSince = true;
         votes = [];
         return;
       }

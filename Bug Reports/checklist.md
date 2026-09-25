@@ -427,6 +427,14 @@ references are as of commit `41c43f0` and will drift.
     knuckle line) on A E S T: held-out M as A 17%, M as S 15%, N as A/E 11%
     all -> <10%; own-letter pass unchanged except S 97->95%. ci-check #13k.
 
+48. **Lab issue sweep (2026-09-25).** `FIXED (needs live confirm)` — issue
+    store auto-resolves (61 open -> 15). Fixed: T thumb-out accepted (LAB-062),
+    hidden tab cost a Challenge life (LAB-053), Skip-on-landing double penalty
+    (LAB-052), Spell backspace kept the letter in the spoken sentence
+    (LAB-041/042), dropout re-commit "LL" (LAB-039, live), NaN-hand guards.
+    Still open: M<->N ~20% (LAB-023/025), Q as C 17% (LAB-061), N own 70%
+    (LAB-013), tour ends a run (LAB-055), SW reload mid-session (LAB-056).
+
 ---
 
 ## Working the list

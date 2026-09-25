@@ -131,6 +131,11 @@ const IN = "in", OUT = "out";
 // "folded at the knuckles" (M, N): at least as folded as the letter's own
 // signers' p10 — a floor, no ceiling
 const FOLD = "fold";
+// one-sided "no further out than this letter's OWN signers" (p95), for a
+// letter whose thumb naturally sits further out than the shared IN line —
+// T's thumb pokes up between index and middle (thumbOut p95 0.84 vs the
+// shared IN limit 0.68, which failed a quarter of real T hands).
+const IN_OWN = "in-own";
 const TRAITS = {
   A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
   // B's thumb folds across the palm; how far across varies (some signers
@@ -158,7 +163,7 @@ const TRAITS = {
   Q: { index: true, thumbOut: OUT, thumbNear: OUT, dir: true },
   R: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
-  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN, fingerSplay: IN, thumbAlong: true }, // index bent over the thumb
+  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN, thumbOut: IN_OWN, fingerSplay: IN, thumbAlong: true }, // index bent over the thumb
   U: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true, dir: true },
   V: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   W: { index: UP, middle: UP, ring: UP, pinky: DOWN },
@@ -298,10 +303,11 @@ export function createHandshapeJudge(samples) {
         // "thumb out" is what separates Y from I and L from D/G/X, so its floor
         // sits between the signers' low end (p5) and their typical (p50)
         const lo = want === FOLD ? Math.max(q(vals, 0.1), straightKnuckle + 2 * SLACK.knuckleFold)
-          : want === IN ? -Infinity
+          : want === IN || want === IN_OWN ? -Infinity
           : want === OUT ? (q(vals, 0.05) + q(vals, 0.5)) / 2
           : q(vals, 0.05);
         const hi = want === OUT || want === FOLD ? Infinity
+          : want === IN_OWN ? q(vals, 0.95)
           : want === IN
             ? (Number.isFinite(outStart(key))
                 ? (q(vals, 0.95) + outStart(key)) / 2 // halfway to the letters that need it OUT
@@ -323,7 +329,10 @@ export function createHandshapeJudge(samples) {
     ranges,
     check(vec, letter) {
       const r = ranges.get(letter);
-      if (!r || !vec) return null;
+      if (!r || !vec || vec.length < 63) return null;
+      // NaN traits measure as "in range" (NaN < lo is false), so a broken
+      // or truncated hand would pass every letter (LAB-047/050)
+      for (let i = 0; i < 63; i++) if (!Number.isFinite(vec[i])) return null;
       const t = handTraits(vec);
       const traits = [];
       const fingerStates = { thumb: "good", index: "good", middle: "good", ring: "good", pinky: "good" };

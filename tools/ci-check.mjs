@@ -856,17 +856,24 @@ await check("handshape.js: a raised finger folded 60° fails; raised fingers fan
 // knuckle), and a 15° thumb swing failed 97% of B. B now defines its thumb by
 // thumbNear alone; a thumb swung clearly out (45°) must still fail, and L
 // (thumb out) must not pass as B (13e).
-await check("handshape.js: B passes with the thumb tucked across the palm, fails with it swung out 45°", async () => {
+// T (LAB-062, 2026-09-25): T didn't define its thumb, so a thumb swung out
+// 45° still counted 67%. The shared IN line failed a quarter of real T (its
+// thumb pokes up between index and middle), so T is bounded by its own p95.
+await check("handshape.js: B and T pass with the thumb tucked, fail with it swung out 45°", async () => {
   const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
   const { swingThumb } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
   const lab = await loadLab();
-  const hands = lab.test.B.map((s) => s.v);
-  const own = hands.filter((v) => lab.judge.check(v, "B")?.ok);
-  const ownRate = own.length / hands.length;
-  const out45 = own.filter((v) => lab.judge.check(swingThumb(v, 45), "B")?.ok).length / own.length;
-  if (ownRate < 0.85) throw new Error(`only ${Math.round(100 * ownRate)}% of held-out B hands pass B`);
-  if (out45 > 0.1) throw new Error(`${Math.round(100 * out45)}% of B hands still pass with the thumb swung out 45°`);
-  return `B own ${Math.round(100 * ownRate)}%, thumb out 45° ${Math.round(100 * out45)}%`;
+  const out = [];
+  for (const [L, minOwn] of [["B", 0.85], ["T", 0.8]]) {
+    const hands = lab.test[L].map((s) => s.v);
+    const own = hands.filter((v) => lab.judge.check(v, L)?.ok);
+    const ownRate = own.length / hands.length;
+    const out45 = own.filter((v) => lab.judge.check(swingThumb(v, 45), L)?.ok).length / own.length;
+    if (ownRate < minOwn) throw new Error(`only ${Math.round(100 * ownRate)}% of held-out ${L} hands pass ${L}`);
+    if (out45 > 0.1) throw new Error(`${Math.round(100 * out45)}% of ${L} hands still pass with the thumb swung out 45°`);
+    out.push(`${L} own ${Math.round(100 * ownRate)}%, thumb out 45° ${Math.round(100 * out45)}%`);
+  }
+  return out.join("; ");
 });
 
 // ---- 15. reward feedback: juice.js helpers + sound variation / loudness ----

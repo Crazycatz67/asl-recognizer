@@ -33,6 +33,7 @@ export const fullError = (tol) => Math.max(tol * 3, 0.32);
 
 /** @returns {"good"|"close"|"fix"} */
 export function jointState(e, tol, full = fullError(tol)) {
+  if (!Number.isFinite(e)) return "fix"; // unmeasurable is not "right" (LAB-051)
   if (!(e > tol)) return "good";
   const t = (e - tol) / Math.max(1e-9, full - tol);
   return t < FIX_BAND ? "close" : "fix";
@@ -40,7 +41,7 @@ export function jointState(e, tol, full = fullError(tol)) {
 
 export function countStates(states) {
   const c = { good: 0, close: 0, fix: 0 };
-  for (const s of states) c[s]++;
+  for (const s of states) if (s in c) c[s]++;
   return c;
 }
 

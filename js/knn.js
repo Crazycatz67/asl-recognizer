@@ -61,6 +61,10 @@ export function createClassifier(samples, { k = 5 } = {}) {
 
   function classify(vec) {
     if (!vec || vec.length !== DIMS) return null;
+    // a NaN coordinate makes every distance NaN, and NaN > REJECT_DIST is
+    // false — so it would pass the non-letter gate as a confident letter
+    // (LAB-038). No reading beats a made-up one.
+    for (let i = 0; i < DIMS; i++) if (!Number.isFinite(vec[i])) return null;
 
     // ---- 1. find the k nearest training vectors ----
     // Maintain the k smallest squared distances seen so far (insertion sort,

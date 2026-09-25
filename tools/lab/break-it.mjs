@@ -23,7 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, rng, gauss } from "./lab-data.mjs";
-import { upsertIssue } from "./issues.mjs";
+import { upsertIssue, resolveMissing } from "./issues.mjs";
 
 const args = process.argv.slice(2);
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
@@ -43,7 +43,7 @@ const { createMotionMatcher } = await imp("js/motion.js");
 const { createHandshapeJudge } = await imp("js/handshape.js");
 const { judgeLetter } = await imp("js/verdict.js");
 const { jointState, isReadable, countStates } = await imp("js/jointstate.js");
-const { createChallenge } = await imp("js/challenge.js");
+const { createChallenge, PAUSE_GAP_MS } = await imp("js/challenge.js");
 const cfg = await imp("js/config.js");
 const { synthHand, SHAPE, motionScenarios } = await imp("tools/synth-hand.js");
 
@@ -612,7 +612,7 @@ await check("challenge-background-tab", "challenge", () => {
   // rAF pauses in a hidden tab; main.js has no visibility pause for the game,
   // so the first update() after returning sees the whole absence at once
   fakeLS();
-  const g = createChallenge({ letters: cfg.ALL_LETTERS, rng: rng(3) });
+  const g = createChallenge({ letters: cfg.ALL_LETTERS, rng: rng(3), pauseGapMs: PAUSE_GAP_MS }); // as main.js builds it
   let t = 1000;
   g.start(t);
   ({ t } = toPlay(g, t));
@@ -710,4 +710,8 @@ if (FILE_ISSUES) {
     upsertIssue({ key: `breakit-${r.name}`, title, severity, foundBy: "break-it", metric, area: r.area, repro: REPRO(r.name), ...(status ? { status } : {}) });
   }
   if (FILE_STATIC && !ONLY) for (const s of STATIC) upsertIssue({ ...s, foundBy: "break-it/static" });
+  if (!ONLY) {
+    const resolved = resolveMissing("break-it", fails.map((r) => `breakit-${r.name}`));
+    if (resolved.length) console.log(`resolved (no longer found): ${resolved.join(" ")}`);
+  }
 }

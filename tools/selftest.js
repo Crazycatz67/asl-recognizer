@@ -946,6 +946,24 @@ function mkHand() {
         v.start(0); let t = 0, last; for (let i = 0; i < 400 && (!last || !last.over); i++) { t += 500; last = v.update(t, [null, null]); }
         return alternated && last.over && last.players.every((p) => p.lives === 0) && last.gameWinner === -1;
       })());
+      ok("challenge + versus: a hidden-tab gap (> pauseGapMs) pauses the round clock; a Skip on the landing frame is moot (LAB-052/053)", (() => {
+        const g = gameMod.createChallenge({ letters: ["A", "B", "C"], pauseGapMs: 1000 });
+        g.start(0); let t = 0, s = g.update(0, null);
+        for (let i = 0; i < 200 && s.phase !== "play"; i++) s = g.update((t += 33), null);
+        const lives = s.lives;
+        s = g.update((t += 15000), null); // tab hidden 15 s
+        const paused = s.lives === lives && s.phase === "play";
+        const need = g.needed; g.skip();
+        s = g.update((t += 33), need); // lands as Skip is tapped
+        const won = s.event === "win" && s.lives === lives;
+        for (let i = 0; i < 200 && s.phase !== "play"; i++) s = g.update((t += 33), null);
+        s = g.update((t += 33), null);
+        const v = vsMod.createVersus({ letters: ["A", "B"], mode: "race", rng: () => 0, pauseGapMs: 1000 });
+        v.start(0); let u = 0, vs = v.update(0, [null, null]);
+        for (let i = 0; i < 200 && vs.phase !== "play"; i++) vs = v.update((u += 33), [null, null]);
+        vs = v.update((u += 20000), [null, null]);
+        return paused && won && s.lives === lives && vs.phase === "play" && vs.round === 1;
+      })());
     }
 
     // ---- speller.js (continuous fingerspelling -> text) ----
@@ -963,6 +981,14 @@ function mkHand() {
       return t;
     };
     const bigGap = (sp, t0) => gap(sp, t0, 2300); // > acceptMs -> commit the word
+    ok("speller: backspacing into the transcript drops the letter from raw (decoded/spoken text too) — LAB-041", (() => {
+      const sp = spMod.createSpeller();
+      for (const L of "CAT") sp.addLetter(L, 0.9);
+      sp.space(); sp.insert("HI "); sp.backspace(); sp.backspace(); sp.backspace(); // " ", "I", "H" (pasted: raw untouched)
+      const keptRaw = sp.raw.map((r) => r.letter).join("") === "CAT";
+      sp.backspace(); sp.backspace(); // " ", "T"
+      return keptRaw && sp.text === "CA" && sp.raw.map((r) => r.letter).join("") === "CA";
+    })());
     ok("speller: letters go to the pending word, a pause commits it (CAT)", (() => {
       const sp = spMod.createSpeller();
       let { t } = hold(sp, "C", 0);
