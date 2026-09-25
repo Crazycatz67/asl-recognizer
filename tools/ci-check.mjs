@@ -726,6 +726,36 @@ await check("verdict.js: no letter's held-out real hands count as a different le
   return `worst cross-letter acceptance ${Math.round(100 * worst.rate)}% (${worst.pair})`;
 });
 
+// ---- 13g. handshape.js — a folded finger RAISED doesn't still count -------
+// owner 2026-09-24: "follow the general shape ... but a wrong finger must not
+// count". tools/lab/probe-thresholds.mjs (physical bendFinger, 2026-09-25)
+// found a folded finger raised 60° at knuckle + middle joint still counting
+// for A ring 87%, G ring 100%, L middle 97%, S ring 97%, T ring 90%, X ring
+// 100%, Y middle 80% (the DOWN floor + slack reached into the raised range).
+// Traits-only, on held-out hands that pass their own letter.
+await check("handshape.js: a folded finger raised 60° no longer passes (clean letters <= 25%, every letter <= 75%)", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { bendFinger } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  // letters whose folded fingers are folded tight on every real signer; E M N
+  // (curled / knuckle-folded, noisy) and S's pinky are held to the looser cap
+  const CLEAN = new Set(["A", "G", "H", "I", "K", "L", "R", "T", "U", "V", "W", "X", "Y"]);
+  const bad = [];
+  let n = 0;
+  for (const L of lab.letters) {
+    const spec = lab.judge.ranges.get(L);
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    for (const f of ["index", "middle", "ring", "pinky"]) {
+      if (spec[f + "Flex"]?.kind !== "down" || !own.length) continue;
+      n++;
+      const rate = own.filter((v) => lab.judge.check(bendFinger(v, f, -60), L)?.ok).length / own.length;
+      if (rate > (CLEAN.has(L) ? 0.25 : 0.75)) bad.push(`${L} ${f} ${Math.round(100 * rate)}%`);
+    }
+  }
+  if (bad.length) throw new Error(`still counts with that finger raised 60°: ${bad.join(", ")}`);
+  return `${n} letter-fingers checked`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

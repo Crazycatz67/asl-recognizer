@@ -6,83 +6,44 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 
 | letter | own pass | tilt ° | jitter σ | fan °/gap | curl ° | wrong finger still counts | wrong thumb | wrong spread | other letters accepted as it |
 |---|---|---|---|---|---|---|---|---|---|
-| A | 87% | — | 0.04 | 30 | — | index raised 0%, middle raised 80%, ring raised 87%, pinky raised 90% | out 0% | n/a | M 20%, O 13%, I 7%, N 7% |
+| A | 87% | — | 0.04 | 30 | — | index raised 0%, middle raised 0%, ring raised 0%, pinky raised 7% | out 0% | n/a | M 17%, N 7%, O 7%, G 3% |
 | B | 73% | — | 0.04 | 20 | — | index folded 0%, middle folded 0%, ring folded 0%, pinky folded 0% | out 0% | fanned 0% | E 10%, A 7%, C 7%, I 3% |
 | C | 87% | — | — | — | — | n/a | in 57% | n/a | Q 13%, F 3%, K 3%, T 3% |
-| D | 87% | — | — | — | — | index folded 10%, middle raised 23%, ring raised 20% | (out 87%) | n/a | E 20%, I 10%, B 7%, N 7% |
-| E | 73% | — | 0.06 | 20 | 90 | index raised 0%, middle raised 57%, ring raised 63%, pinky raised 60% | out 0% | n/a | M 20%, O 13%, W 10%, I 7% |
+| D | 73% | — | — | — | — | index folded 10%, middle raised 7%, ring raised 7% | (out 73%) | n/a | E 20%, I 10%, B 7%, N 7% |
+| E | 73% | — | 0.06 | 20 | 90 | index raised 0%, middle raised 10%, ring raised 47%, pinky raised 50% | out 0% | n/a | M 17%, O 10%, I 7%, S 7% |
 | F | 93% | — | — | — | 90 | middle folded 7%, ring folded 10%, pinky folded 17% | out 0% | n/a | E 7%, P 7%, A 3%, D 3% |
-| G | 97% | — | — | — | — | index folded 60%, middle raised 83%, ring raised 100%, pinky raised 100% | (out 83%) | n/a | E 13%, H 10%, B 7%, K 7% |
-| H | 87% | 60 | — | 20 | — | index folded 23%, middle folded 0%, ring raised 83%, pinky raised 70% | (out 87%) | fanned 37% | D 10%, E 10%, W 7%, B 3% |
-| I | 80% | — | — | — | — | index raised 57%, middle raised 73%, ring raised 70%, pinky folded 0% | (out 83%) | n/a | E 10%, D 7%, O 7%, M 3% |
-| K | 90% | — | — | 20 | — | index folded 0%, middle folded 0%, ring raised 77%, pinky raised 80% | (out 3%) | squeezed 37% | E 10%, O 7%, V 7%, W 7% |
-| L | 97% | — | — | — | 90 | index folded 0%, middle raised 97%, ring raised 97%, pinky raised 97% | in 43% | n/a | C 3%, K 3%, N 3% |
-| M | 93% | — | — | — | — | index raised 23%, middle raised 67%, ring raised 70%, pinky raised 77% | out 53% | n/a | N 23%, E 7%, I 7%, O 7% |
-| N | 73% | — | — | — | — | index raised 20%, middle raised 40%, ring raised 50%, pinky raised 57% | out 47% | n/a | M 20%, O 7%, E 3%, I 3% |
+| G | 93% | — | — | — | — | index folded 60%, middle raised 0%, ring raised 0%, pinky raised 13% | (out 80%) | n/a | E 13%, H 10%, B 7%, K 3% |
+| H | 87% | 60 | — | 20 | — | index folded 23%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 87%) | fanned 37% | E 10%, B 3%, C 3%, D 3% |
+| I | 80% | — | — | — | — | index raised 0%, middle raised 0%, ring raised 3%, pinky folded 0% | (out 83%) | n/a | E 7%, Q 3% |
+| K | 90% | — | — | 20 | — | index folded 0%, middle folded 0%, ring raised 3%, pinky raised 0% | (out 3%) | squeezed 33% | E 10%, V 7%, D 3%, G 3% |
+| L | 97% | — | — | — | 90 | index folded 0%, middle raised 0%, ring raised 0%, pinky raised 20% | in 43% | n/a | C 3% |
+| M | 90% | — | — | — | — | index raised 10%, middle raised 27%, ring raised 33%, pinky raised 50% | out 50% | n/a | N 23%, I 7%, O 7%, W 7% |
+| N | 70% | — | — | — | — | index raised 7%, middle raised 7%, ring raised 10%, pinky raised 20% | out 47% | n/a | M 20%, O 7%, E 3%, I 3% |
 | O | 93% | — | — | — | 60 | n/a | out 13% | n/a | D 10%, I 10%, E 7%, P 7% |
 | P | 83% | 45 | — | — | 40 | n/a | (out 83%) | n/a | Q 20%, E 10%, A 7%, B 7% |
 | Q | 70% | 60 | — | — | — | n/a | in 67% | n/a | C 7%, P 7%, F 3%, N 3% |
-| R | 80% | — | — | 10 | — | index folded 0%, middle folded 0%, ring raised 60%, pinky raised 47% | (out 43%) | fanned 3% | E 10%, D 7%, H 7%, O 7% |
-| S | 97% | — | 0.06 | 30 | — | index raised 7%, middle raised 73%, ring raised 97%, pinky raised 93% | out 50% | n/a | M 17%, I 13%, O 13%, N 7% |
-| T | 87% | — | 0.04 | 20 | — | middle raised 83%, ring raised 90%, pinky raised 87% | (out 90%) | n/a | O 10%, W 10%, B 7%, D 3% |
-| U | 90% | 60 | 0.06 | 10 | — | index folded 0%, middle folded 0%, ring raised 43%, pinky raised 73% | (out 17%) | fanned 0% | E 7%, D 3%, K 3%, R 3% |
-| V | 93% | — | — | 30 | — | index folded 0%, middle folded 0%, ring raised 17%, pinky raised 40% | (out 100%) | squeezed 0% | W 13%, E 10%, B 7%, O 7% |
-| W | 83% | — | — | — | — | index folded 0%, middle folded 0%, ring folded 0%, pinky raised 63% | (out 83%) | n/a | R 13%, E 10%, K 10%, D 7% |
-| X | 97% | — | — | — | 90 | middle raised 60%, ring raised 100%, pinky raised 100% | (out 97%) | n/a | D 10%, E 10%, B 7%, N 7% |
-| Y | 80% | — | — | 30 | — | index raised 63%, middle raised 80%, ring raised 80%, pinky folded 10% | in 0% | n/a | none |
+| R | 77% | — | — | 10 | — | index folded 0%, middle folded 0%, ring raised 3%, pinky raised 3% | (out 40%) | fanned 3% | E 10%, H 7%, D 3%, G 3% |
+| S | 97% | — | 0.06 | 30 | 90 | index raised 7%, middle raised 3%, ring raised 23%, pinky raised 50% | out 50% | n/a | M 13%, N 7%, O 7%, A 3% |
+| T | 87% | — | 0.04 | 20 | — | middle raised 0%, ring raised 0%, pinky raised 0% | (out 90%) | n/a | E 3%, L 3%, O 3%, W 3% |
+| U | 90% | 60 | 0.06 | 10 | — | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 17%) | fanned 0% | E 7%, K 3%, R 3% |
+| V | 93% | — | — | 30 | — | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 3% | (out 100%) | squeezed 0% | E 10%, W 7%, B 3%, D 3% |
+| W | 83% | — | — | — | — | index folded 0%, middle folded 0%, ring folded 0%, pinky raised 3% | (out 83%) | n/a | E 10%, R 10%, B 3%, D 3% |
+| X | 97% | — | — | — | 90 | middle raised 0%, ring raised 0%, pinky raised 7% | (out 97%) | n/a | E 10%, B 3%, C 3%, L 3% |
+| Y | 80% | — | — | 30 | — | index raised 0%, middle raised 0%, ring raised 0%, pinky folded 10% | in 0% | n/a | none |
 
 ## Findings
 
-- P0 A still counts with the middle finger raised 60° — 80% pass at 60° (base 87%)
-- P0 A still counts with the ring finger raised 60° — 87% pass at 60° (base 87%)
-- P0 A still counts with the pinky finger raised 60° — 90% pass at 60° (base 87%)
 - P1 B: only 73% of real held-out B hands count — own pass 73%
 - P0 C still counts with the thumb swung in 30° — 57% pass at 30° (base 87%)
-- P0 E still counts with the middle finger raised 60° — 57% pass at 60° (base 73%)
-- P0 E still counts with the ring finger raised 60° — 63% pass at 60° (base 73%)
-- P0 E still counts with the pinky finger raised 60° — 60% pass at 60° (base 73%)
+- P1 D: only 73% of real held-out D hands count — own pass 73%
 - P1 E: only 73% of real held-out E hands count — own pass 73%
-- P0 G still counts with the index finger folded 60° — 60% pass at 60° (base 97%)
-- P0 G still counts with the middle finger raised 60° — 83% pass at 60° (base 97%)
-- P0 G still counts with the ring finger raised 60° — 100% pass at 60° (base 97%)
-- P0 G still counts with the pinky finger raised 60° — 100% pass at 60° (base 97%)
-- P0 H still counts with the ring finger raised 60° — 83% pass at 60° (base 87%)
-- P0 H still counts with the pinky finger raised 60° — 70% pass at 60° (base 87%)
-- P0 I still counts with the index finger raised 60° — 57% pass at 60° (base 80%)
-- P0 I still counts with the middle finger raised 60° — 73% pass at 60° (base 80%)
-- P0 I still counts with the ring finger raised 60° — 70% pass at 60° (base 80%)
-- P0 K still counts with the ring finger raised 60° — 77% pass at 60° (base 90%)
-- P0 K still counts with the pinky finger raised 60° — 80% pass at 60° (base 90%)
-- P0 L still counts with the middle finger raised 60° — 97% pass at 60° (base 97%)
-- P0 L still counts with the ring finger raised 60° — 97% pass at 60° (base 97%)
-- P0 L still counts with the pinky finger raised 60° — 97% pass at 60° (base 97%)
-- P0 M still counts with the middle finger raised 60° — 67% pass at 60° (base 93%)
-- P0 M still counts with the ring finger raised 60° — 70% pass at 60° (base 93%)
-- P0 M still counts with the pinky finger raised 60° — 77% pass at 60° (base 93%)
-- P0 M still counts with the thumb swung out 45° — 53% pass at 45° (base 93%)
-- P0 N still counts with the pinky finger raised 60° — 57% pass at 60° (base 73%)
-- P1 N: only 73% of real held-out N hands count — own pass 73%
+- P0 G still counts with the index finger folded 60° — 60% pass at 60° (base 93%)
+- P1 N: only 70% of real held-out N hands count — own pass 70%
 - P0 Q still counts with the thumb swung in 30° — 67% pass at 30° (base 70%)
 - P1 Q: only 70% of real held-out Q hands count — own pass 70%
-- P0 R still counts with the ring finger raised 60° — 60% pass at 60° (base 80%)
-- P0 S still counts with the middle finger raised 60° — 73% pass at 60° (base 97%)
-- P0 S still counts with the ring finger raised 60° — 97% pass at 60° (base 97%)
-- P0 S still counts with the pinky finger raised 60° — 93% pass at 60° (base 97%)
-- P0 T still counts with the middle finger raised 60° — 83% pass at 60° (base 87%)
-- P0 T still counts with the ring finger raised 60° — 90% pass at 60° (base 87%)
-- P0 T still counts with the pinky finger raised 60° — 87% pass at 60° (base 87%)
-- P0 U still counts with the pinky finger raised 60° — 73% pass at 60° (base 90%)
-- P0 W still counts with the pinky finger raised 60° — 63% pass at 60° (base 83%)
-- P0 X still counts with the middle finger raised 60° — 60% pass at 60° (base 97%)
-- P0 X still counts with the ring finger raised 60° — 100% pass at 60° (base 97%)
-- P0 X still counts with the pinky finger raised 60° — 100% pass at 60° (base 97%)
-- P0 Y still counts with the index finger raised 60° — 63% pass at 60° (base 80%)
-- P0 Y still counts with the middle finger raised 60° — 80% pass at 60° (base 80%)
-- P0 Y still counts with the ring finger raised 60° — 80% pass at 60° (base 80%)
 - P0 20% of real E hands count as D — E->D 20%
-- P0 20% of real M hands count as A — M->A 20%
-- P0 20% of real M hands count as E — M->E 20%
+- P0 17% of real M hands count as A — M->A 17%
+- P0 17% of real M hands count as E — M->E 17%
 - P0 20% of real M hands count as N — M->N 20%
-- P0 17% of real M hands count as S — M->S 17%
 - P0 23% of real N hands count as M — N->M 23%
 - P0 20% of real Q hands count as P — Q->P 20%
