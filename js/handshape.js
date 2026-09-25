@@ -293,7 +293,12 @@ export function createHandshapeJudge(samples) {
         // Override (curledTight): curled as tightly as the tightest quarter
         // of all folded fingers (p25) = folded, whatever the flex says —
         // real E pinkies at 0.16 read flex 25-28° and failed outright.
-        const own = q(ts.map((t) => t[key]).sort((a, b) => a - b), 0.1);
+        // M / N (folded at the knuckles over the thumb) use the shared DOWN
+        // floor, not their own p10: N's calibration signers fold very deep
+        // (p10 ~90-100°), which put N's line at 66-76° and failed real N
+        // hands folded a little less (65-72°) as a "wrong finger" (held-out
+        // N own pass 58%). Their knuckleFold trait still rejects claws.
+        const own = TRAITS[L].knuckleFold === FOLD ? DOWN_RANGE[0] : q(ts.map((t) => t[key]).sort((a, b) => a - b), 0.1);
         r[key] = { range: DOWN_RANGE, kind: "down", finger: name, fixBelow: (Math.max(DOWN_RANGE[0], own) + UP_RANGE[1]) / 2,
           curled: (q(upExt, 0.05) + q(ts.map((t) => t[name + "Ext"]).sort((a, b) => a - b), 0.5)) / 2,
           curledTight: q(downExt, 0.25) };

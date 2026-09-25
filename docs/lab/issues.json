@@ -172,12 +172,12 @@
       "id": "LAB-013",
       "status": "open",
       "created": "2026-09-25T08:38",
-      "lastSeen": "2026-09-25T10:03",
+      "lastSeen": "2026-09-25T10:41",
       "key": "strict-own-N",
-      "title": "N: only 70% of real held-out N hands count",
+      "title": "N: only 73% of real held-out N hands count",
       "severity": "P1",
       "foundBy": "probe-thresholds",
-      "metric": "own pass 70%",
+      "metric": "own pass 73%",
       "area": "letter N",
       "repro": "node tools/lab/probe-thresholds.mjs"
     },
@@ -311,7 +311,7 @@
       "id": "LAB-023",
       "status": "open",
       "created": "2026-09-25T08:38",
-      "lastSeen": "2026-09-25T10:03",
+      "lastSeen": "2026-09-25T10:41",
       "key": "confuse-M-as-N",
       "title": "20% of real M hands count as N",
       "severity": "P0",
@@ -338,7 +338,7 @@
       "id": "LAB-025",
       "status": "open",
       "created": "2026-09-25T08:38",
-      "lastSeen": "2026-09-25T10:03",
+      "lastSeen": "2026-09-25T10:41",
       "key": "confuse-N-as-M",
       "title": "23% of real N hands count as M",
       "severity": "P0",
@@ -749,7 +749,7 @@
     },
     {
       "id": "LAB-055",
-      "status": "open",
+      "status": "fixed-offline",
       "created": "2026-09-25T08:50",
       "lastSeen": "2026-09-25T08:51",
       "key": "static-tour-kills-challenge",
@@ -758,11 +758,13 @@
       "title": "Opening the tour ('?') mid-Challenge or mid-Spell silently switches to Practice and ends the run; ghost/blind toggles are forced and not restored",
       "metric": "js/main.js:3043-3050 practice() hook -> setMode('practice') -> challenge.stop(); ghostToggle.checked=true, blindToggle.checked=false",
       "repro": "static: js/main.js:3043 — start a Challenge run, tap the ? tour button: the run is gone (no summary, bests not saved) and you're in Practice on A",
-      "foundBy": "break-it/static"
+      "foundBy": "break-it/static",
+      "resolved": "2026-09-25T00:00",
+      "note": "ci-check #13l"
     },
     {
       "id": "LAB-056",
-      "status": "open",
+      "status": "needs-live",
       "created": "2026-09-25T08:50",
       "lastSeen": "2026-09-25T08:51",
       "key": "static-sw-reload-midsession",
@@ -771,7 +773,9 @@
       "title": "A service-worker update reloads the page mid-session with no guard: an in-progress Spell transcript or Challenge run is lost",
       "metric": "index.html:68-72 controllerchange -> location.reload(); sw.js install waits on EXTRA (dataset, words25k, 26 photos) so the swap can land well after the user has started",
       "repro": "static: index.html:68 — on the deployed site after a VERSION bump, open the app, start spelling within the first seconds: when the new SW activates the page reloads and the transcript is gone",
-      "foundBy": "break-it/static"
+      "foundBy": "break-it/static",
+      "resolved": "2026-09-25T00:00",
+      "note": "ci-check #13l"
     },
     {
       "id": "LAB-057",
@@ -829,7 +833,7 @@
       "id": "LAB-061",
       "status": "open",
       "created": "2026-09-25T09:30",
-      "lastSeen": "2026-09-25T10:03",
+      "lastSeen": "2026-09-25T10:41",
       "key": "confuse-Q-as-C",
       "title": "17% of real Q hands count as C",
       "severity": "P0",

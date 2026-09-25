@@ -67,8 +67,16 @@
       var hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener("controllerchange", function () {
         if (!hadController || window.__aslReloadedForUpdate) return; // first install: nothing stale to replace
-        window.__aslReloadedForUpdate = true;
-        location.reload();
+        // never reload out from under someone mid-session (a Spell transcript
+        // or a Challenge run would be lost — LAB-056): main.js sets
+        // window.__aslBusy; wait until it says idle, checking every 2 s
+        (function applyWhenIdle() {
+          var busy = false;
+          try { busy = typeof window.__aslBusy === "function" && window.__aslBusy(); } catch (e) {}
+          if (busy) return setTimeout(applyWhenIdle, 2000);
+          window.__aslReloadedForUpdate = true;
+          location.reload();
+        })();
       });
       addEventListener("load", () =>
         navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {})

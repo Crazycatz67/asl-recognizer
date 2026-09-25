@@ -939,9 +939,26 @@ await check("verdict.js: M/N hands don't count as A/S/E (thumb position); A/E/S/
   };
   const leaks = [["M", "A"], ["M", "S"], ["N", "A"], ["N", "E"], ["N", "S"]].map(([x, l]) => [x, l, rate(x, l)]).filter(([, , r]) => r >= 0.1);
   if (leaks.length) throw new Error(`fist-letter leaks: ${leaks.map(([x, l, r]) => `${x} as ${l} ${Math.round(100 * r)}%`).join(", ")}`);
-  const weak = ["A", "E", "S", "T"].map((L) => [L, rate(L, L)]).filter(([, r]) => r < 0.75);
+  // N: M/N share the shared DOWN floor for their fold line (N's own p10 put
+  // it at 66-76° and failed real N folded a bit less: 58% -> 67%)
+  const weak = [["A", 0.75], ["E", 0.75], ["S", 0.75], ["T", 0.75], ["N", 0.62]].map(([L, min]) => [L, rate(L, L), min]).filter(([, r, min]) => r < min);
   if (weak.length) throw new Error(`own pass too low: ${weak.map(([L, r]) => `${L} ${Math.round(100 * r)}%`).join(", ")}`);
-  return "M/N as A/S/E all < 10%; A/E/S/T own pass >= 75%";
+  return "M/N as A/S/E all < 10%; A/E/S/T own pass >= 75%, N >= 62%";
+});
+
+// ---- 13l. the tour and a deploy never end a session (LAB-055 / LAB-056) ---
+await check("main.js/index.html: the '?' tour pauses a live run and restores the mode; an SW update waits until idle", () => {
+  const main = fs.readFileSync(path.join(ROOT, "js", "main.js"), "utf8");
+  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const bad = [];
+  if (!/challenge\.active \|\| versus\?\.active\)\) return "/.test(main)) bad.push("tour practice() hook doesn't refuse a live run");
+  if (!/runPaused = tour\.isOpen\(\)/.test(main) || (main.match(/&& !runPaused\)/g) || []).length < 2) bad.push("loop() doesn't pause challenge + versus while the tour is open");
+  if (!/tourReturn/.test(main.slice(main.indexOf("onDone:")))) bad.push("tour onDone doesn't restore the borrowed mode");
+  if (!/window\.__aslBusy = /.test(main)) bad.push("main.js doesn't define window.__aslBusy");
+  const cc = html.slice(html.indexOf("controllerchange"), html.indexOf("controllerchange") + 900);
+  if (!/__aslBusy/.test(cc)) bad.push("index.html reloads on controllerchange without asking __aslBusy");
+  if (bad.length) throw new Error(bad.join("; "));
+  return "tour pauses runs + restores mode; SW reload deferred while busy";
 });
 
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
