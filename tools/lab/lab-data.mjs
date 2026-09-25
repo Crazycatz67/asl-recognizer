@@ -46,11 +46,14 @@ export async function loadLab({ trainFrac = 0.8 } = {}) {
   };
   // does this hand COUNT as letter L (the shipped verdict)?
   const counts = (v, L) => judgeLetter(judge, v, L, predict(v), 0.3).strict;
+  // same, with a precomputed recogniser label (the probe reuses one predict
+  // per hand across all 24 target letters)
+  const countsWith = (v, L, pred) => judgeLetter(judge, v, L, pred, 0.3).strict;
   const centroid = (L) => {
     const rows = byL[L] || [];
     return Array.from({ length: 63 }, (_, i) => rows.reduce((a, s) => a + s.v[i], 0) / (rows.length || 1));
   };
-  return { cfg, data, byL, train, test, letters, judge, predict, counts, centroid, rotateVector, mirrorVector };
+  return { cfg, data, byL, train, test, letters, judge, predict, counts, countsWith, judgeLetter, centroid, rotateVector, mirrorVector };
 }
 
 // deterministic RNG so every run of the lab is reproducible

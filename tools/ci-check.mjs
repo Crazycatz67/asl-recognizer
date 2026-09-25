@@ -704,6 +704,28 @@ await check("handshape.js: real held-out hands pass their own letter's traits; c
   return `${judge.letters.length} letters, own-letter pass ${(100 * all.reduce((a, b) => a + b, 0) / all.length).toFixed(1)}% avg (min ${(100 * Math.min(...all)).toFixed(0)}%), ${mustFail.length} different-shape pairs rejected, claws rejected as N/M`;
 });
 
+// ---- 13f. verdict.js — no letter's real hands count as a DIFFERENT letter ----
+// tools/lab/probe-thresholds.mjs found (2026-09-25) the fist-letter tie-break
+// ignoring non-fist readings: real O hands counted as A/E/S/T ~97%, L/G/X as
+// T ~100%. Guard the shipped verdict on held-out hands (the lab's own setup):
+// no ordered pair may exceed 30% (the M/N pair sits ~20-23%).
+await check("verdict.js: no letter's held-out real hands count as a different letter > 30%", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const lab = await loadLab();
+  let worst = { rate: 0 };
+  for (const X of lab.letters) {
+    const vs = lab.test[X].filter((_, i) => i % 2 === 0).slice(0, 25).map((s) => s.v);
+    const preds = vs.map((v) => lab.predict(v));
+    for (const L of lab.letters) {
+      if (L === X) continue;
+      const rate = vs.filter((v, i) => lab.countsWith(v, L, preds[i])).length / vs.length;
+      if (rate > worst.rate) worst = { rate, pair: `${X} as ${L}` };
+    }
+  }
+  if (worst.rate > 0.3) throw new Error(`${Math.round(100 * worst.rate)}% of real ${worst.pair}`);
+  return `worst cross-letter acceptance ${Math.round(100 * worst.rate)}% (${worst.pair})`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

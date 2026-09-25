@@ -37,8 +37,13 @@ export function judgeLetter(handshape, vec, target, predLabel, tol) {
   const p = predLabel || null;
   let otherLetter = null;
   if (p && p !== target) {
-    if (THUMB_GROUP.has(target)) otherLetter = THUMB_GROUP.has(p) ? p : null;
-    else if (handshape.check(vec, p)?.ok) otherLetter = p;
+    // the recogniser reads another letter: reject if the hand also fits that
+    // letter's traits — or, for the fist letters (only the recogniser can
+    // split them), if it's any other fist letter. The fist-letter branch used
+    // to ignore NON-fist readings entirely, so real O hands (partly curled
+    // fingers pass "folded") counted as A/E/S/T ~97% and L/G/X/Q/D counted
+    // as T 63-100% (tools/lab/probe-thresholds.mjs, 2026-09-25).
+    if ((THUMB_GROUP.has(target) && THUMB_GROUP.has(p)) || handshape.check(vec, p)?.ok) otherLetter = p;
   }
   const strict = !!hs?.ok && !otherLetter;
   const anyFix = !!hs?.traits.some((t) => t.state === "fix");
