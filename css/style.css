@@ -384,11 +384,14 @@ body {
   position: relative;
 }
 
+/* (phone pass 2026-09-25: the side-by-side layout now starts at 340 px tall,
+   was 420 — phones held sideways are ~360-430 px tall and got the stacked
+   portrait layout, squeezing the camera into a ~130 px strip) */
 /* landscape / desktop: camera left, reference card right, both centred in the
    row. the camera keeps a natural 4:3 shape (height drives it) so a normal
    webcam isn't cropped to a near-square — it just gets as big as the row
    allows, then the whole group is centred instead of stretched edge to edge. */
-@media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+@media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
   .workspace {
     flex-direction: row;
     align-items: center;
@@ -420,7 +423,7 @@ body {
    after the header + learn bar + controls, capped so it never sprawls and
    shrinks on smaller windows. MUST come after the base `.viewport` rule —
    equal specificity, source order decides. */
-@media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+@media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
   .viewport {
     flex: 0 1 auto;
     width: min(100%, calc((100dvh - 150px) * 4 / 3), 900px);
@@ -431,7 +434,7 @@ body {
 }
 /* fallback for browsers without dvh (older Safari): plain vh */
 @supports not (height: 100dvh) {
-  @media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+  @media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
     .viewport { width: min(100%, calc((100vh - 150px) * 4 / 3), 900px); max-height: calc(100vh - 130px); }
   }
 }
@@ -1051,7 +1054,7 @@ body {
    space pressure to collapse for once it's not floating over the stage).
    Grid areas already match the mobile layout above — this just widens the
    card and undoes the S4b sheet positioning/collapse. */
-@media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+@media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
   .reference {
     position: static;
     /* don't let the camera squeeze the card back down to thumbnail images
@@ -1122,7 +1125,7 @@ body {
 
 /* landscape column has the room for a taller hint; portrait strip keeps it to
    two lines so the strip stays short and the camera keeps the screen */
-@media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+@media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
   .ref-hint { min-height: 2.4em; font-size: 0.92rem; }
 }
 @media (max-width: 759px), (orientation: portrait) {
@@ -1677,7 +1680,7 @@ body {
 }
 .sp-cell b { font-size: 0.8rem; color: var(--fg); }
 
-@media (min-width: 700px) and (min-height: 420px) and (orientation: landscape) {
+@media (min-width: 700px) and (min-height: 340px) and (orientation: landscape) {
   .speller {
     width: clamp(260px, 32vw, 400px);
     align-self: center;
@@ -2704,3 +2707,82 @@ summary:focus-visible,
 .perf-btns { display: flex; gap: 0.4rem; }
 .perf-btns button { min-height: 44px; padding: 0 0.9rem; border-radius: 0.5rem; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font: 700 0.85rem system-ui, sans-serif; }
 .perf-copy { width: min(26rem, calc(100vw - 2rem)); height: 5rem; font-size: 16px; }
+
+/* ==========================================================================
+   PHONE PASS (2026-09-25) — the owner tests on a MacBook, but phones are the
+   main way people use this. Checked with tools/mobile-audit.html at 360 /
+   390 / 412 portrait and 844x390 landscape: every control a finger can hit
+   >= 44 px, readable text >= 13 px, nothing hidden under the reference
+   sheet. Applies to the stacked phone layout AND any touch screen.
+   ========================================================================== */
+@media not all and (min-width: 700px) and (min-height: 340px) and (orientation: landscape), (pointer: coarse), (max-height: 500px) {
+  /* top bar: two rows of 44 px controls. The title is the Home page's job
+     on a phone (the logo button and ⌂ both go there) — kept for screen
+     readers, hidden visually to give the camera the space. */
+  .topbar { gap: 0.35rem 0.3rem; padding-left: max(0.6rem, env(safe-area-inset-left)); padding-right: max(0.6rem, env(safe-area-inset-right)); }
+  .topbar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+  .mode { flex: 1 1 auto; }
+  .mode-btn { flex: 1 1 auto; min-height: 44px; padding: 0 0.6rem; font-size: 0.88rem; }
+  .topbar-link { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 0.55rem; font-size: 0.88rem; margin-left: 0; }
+  .home-btn .hb-txt, .fx-btn .fx-val { display: none; } /* icon-only; the aria-label keeps the name */
+  .home-btn, .fx-btn { font-size: 1.05rem; }
+
+  /* practice learn bar */
+  .submode button { min-height: 44px; padding: 0 0.8rem; font-size: 0.88rem; }
+  .step-btn { min-width: 44px; min-height: 44px; }
+  .chip.clear, .az-skip { min-height: 44px; padding: 0 0.9rem; font-size: 0.85rem; }
+  .blind-toggle { min-height: 44px; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+  .blind-toggle input, .speller input[type="checkbox"], .reader input[type="checkbox"] { width: 22px; height: 22px; }
+
+  /* camera off: put "Turn on camera" in the TOP half of the frame — the
+     reference sheet (bottom, up to 50svh) covered it on phones */
+  .curtain { place-items: start center; padding-top: clamp(1rem, 9svh, 4.5rem); }
+
+  /* reference sheet handle: a full-width 44 px bar (the pill is drawn inside) */
+  .ref-handle { justify-self: stretch; width: auto; height: 44px; margin: -0.3rem -0.95rem 0; background: transparent; position: relative; }
+  .ref-handle::before { content: ""; position: absolute; left: 50%; top: 50%; width: 2.6rem; height: 0.32rem; border-radius: 999px; transform: translate(-50%, -50%); background: rgba(148, 163, 184, 0.55); }
+  .ref-hand { font-size: 0.82rem; }
+
+  /* challenge card + board */
+  .ch-play button small, .ch-diff button small { font-size: 0.8rem; }
+  .ch-bests { font-size: 0.85rem; }
+  .ch-board-btn { min-height: 44px; padding: 0 0.9rem; }
+
+  /* spell panel */
+  .speller button { min-height: 44px; }
+  .speller select, .reader select { min-height: 44px; font-size: 16px; }
+  .speller summary { min-height: 44px; display: flex; align-items: center; }
+  .sp-beta, .sp-fluid-hint, .g-note, .speller b { font-size: 0.82rem; }
+
+  /* read panel */
+  .rd-mode, .rd-cat { min-height: 44px; padding: 0 0.85rem; font-size: 0.85rem; }
+  .reader button { min-height: 44px; min-width: 44px; }
+  /* a range input's own height is ignored — pad it to a 44 px touch strip,
+     and keep the sticky Check/Reveal bar (margin-top -0.4rem) off it */
+  .rd-seek { box-sizing: content-box; padding: 11px 0; margin-bottom: 0.6rem; }
+  /* the sticky Check/Reveal bar sat on top of the seek bar on phones; the
+     panel scrolls, so a normal (static) bar is reachable and never overlaps */
+  .rd-answer { position: static; margin-top: 0; }
+  .reader input[type="text"], #rdInput { min-height: 44px; font-size: 16px; } /* 16 px: iOS won't zoom on focus */
+
+  /* tour */
+  .tour-skip, .tour-cam-btn, .tour-next, .tour button { min-height: 44px; }
+  .tour-step { font-size: 0.82rem; }
+
+  .icon-btn { width: 44px; height: 44px; }
+  .progress-legend { font-size: 0.82rem; }
+  /* the Challenge card scrolls when the screen is short (phone landscape) */
+  .ch-card { overflow-y: auto; }
+
+  /* overlays clear the notch / home bar */
+  .toast { bottom: calc(2.2rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* phone LANDSCAPE (short screens): the camera frame is too short for an open
+   reference sheet AND the "Turn on camera" prompt — keep the sheet collapsed
+   until the camera is on (its handle still opens it once tracking) */
+@media (max-height: 500px) and (orientation: landscape) {
+  .ch-card { place-items: start center; }
+  .app-stage:has(.viewport[data-state="idle"]) .reference.sheet-open { max-height: 7.6rem; }
+  .curtain { padding-top: 0.6rem; }
+}

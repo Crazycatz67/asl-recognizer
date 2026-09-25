@@ -44,6 +44,11 @@ function describe(el) {
 }
 function visible(el, win) {
   if (el.closest("[hidden], [inert]")) return false;
+  // visually-hidden (screen-reader-only) ancestors: a 1x1 clipped box
+  for (let p = el.parentElement; p && p !== win.document.body; p = p.parentElement) {
+    const pr = p.getBoundingClientRect();
+    if (pr.width <= 1 && pr.height <= 1 && win.getComputedStyle(p).overflow === "hidden") return false;
+  }
   if (el.checkVisibility && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
   const r = el.getBoundingClientRect();
   if (r.width < 1 || r.height < 1) return false;
@@ -63,8 +68,14 @@ function auditDoc(win, W, H) {
   const issues = { overflow: [], cutOff: [], unreachable: [], smallTap: [], smallText: [], covered: [] };
   if (d.documentElement.scrollWidth > W + 1) issues.overflow.push(`page is ${d.documentElement.scrollWidth}px wide (> ${W})`);
   const els = [...d.querySelectorAll(INTERACTIVE)].filter((el) => visible(el, win));
+  // an open overlay (progress panel, landing page, tour, run card) makes the
+  // app behind it unreachable by design — audit only what's on top
+  const modal = [...d.querySelectorAll(".progress-overlay, .hero, .run-card, .intro")].find((m) => !m.hidden && visible(m, win));
   for (const el of els) {
-    const r = el.getBoundingClientRect();
+    if (modal && !modal.contains(el)) continue;
+    // a checkbox inside its <label> is tapped via the whole label
+    const box = el.matches('input[type="checkbox"], input[type="radio"]') && el.closest("label") ? el.closest("label") : el;
+    const r = box.getBoundingClientRect();
     if (r.left < -1 || r.right > W + 1) issues.cutOff.push(`${describe(el)} x ${Math.round(r.left)}..${Math.round(r.right)}`);
     else if ((r.top > H - 4 || r.bottom < 4) && !scrollableAncestor(el, win)) issues.unreachable.push(`${describe(el)} y ${Math.round(r.top)}`);
     // tap target (inline text links inside paragraphs are exempt)
@@ -72,9 +83,13 @@ function auditDoc(win, W, H) {
     if (!inlineLink && (r.width < MIN_TAP - 0.5 || r.height < MIN_TAP - 0.5)) issues.smallTap.push(`${describe(el)} ${Math.round(r.width)}×${Math.round(r.height)}`);
     // covered: the centre point hits something unrelated
     const cx = Math.min(W - 1, Math.max(0, r.left + r.width / 2)), cy = Math.min(H - 1, Math.max(0, r.top + r.height / 2));
-    if (cy >= 0 && cy < H) {
+    // scrolled out of view inside its own scroll area: reachable by scrolling, not covered
+    const sa = scrollableAncestor(el, win);
+    const sr = sa?.getBoundingClientRect();
+    const clipped = sr && (cy < sr.top || cy > sr.bottom || cx < sr.left || cx > sr.right);
+    if (!clipped && cy >= 0 && cy < H) {
       const hit = d.elementFromPoint(cx, cy);
-      if (hit && hit !== el && !el.contains(hit) && !hit.contains(el) && !(el.htmlFor && hit.id === el.htmlFor)) issues.covered.push(`${describe(el)} under ${describe(hit)}`);
+      if (hit && hit !== el && !box.contains(hit) && !hit.contains(el) && !(el.htmlFor && hit.id === el.htmlFor)) issues.covered.push(`${describe(el)} under ${describe(hit)}`);
     }
   }
   // readable text below MIN_TEXT px (skip aria-hidden decoration + empty)
