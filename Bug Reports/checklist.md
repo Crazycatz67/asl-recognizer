@@ -402,6 +402,13 @@ references are as of commit `41c43f0` and will drift.
     offline)` — `ba25b98`: each js/ file checked as a temp .mjs (proven on a
     real `,,` import typo).
 
+44. **Practice too strict after #37 ("sensitivity too high"); overlay colours
+    and the reward judged joints separately.** `FIXED (needs live confirm)` —
+    `6e24e52`: one per-joint rule (js/jointstate.js) drives colours + reward;
+    wider good band, up to 5 orange joints, look-alike guard (heads for
+    M/N, D/O/C). Held-out: correct letters count 44.7% -> 78.1%, wrong 0.4%.
+    M still hard (11%) — tune live.
+
 ---
 
 ## Working the list
