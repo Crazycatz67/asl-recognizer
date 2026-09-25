@@ -50,8 +50,21 @@ export function handTraits(v) {
   const palmAxis = sub(P(v, 9), P(v, 0));
   const palm = len(palmAxis) || 1e-9;
   const t = {};
+  const pn0 = unit(cross(sub(P(v, 5), P(v, 0)), sub(P(v, 17), P(v, 0))));
+  const lat = unit(cross(palmAxis, pn0)); // across the palm (index <-> pinky side)
   for (const [name, [mcp, tip]] of Object.entries(FINGER)) {
     t[name + "Flex"] = angle(palmAxis, sub(P(v, tip), P(v, mcp)));
+    // straightness: knuckle->tip distance over the finger's bone length
+    // (1 = straight, ~0.2-0.5 = curled at the middle joints, as in E)
+    let bones = 0;
+    for (let j = mcp; j < tip; j++) bones += len(sub(P(v, j + 1), P(v, j)));
+    t[name + "Ext"] = len(sub(P(v, tip), P(v, mcp))) / (bones || 1e-9);
+    // the same flex with the sideways (fan) component removed: how far the
+    // finger tips forward toward the palm, not how far it's splayed. F W I
+    // fan their raised fingers naturally; flex alone read that as folding.
+    const d = sub(P(v, tip), P(v, mcp));
+    const k = d[0] * lat[0] + d[1] * lat[1] + d[2] * lat[2];
+    t[name + "Fold"] = angle(palmAxis, [d[0] - k * lat[0], d[1] - k * lat[1], d[2] - k * lat[2]]);
   }
   t.thumbOut = len(sub(P(v, 4), P(v, 5))) / palm; // thumb tip away from the index knuckle
   t.thumbTip = len(sub(P(v, 4), P(v, 8))) / palm; // thumb tip to index tip (O, F: touching)
@@ -108,7 +121,11 @@ const IN = "in", OUT = "out";
 const FOLD = "fold";
 const TRAITS = {
   A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
-  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN, thumbNear: IN, fingerSplay: IN },
+  // B's thumb folds across the palm; how far across varies (some signers
+  // reach the ring/pinky knuckles — thumbOut 0.60-0.67 from the index
+  // knuckle, failing 5 of 30 held-out B hands). thumbNear (tucked against
+  // ANY finger) is what says "folded in, not out like an L" — no thumbOut.
+  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbNear: IN, fingerSplay: IN },
   C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
   D: { index: UP, middle: DOWN, ring: DOWN },
   E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
@@ -178,6 +195,27 @@ export function createHandshapeJudge(samples) {
   }
   upVals.sort((a, b) => a - b);
   downVals.sort((a, b) => a - b);
+  // straightness of the raised fingers (UP) and the folded ones (DOWN) —
+  // used below to tell a CURLED folded finger from a raised one
+  const upExt = [], downExt = [];
+  for (const [L, ts] of byL) {
+    for (const f of Object.keys(FINGER)) {
+      if (TRAITS[L][f] === UP) for (const t of ts) upExt.push(t[f + "Ext"]);
+      if (TRAITS[L][f] === DOWN) for (const t of ts) downExt.push(t[f + "Ext"]);
+    }
+  }
+  upExt.sort((a, b) => a - b);
+  downExt.sort((a, b) => a - b);
+  // the raised / folded split again, measured without the fan component
+  const upFold = [], downFold = [];
+  for (const [L, ts] of byL) {
+    for (const f of Object.keys(FINGER)) {
+      if (TRAITS[L][f] === UP) for (const t of ts) upFold.push(t[f + "Fold"]);
+      if (TRAITS[L][f] === DOWN) for (const t of ts) downFold.push(t[f + "Fold"]);
+    }
+  }
+  upFold.sort((a, b) => a - b);
+  downFold.sort((a, b) => a - b);
   const UP_RANGE = [0, q(upVals, 0.95)];
   const DOWN_RANGE = [q(downVals, 0.05), 180];
 
@@ -204,8 +242,40 @@ export function createHandshapeJudge(samples) {
     const r = {};
     for (const [name, want] of Object.entries(TRAITS[L])) {
       const key = FINGER[name] ? name + "Flex" : name;
-      if (want === UP) r[key] = { range: UP_RANGE, kind: "up", finger: name };
-      else if (want === DOWN) r[key] = { range: DOWN_RANGE, kind: "down", finger: name };
+      if (want === UP) {
+        // mirror of the DOWN rule below: a raised finger must stay on the
+        // RAISED side of the halfway line between how this letter's signers
+        // raise it (p90, capped at the shared UP ceiling) and the folded
+        // range (DOWN p5). UP ceiling + 2x slack reached 83° — past the
+        // DOWN floor (72°) — so G's index folded 60° (flex ~80°) still
+        // counted for 60% of held-out G hands (probe, 2026-09-25).
+        const own = q(ts.map((t) => t[name + "Fold"]).sort((a, b) => a - b), 0.9);
+        r[key] = { range: UP_RANGE, kind: "up", finger: name, foldAbove: (Math.min(q(upFold, 0.95), own) + q(downFold, 0.05)) / 2 };
+      }
+      else if (want === DOWN) {
+        // A folded finger must stay on the FOLDED side of the halfway line
+        // between how this letter's own signers fold it (their p10) and the
+        // raised range (UP p95). The shared DOWN floor + 2x slack reached
+        // down to 36° — inside the raised range (p95 47°) — so a finger
+        // raised 60° at knuckle + middle joint (flex ~55-65°) still counted:
+        // A ring 87%, G ring 100%, L middle 97%, S ring 97%, X ring 100%
+        // (tools/lab/probe-thresholds.mjs, 2026-09-25). Room for error is
+        // unchanged above the line (still DOWN floor - slack).
+        // Escape (curled): a finger curled at its middle joints past the
+        // halfway point between a raised finger (straightness p5, ~0.87)
+        // and this letter's own typical curl (p50) is folded however its
+        // tip points — E curls onto the thumb, so its tip direction reads
+        // 30-60° on real held-out E hands. Per letter, not shared: E's own
+        // curl is so tight (p50 ~0.2) that a shared line (~0.67) let an E
+        // finger raised 60° (still ~0.62 straight) through.
+        // Override (curledTight): curled as tightly as the tightest quarter
+        // of all folded fingers (p25) = folded, whatever the flex says —
+        // real E pinkies at 0.16 read flex 25-28° and failed outright.
+        const own = q(ts.map((t) => t[key]).sort((a, b) => a - b), 0.1);
+        r[key] = { range: DOWN_RANGE, kind: "down", finger: name, fixBelow: (Math.max(DOWN_RANGE[0], own) + UP_RANGE[1]) / 2,
+          curled: (q(upExt, 0.05) + q(ts.map((t) => t[name + "Ext"]).sort((a, b) => a - b), 0.5)) / 2,
+          curledTight: q(downExt, 0.25) };
+      }
       else {
         const vals = ts.map((t) => t[key]).sort((a, b) => a - b);
         // "thumb out" is what separates Y from I and L from D/G/X, so its floor
@@ -244,7 +314,11 @@ export function createHandshapeJudge(samples) {
       for (const [key, spec] of Object.entries(r)) {
         const value = t[key];
         const slack = slackFor(key);
-        const state = stateOf(value, spec.range, slack);
+        // (curl escape / override: see the DOWN calibration above)
+        const curled = spec.kind === "down" && t[spec.finger + "Ext"] <= spec.curledTight;
+        const state = curled ? "good"
+          : (spec.fixBelow !== undefined && value < spec.fixBelow && t[spec.finger + "Ext"] > spec.curled) ||
+            (spec.foldAbove !== undefined && t[spec.finger + "Fold"] > spec.foldAbove) ? "fix" : stateOf(value, spec.range, slack);
         let hint = null;
         if (state !== "good") {
           if (spec.kind === "up") hint = HINTS.up(spec.finger);

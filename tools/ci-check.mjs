@@ -781,6 +781,94 @@ await check("verdict.js: no letter's held-out real hands count as a different le
   return `worst cross-letter acceptance ${Math.round(100 * worst.rate)}% (${worst.pair})`;
 });
 
+// ---- 13g. handshape.js — a folded finger RAISED doesn't still count -------
+// owner 2026-09-24: "follow the general shape ... but a wrong finger must not
+// count". tools/lab/probe-thresholds.mjs (physical bendFinger, 2026-09-25)
+// found a folded finger raised 60° at knuckle + middle joint still counting
+// for A ring 87%, G ring 100%, L middle 97%, S ring 97%, T ring 90%, X ring
+// 100%, Y middle 80% (the DOWN floor + slack reached into the raised range).
+// Traits-only, on held-out hands that pass their own letter.
+await check("handshape.js: a folded finger raised 60° no longer passes (clean letters <= 25%, every letter <= 75%)", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { bendFinger } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  // letters whose folded fingers are folded tight on every real signer; M N
+  // (knuckle-folded, noisy) and S's pinky are held to the looser cap. E and
+  // D joined when the curl escape became per-letter (E ring/pinky raised
+  // 60° counted 47/50% of held-out E under a shared line, 7/13% after).
+  const CLEAN = new Set(["A", "D", "E", "G", "H", "I", "K", "L", "R", "T", "U", "V", "W", "X", "Y"]);
+  const bad = [];
+  let n = 0;
+  for (const L of lab.letters) {
+    const spec = lab.judge.ranges.get(L);
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    for (const f of ["index", "middle", "ring", "pinky"]) {
+      if (spec[f + "Flex"]?.kind !== "down" || !own.length) continue;
+      n++;
+      const rate = own.filter((v) => lab.judge.check(bendFinger(v, f, -60), L)?.ok).length / own.length;
+      if (rate > (CLEAN.has(L) ? 0.25 : 0.75)) bad.push(`${L} ${f} ${Math.round(100 * rate)}%`);
+    }
+  }
+  // ...without failing E's real curled fingers (tips on the thumb read as
+  // half raised by direction alone): E own traits pass was 73% before the
+  // curl override + per-letter escape
+  const eOwn = lab.test.E.filter((s) => lab.judge.check(s.v, "E")?.ok).length / lab.test.E.length;
+  if (eOwn < 0.78) bad.push(`E's own held-out hands pass only ${Math.round(100 * eOwn)}%`);
+  if (bad.length) throw new Error(`still counts with that finger raised 60°: ${bad.join(", ")}`);
+  return `${n} letter-fingers checked; E own ${Math.round(100 * eOwn)}%`;
+});
+
+// ---- 13h. handshape.js — a raised finger FOLDED doesn't still count; fanning does -
+// probe 2026-09-25: G's index folded 60° (flex ~80°) still counted for 60% of
+// held-out G hands, H's 23% — the UP ceiling + slack reached past the folded
+// floor. The fix measures the fold toward the palm with the sideways (fan)
+// component removed, so F / W / I, which fan their raised fingers, still pass
+// when fanned 20°/gap.
+await check("handshape.js: a raised finger folded 60° fails; raised fingers fanned 20°/gap still pass", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { bendFinger, fanFingers } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  const bad = [];
+  let n = 0;
+  for (const L of lab.letters) {
+    const spec = lab.judge.ranges.get(L);
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    if (!own.length) continue;
+    for (const f of ["index", "middle", "ring", "pinky"]) {
+      if (spec[f + "Flex"]?.kind !== "up") continue;
+      n++;
+      const rate = own.filter((v) => lab.judge.check(bendFinger(v, f, 60), L)?.ok).length / own.length;
+      if (rate > 0.25) bad.push(`${L} ${f} folded still ${Math.round(100 * rate)}%`);
+    }
+  }
+  for (const L of ["F", "W", "I"]) {
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    const rate = own.filter((v) => lab.judge.check(fanFingers(v, 20), L)?.ok).length / own.length;
+    if (rate < 0.5) bad.push(`${L} fanned 20°/gap only ${Math.round(100 * rate)}%`);
+  }
+  if (bad.length) throw new Error(bad.join(", "));
+  return `${n} raised letter-fingers rejected when folded; F W I tolerate fanning`;
+});
+
+// ---- 13i. handshape.js — B's thumb: tucked anywhere across the palm, not out -
+// probe 2026-09-25: 5 of 30 held-out B hands failed ONLY thumbOut (thumb
+// folded across toward the ring/pinky knuckles, 0.60-0.67 from the index
+// knuckle), and a 15° thumb swing failed 97% of B. B now defines its thumb by
+// thumbNear alone; a thumb swung clearly out (45°) must still fail, and L
+// (thumb out) must not pass as B (13e).
+await check("handshape.js: B passes with the thumb tucked across the palm, fails with it swung out 45°", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { swingThumb } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  const hands = lab.test.B.map((s) => s.v);
+  const own = hands.filter((v) => lab.judge.check(v, "B")?.ok);
+  const ownRate = own.length / hands.length;
+  const out45 = own.filter((v) => lab.judge.check(swingThumb(v, 45), "B")?.ok).length / own.length;
+  if (ownRate < 0.85) throw new Error(`only ${Math.round(100 * ownRate)}% of held-out B hands pass B`);
+  if (out45 > 0.1) throw new Error(`${Math.round(100 * out45)}% of B hands still pass with the thumb swung out 45°`);
+  return `B own ${Math.round(100 * ownRate)}%, thumb out 45° ${Math.round(100 * out45)}%`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
