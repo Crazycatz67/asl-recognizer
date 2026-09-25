@@ -1716,14 +1716,17 @@ function mkHand() {
       ib.dispose(); st.remove();
       return r == null || (r.simH === 32 || r.simW === 32) && r.msPerFrame >= 0;
     })());
-    ok("glyphfx: assembles a glyph (full) and a still glyph (off) without throwing", (() => {
+    ok("glyphfx: the reward letter tile shows the letter beside the hand (full + off)", (() => {
       const g = gfMod.createGlyphFx({ governor: { level: "full" } });
-      const a = g.assemble("A", { from: [{ x: 100, y: 100 }], box: { left: 50, top: 50, right: 150, bottom: 200 }, tier: "first" });
-      const b = g.bench(10);
+      const a = g.assemble("A", { box: { left: 50, top: 50, right: 150, bottom: 200 }, tier: "first" });
+      const tile = document.querySelector(".fx-letter-tile");
+      const shows = tile?.querySelector("b")?.textContent === "A" && parseFloat(tile.style.left) >= 150;
+      const b = g.bench(5);
+      g.dispose();
       const g2 = gfMod.createGlyphFx({ governor: { level: "off" } });
       const c = g2.assemble("B", { box: { left: 50, top: 50, right: 150, bottom: 200 }, tier: "mastery" });
-      document.querySelectorAll("canvas.fx-glyph").forEach((n) => n.remove());
-      return a && c && b.msPerFrame >= 0;
+      g2.dispose();
+      return a && c && shows && b.msPerFrame >= 0;
     })());
     const cfxMod = await import("../js/challengefx.js");
     ok("challengefx: update() drives aura vars + aurora intensity; drain pulses; reset() clears", (() => {

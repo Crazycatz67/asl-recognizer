@@ -407,6 +407,8 @@ viewport.appendChild(chAura);
 const cfx = createChallengeFx({ bg, aura: chAura, banner: chBanner, timeBar, combo: chCombo, governor: fxq });
 if (DEBUG) window.__fx.cfx = cfx;
 let raceHands = [null, null]; // Race: each player's latest hand (palm burst for the round winner)
+let vsProgressSeen = [0, 0]; // word rounds: letters each player had landed last frame
+let vsWaiting = false; // Take turns: the waiting player's hand is up
 // only rewrite the banner when it changes — per-frame innerHTML restarted
 // the landed letter's pop animation every frame
 let partHitAt = 0;
@@ -1599,6 +1601,7 @@ function setMode(next) {
   challenge.stop();
   versus?.stop(); // two-player game too — never leak its HUD / 2-hand tracking
   versus = null;
+  delete viewport.dataset.turn;
   clearChallengeHud();
   // a Start click in Challenge that's still waiting on the camera (denied,
   // still prompting, etc.) leaves this armed; without clearing it here, a
@@ -1638,6 +1641,7 @@ function setMode(next) {
 }
 
 function clearChallengeHud() {
+  delete viewport.dataset.turn; // Take turns shade
   timeBar.hidden = true;
   timeBar.classList.remove("low");
   scoreBadge.hidden = true;
@@ -1667,8 +1671,11 @@ function startVersus() {
     difficulty: chDifficulty,
   });
   vsStab.forEach((st) => st.reset());
-  tracker?.setNumHands(chPlay === "race" ? 2 : 1);
+  // both modes track two hands: Race reads both, Take turns reads only the
+  // current player's side (so the other player can't sign for them)
+  tracker?.setNumHands(2);
   viewport.dataset.play = chPlay;
+  vsProgressSeen = [0, 0];
   chCard.hidden = true;
   chSummary.hidden = true;
   scoreBadge.hidden = true;
@@ -1689,6 +1696,7 @@ function startChallenge() {
   pendingChallengeStart = false;
   if (chPlay !== "solo") return startVersus();
   versus = null;
+  delete viewport.dataset.turn;
   chCard.hidden = true;
   scoreBadge.hidden = false;
   scoreVal.textContent = "0";
@@ -1970,21 +1978,48 @@ let versusCurrent = 0; // whose turn it is (turns mode) — the skeleton colour 
 const vsName = (p) => `Player ${p + 1}`;
 function renderVersus(snap) {
   if (!snap) return;
+  // a new turn starts clean: the last player's held letter can't carry over
+  if (snap.current !== versusCurrent) vsStab[snap.current]?.reset();
   versusCurrent = snap.current;
   raceLockFrac = snap.players.map((P) => P.lockFrac || 0);
   const leader = snap.mode === "race" ? cfx.updateRace(snap) : -1;
   timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
   timeBar.classList.toggle("low", !!snap.low);
   const race = snap.mode === "race";
+  const playing = snap.phase === "play" && !!snap.target;
+  if (snap.event === "letter") vsProgressSeen = [0, 0];
   [vsP1, vsP2].forEach((el, p) => {
     const P = snap.players[p];
     const lives = "♥".repeat(Math.max(0, P.lives)) + "♡".repeat(Math.max(0, START_LIVES - P.lives));
-    el.innerHTML = `${leader === p ? "★ " : ""}${vsName(p)} · ${P.score}<small>${race ? `rounds ${P.wins}/7` : lives}${P.mult > 1 ? ` · ×${P.mult}` : ""}${P.locked ? " · locked" : ""}</small>`;
+    // each player's own progress on the target (owner: in Race word rounds
+    // you couldn't tell who landed which letter, which letter registered, or
+    // which one each of you was on): done letters ticked in the player's
+    // colour, the one they're on boxed. Only for players who are playing.
+    const mine = race || snap.current === p;
+    const prog = snap.progress?.[p] ?? 0;
+    const track = playing && mine
+      ? `<span class="vs-word">${[...snap.target].map((c, i) => `<i class="${i < prog ? "done" : i === prog ? "now" : ""}">${c}</i>`).join("")}</span>`
+      : "";
+    const html = `${leader === p ? "★ " : ""}${vsName(p)} · ${P.score}${track}<small>${race ? `rounds ${P.wins}/7` : lives}${P.mult > 1 ? ` · ×${P.mult}` : ""}${P.locked ? " · locked" : ""}</small>`;
+    if (el._html !== html) { el.innerHTML = html; el._html = html; } // no per-frame DOM churn
+    // a letter just registered for this player: pop their panel + a small
+    // burst on their hand in their colour, so it's clear WHO landed it
+    if (playing && prog > vsProgressSeen[p] && prog < snap.target.length) {
+      el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit");
+      const wh = race ? raceHands[p] : fxHand;
+      if (wh && fxq.level !== "off") { const q = pagePoint(wh[9]); fx.burst(q.x, q.y, { count: 10, colors: [PLAYER_FLASH[p]] }); }
+      sound.hit?.(1);
+    }
+    vsProgressSeen[p] = prog;
     el.classList.toggle("active", !race && snap.phase !== "over" && snap.current === p);
     el.classList.toggle("idle", !race && snap.current !== p);
     el.classList.toggle("locked", !!P.locked);
   });
-  vsTurn.textContent = race ? `Round ${snap.round}` : snap.phase === "over" ? "" : `${vsName(snap.current)}'s turn`;
+  const turnText = race ? `Round ${snap.round}` : snap.phase === "over" ? "" : `${vsName(snap.current)}'s turn — ${snap.current === 0 ? "left" : "right"} side${vsWaiting ? ` · ${vsName(1 - snap.current)}, wait` : ""}`;
+  if (vsTurn.textContent !== turnText) vsTurn.textContent = turnText;
+  // Take turns: shade the waiting player's half
+  const turnSide = !race && snap.phase !== "over" ? String(snap.current) : "";
+  if (viewport.dataset.turn !== turnSide) viewport.dataset.turn = turnSide;
   const word = snap.target && snap.target.length > 1;
   if (snap.event === "letter") {
     chBanner.className = `ch-banner study${word ? " word" : ""}`;
@@ -2248,6 +2283,7 @@ async function start() {
         tracker, overlay, video, canvas, sound,
         get reference() { return reference; },
         get classifier() { return classifier; },
+        get versus() { return versus; }, // two-player QA (tools/fx-drive.js)
       };
     }
     stabilizer?.reset();
@@ -2603,7 +2639,10 @@ function loop() {
         locked: raceLockFrac, screenMirror: facingMode === "user", colors: PLAYER_FLASH,
       });
     } else if (mode === "challenge" && versus?.active && versus.mode === "turns") {
-      overlay.drawHands([hand], { colors: [PLAYER_COLORS[versusCurrent]] });
+      // every hand in its owner's colour; the waiting player's is dimmed
+      const owner = racePlayers(result.landmarks);
+      overlay.drawHands(result.landmarks, { colors: owner.map((o) => (o === versusCurrent ? PLAYER_COLORS[o] : PLAYER_DIM[o]) || PLAYER_COLORS[0]) });
+      handfx?.drawRaceBadges(result.landmarks, owner, { locked: [0, 0], screenMirror: facingMode === "user", colors: PLAYER_FLASH });
     } else if (mode === "spell" && result.landmarks?.length > 1) {
       overlay.drawHands(result.landmarks); // show both hands for the copy/paste gesture
     } else {
@@ -2901,7 +2940,18 @@ function loop() {
         seen[p] = got[p] ? vsStab[p].current : null; // no hand -> no (stale) letter
       }
     } else {
-      seen[versusCurrent] = hasHand ? stabilizer.current : null;
+      // Take turns: each player owns their half of the screen (as in Race).
+      // Only a hand on the CURRENT player's side is read — owner live test:
+      // "if I gave up and player 2 tried it while it was still player one's
+      // turn, it read as player one's turn and gave me the point".
+      const lms = result.landmarks || [];
+      const owner = racePlayers(lms);
+      const i = owner.indexOf(versusCurrent);
+      const got = i >= 0 ? classifyHand(lms[i], result.handedness?.[i]?.[0]?.categoryName) : null;
+      vsStab[versusCurrent].push(got);
+      seen[versusCurrent] = got ? vsStab[versusCurrent].current : null;
+      // the other side waiting: say so when their hand is up
+      vsWaiting = owner.some((o) => o >= 0 && o !== versusCurrent);
     }
     renderVersus(versus.update(now, seen));
     bg.setMatch(null);

@@ -450,6 +450,10 @@ references are as of commit `41c43f0` and will drift.
     the kill switch. Owner to check: real-camera det fps under Off vs Auto
     (?debug), framing-cue thresholds, aurora strength, Race P2 colour.
 
+52. **Owner QA 2026-09-25: dotted reward letter; Race word progress unclear;
+    Take-turns cheat.** `FIXED (needs live confirm)` — letter tile, per-player
+    word progress, side-owned turns (v102).
+
 ---
 
 ## Working the list

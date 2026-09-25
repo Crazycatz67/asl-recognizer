@@ -1115,18 +1115,17 @@ await check("inkbloom/glyphfx: splats follow the fingers + scale by tier; glyph 
   if (ib.bloomSplats(null).length || ib.bloomSplats(hand.slice(0, 5)).length) throw new Error("bad hands must give no splats");
   const maxC = Math.max(...ib.bloomSplats(hand, "mastery").flatMap((s) => s.color));
   if (maxC > 0.45) throw new Error(`dye too strong (${maxC}) — the bloom must stay translucent over the hand`);
-  // 40x40 bitmap with a filled 20x20 square
-  const W = 40, data = new Uint8ClampedArray(W * W * 4);
-  for (let y = 10; y < 30; y++) for (let x = 10; x < 30; x++) data[(y * W + x) * 4 + 3] = 255;
-  const pts = gf.samplePoints({ data, width: W, height: W }, 50, 1);
-  if (pts.length !== 50 || pts.some((p) => p.x < 0.25 || p.x >= 0.75 || p.y < 0.25 || p.y >= 0.75)) throw new Error("samplePoints must cap and stay on the glyph");
+  // the reward letter is a solid tile now (owner: the particle glyph "looks
+  // like braille"): no canvas / particles / pixel readback left in glyphfx
+  const gsrc = fs.readFileSync(path.join(ROOT, "js", "glyphfx.js"), "utf8").replace(/\/\/.*$/gm, ""); // code only
+  if (/getImageData|getContext|requestAnimationFrame/.test(gsrc)) throw new Error("glyphfx.js must stay a DOM tile (no canvas readback / rAF loop)");
   const view = { left: 0, top: 0, right: 1000, bottom: 800 };
   const box = { left: 200, right: 400, top: 300, bottom: 600 };
   const p = gf.placeBeside(box, 120, view);
   if (!(p.x >= box.right)) throw new Error("glyph should go on the roomier (right) side, not over the hand");
   const q = gf.placeBeside({ left: 880, right: 990, top: 10, bottom: 100 }, 120, view);
   if (!(q.x + 120 <= 880) || q.y < 4) throw new Error("glyph must flip left and clamp into view");
-  return "3/5/10 splats along the fingers, dye <= 0.45; 50-point cap; beside-the-hand placement verified";
+  return "3/5/10 splats along the fingers, dye <= 0.45; letter tile (no canvas); beside-the-hand placement verified";
 });
 
 // ---- 23. challengefx.js: one intensity for every Challenge effect ---------

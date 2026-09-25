@@ -2269,7 +2269,32 @@ summary:focus-visible,
   content: ""; position: absolute; top: 8%; bottom: 8%; left: 50%; width: 0;
   border-left: 2px dashed rgba(226, 232, 240, 0.25); pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) { .vs-p.won { animation: none; } }
+/* Take turns: the same centre line + the waiting player's half shaded, so
+   each player knows which side is "theirs" (only the current side counts) */
+.viewport[data-play="turns"] .stage::after {
+  content: ""; position: absolute; top: 8%; bottom: 8%; left: 50%; width: 0;
+  border-left: 2px dashed rgba(226, 232, 240, 0.25); pointer-events: none;
+}
+.viewport[data-play="turns"][data-turn="0"] .hud::before,
+.viewport[data-play="turns"][data-turn="1"] .hud::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 50%;
+  background: rgba(2, 6, 23, 0.45); pointer-events: none;
+}
+.viewport[data-play="turns"][data-turn="0"] .hud::before { right: 0; }
+.viewport[data-play="turns"][data-turn="1"] .hud::before { left: 0; }
+/* each player's own word progress (Race + the current player in Take turns) */
+.vs-word { display: flex; gap: 0.15em; margin-top: 0.2rem; font: 900 1.15rem system-ui, sans-serif; letter-spacing: 0.02em; }
+.vs-p.p2 .vs-word { justify-content: flex-end; }
+.vs-word i { font-style: normal; min-width: 1.05em; text-align: center; padding: 0 0.1em; border-radius: 0.25em; color: rgba(226, 232, 240, 0.45); border: 2px solid transparent; }
+.vs-word i.done { color: #0b1220; background: currentColor; }
+.vs-p.p1 .vs-word i.done { background: #38bdf8; }
+.vs-p.p2 .vs-word i.done { background: #fb923c; }
+.vs-word i.done::after { content: "✓"; font-size: 0.55em; vertical-align: super; margin-left: 0.05em; }
+.vs-word i.now { color: #f8fafc; border-color: currentColor; }
+.vs-p.p1 .vs-word i.now { border-color: #38bdf8; }
+.vs-p.p2 .vs-word i.now { border-color: #fb923c; }
+.vs-p.hit { animation: badge-pop 0.45s ease-out; }
+@media (prefers-reduced-motion: reduce) { .vs-p.won, .vs-p.hit { animation: none; } }
 
 /* ---- visual layer v2: effects budget (js/fxquality.js) ------------------ */
 .fx-btn .fx-val { font-size: 0.78em; }
@@ -2545,3 +2570,25 @@ summary:focus-visible,
 }
 :root[data-fx="off"] .ch-aura, :root[data-fx="off"] .ch-banner span.pop, :root[data-fx="off"] .ch-combo[data-mult="4"] { animation: none; }
 :root[data-fx="off"] .ch-aura[data-drain="1"] { animation: none; opacity: 0.9; }
+
+/* reward letter tile (js/glyphfx.js): a solid, readable "you signed A" beside
+   the hand — replaced the particle glyph the owner found "like braille" */
+.fx-letter-tile {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.02em;
+  border-radius: 22%;
+  background: var(--amber-400, #fbbf24);
+  color: var(--amber-ink, #1a1204);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(251, 191, 36, 0.25);
+  pointer-events: none;
+  opacity: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1;
+}
+.fx-letter-tile b { font-weight: 900; }
+.fx-letter-tile span { font-size: 0.2em; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+.fx-letter-tile.mastery { background: var(--gold, #ffc861); box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6), 0 0 0 3px #fff8e1; }
