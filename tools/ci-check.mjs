@@ -1037,6 +1037,34 @@ await check("perfreport.js: fps percentiles, stall rate/worst, seconds per effec
   return "p50/p10/min, 20 stalls/min, 3 s full + 3 s lite; pauses excluded";
 });
 
+// ---- 13o. sw.js — MediaPipe cache survives deploys (phones re-downloaded ~10 MB) --
+await check("sw.js: MediaPipe cache is keyed by MEDIAPIPE_VERSION (matches js/config.js), not the app VERSION", async () => {
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  const cfg = fs.readFileSync(path.join(ROOT, "js", "config.js"), "utf8");
+  const a = sw.match(/const MEDIAPIPE_VERSION = "([^"]+)"/)?.[1], b = cfg.match(/MEDIAPIPE_VERSION = "([^"]+)"/)?.[1];
+  if (!a || a !== b) throw new Error(`sw.js MEDIAPIPE_VERSION ${a} vs config.js ${b}`);
+  if (!/const MP = `asl-mediapipe-\$\{MEDIAPIPE_VERSION\}`/.test(sw)) throw new Error("MP cache name must use MEDIAPIPE_VERSION");
+  return `mediapipe cache asl-mediapipe-${a}`;
+});
+
+// ---- 13p. fxquality.js — phones start at a sensible budget ---------------
+await check("fxquality.js: weak touch devices start at lite, recover after 30 s healthy; desktops unchanged", async () => {
+  const Q = await import(pathToFileURL(path.join(ROOT, "js", "fxquality.js")).href);
+  const bad = [];
+  const phone = Q.createGovernor({ device: { coarse: true, cores: 4, memGB: 3 } });
+  if (phone.level !== "lite") bad.push(`weak phone starts ${phone.level}`);
+  for (let t = 0; t <= 20000; t += 500) phone.reportFps(30, true, t);
+  if (phone.level !== "lite") bad.push("weak phone recovered before 30 s");
+  for (let t = 20500; t <= 32000; t += 500) phone.reportFps(30, true, t);
+  if (phone.level !== "full") bad.push("weak phone never recovered after 30 s healthy");
+  const strong = Q.createGovernor({ device: { coarse: true, cores: 8, memGB: 8 } });
+  if (strong.level !== "full") bad.push("capable phone should start full");
+  const desk = Q.createGovernor({ device: { coarse: false, cores: 4, memGB: 4 } });
+  if (desk.level !== "full") bad.push("desktop must start full whatever its core count");
+  if (bad.length) throw new Error(bad.join("; "));
+  return "weak phone lite -> full after 30 s; capable phone + desktop full";
+});
+
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
 // Static check (main.js is DOM-bound): both bridge timers (advanceAz and
 // skipLetter) must be stored in azBridgeTimer, and setAzRun — which every

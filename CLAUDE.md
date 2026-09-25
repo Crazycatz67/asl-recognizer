@@ -37,7 +37,12 @@ start-server.cmd             # Windows double-click: PowerShell static server + 
 serve.ps1                    # same, manual (Windows)
 ```
 
-Test on a phone over LAN (self-signed HTTPS, Windows only): `start-phone.cmd`.
+Test on a phone over LAN (self-signed HTTPS): `python3 tools/serve-https.py`
+(Mac/Linux; prints the https://<LAN-IP>:8443 link — accept the one-time
+certificate warning on the phone) or `start-phone.cmd` (Windows). Add `?perf`
+for the on-device performance report. Phone layout check (no phone needed):
+`http://localhost:8000/tools/mobile-audit.html` — every screen at 360/390/412
+portrait + 844x390 landscape; the bar is zero findings.
 
 Run the unit/integration suite (open on the dev server, needs a browser — not
 headless-runnable, since it exercises canvas/DOM-touching modules too):

@@ -9,10 +9,15 @@
 // BUMP `VERSION` on every deploy so old caches are cleared. Paths are relative
 // so this works both at "/" (dev) and "/asl-recognizer/" (GitHub Pages).
 
-const VERSION = "v108";
+const VERSION = "v109";
 const SHELL = `asl-shell-${VERSION}`;
 const RUNTIME = `asl-runtime-${VERSION}`;
-const MP = `asl-mediapipe-${VERSION}`;
+// MediaPipe's cache is keyed by the MediaPipe version, NOT the app VERSION:
+// the ~10 MB wasm + model are immutable, and keying them to VERSION made
+// every deploy re-download them on phones (mobile pass 2026-09-25). Must
+// match MEDIAPIPE_VERSION in js/config.js (ci-check enforces it).
+const MEDIAPIPE_VERSION = "0.10.14";
+const MP = `asl-mediapipe-${MEDIAPIPE_VERSION}`;
 const KEEP = new Set([SHELL, RUNTIME, MP]);
 
 // Small, must-succeed: the app won't boot without these.
@@ -82,12 +87,24 @@ self.addEventListener("fetch", (e) => {
 
   // App navigations: fresh HTML when online; offline -> the cached page itself
   // (about.html stays about.html), and only then index.html as a last resort.
+  // On flaky mobile data a navigation could hang for a long time: after 4 s
+  // without a response, serve the cached page (the new one still arrives
+  // for next time via the normal update flow).
   if (req.mode === "navigate") {
+    const cached = async () =>
+      (await caches.match(req, { ignoreSearch: true })) ||
+      (await caches.match("./index.html", { ignoreSearch: true }));
     e.respondWith(
-      fetch(req).catch(async () =>
-        (await caches.match(req, { ignoreSearch: true })) ||
-        (await caches.match("./index.html", { ignoreSearch: true }))
-      )
+      (async () => {
+        const net = fetch(req);
+        try {
+          const first = await Promise.race([net, new Promise((r) => setTimeout(r, 4000, "slow"))]);
+          if (first !== "slow") return first;
+          return (await cached()) || (await net);
+        } catch {
+          return (await cached()) || Response.error();
+        }
+      })()
     );
     return;
   }

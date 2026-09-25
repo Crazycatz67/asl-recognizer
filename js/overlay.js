@@ -106,6 +106,12 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 
 export function createOverlay(canvas) {
   const ctx = canvas.getContext("2d");
+  // the canvas's on-screen box (CSS px), kept by a ResizeObserver so the
+  // per-frame resize check never forces a layout read
+  let boxW = 0, boxH = 0;
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver((e) => { const r = e[0].contentRect; boxW = r.width; boxH = r.height; }).observe(canvas);
+  }
   // what the last drawGuide() call showed, for the colour key and the tour:
   // { tips: [state x5, thumb..pinky], counts: {good, close, fix} (tips),
   //   joints: {good, close, fix} (all 21),
@@ -120,10 +126,24 @@ export function createOverlay(canvas) {
       return lastStats;
     },
 
+    // Backing store = the video's aspect, but no more pixels than the screen
+    // actually shows (object-fit: cover scale x DPR, DPR capped at 2). It used
+    // to be the full video resolution, cleared + redrawn every frame — on a
+    // phone that's more pixels than the display has (mobile pass 2026-09-25).
+    // Drawing maps landmarks through canvas.width/height and stroke widths
+    // scale with the hand's span, so a smaller store looks the same.
     resizeToVideo(video) {
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (!vw || !vh) return;
+      let k = 1;
+      if (boxW && boxH) {
+        const cover = Math.max(boxW / vw, boxH / vh); // CSS px per video px
+        k = Math.min(1, cover * Math.min(2, window.devicePixelRatio || 1));
+      }
+      const w = Math.max(1, Math.round(vw * k)), h = Math.max(1, Math.round(vh * k));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
       }
     },
 

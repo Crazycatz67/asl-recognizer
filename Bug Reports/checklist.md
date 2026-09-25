@@ -469,6 +469,28 @@ references are as of commit `41c43f0` and will drift.
     `SHIPPED (needs live confirm)` — v106. Check the look of the Home wall,
     unlock cards and ink themes on the owner's devices.
 
+56. **Phone acceptance test (S4) — iPhone Chrome + Android Chrome.** `OPEN (owner, on devices)`
+    **Get the page on the phone:** the live site, or unshipped changes via
+    `python3 tools/serve-https.py` on the Mac (same Wi-Fi; accept the one-time
+    certificate warning). Add `?perf` to the URL for the report panel.
+    **Remote debugging:** Android Chrome — Developer options › USB debugging,
+    plug in, Mac Chrome `chrome://inspect`. iPhone Chrome — Chrome Settings ›
+    Content Settings › Web Inspector ON, iPhone Settings › Safari › Advanced ›
+    Web Inspector ON, plug in, Mac Safari › Develop › [iPhone]. (Chrome on
+    iPhone uses Safari's engine, so iPhone limits apply in Chrome too.)
+    **Run, portrait AND landscape, on each phone:**
+    - [ ] First visit (`?fresh`): Home page, Start, tour, camera permission prompt
+    - [ ] Deny the camera once: the help text names the right Settings path, Try again works
+    - [ ] Practice: pick a letter, "Turn on camera" visible, sheet opens/closes with the handle bar
+    - [ ] A→Z run for ~5 letters: ring, letter tile, ink, flash feel smooth
+    - [ ] Challenge Solo one round; Race with two people (two hands, badges)
+    - [ ] Spell "HI CAT" with the ring + word window; Read one word
+    - [ ] Home page: two-hand ink (orange/blue), letter wall, achievements card
+    - [ ] Rotate the phone mid-session; switch apps and come back (sound, camera)
+    - [ ] 10 minutes of use: warmth, battery, `?perf` Copy report pasted back
+    - [ ] One-handed reach: every control you need is tappable without re-gripping
+
+
 ---
 
 ## Working the list

@@ -38,12 +38,19 @@ export async function startCamera(video, { facingMode = "user" } = {}) {
   // Was 640x480 — too little detail for MediaPipe's hand landmarks once the
   // hand is smaller in frame (arm's length, or the back camera), which is
   // exactly the case that needs the most precision, not the least.
+  // Phones (mobile pass, 2026-09-25): 960x540 instead of 1280x720 — ~45%
+  // fewer pixels to upload to the GPU every frame, still well above the
+  // 640x480 that lost detail at arm's length — and 30 fps max everywhere:
+  // many phones default to 60 fps, doubling camera + upload work for frames
+  // detection (TARGET_FPS 30) never uses.
+  const phone = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       facingMode: { ideal: facingMode },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      width: { ideal: phone ? 960 : 1280 },
+      height: { ideal: phone ? 540 : 720 },
+      frameRate: { ideal: 30, max: 30 },
     },
   });
 

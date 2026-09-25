@@ -381,6 +381,12 @@ const fxq = createGovernor({
   reducedMotion: reduceMotion,
   webgl2: hasWebGL2(),
   hidden: document.visibilityState === "hidden",
+  // phones: a weaker device starts at lite and recovers more slowly
+  device: {
+    coarse: matchMedia("(pointer: coarse)").matches,
+    cores: navigator.hardwareConcurrency,
+    memGB: navigator.deviceMemory, // Chrome/Android only; undefined elsewhere
+  },
 });
 reduceMotionQuery?.addEventListener?.("change", (e) => fxq.set({ reducedMotion: e.matches }));
 const fxDebug = DEBUG ? mountFxDebug(fxq) : null;
@@ -3335,10 +3341,23 @@ document.addEventListener("visibilitychange", () => {
 
 // ---- errors --------------------------------------------------
 
+// where the camera permission lives, per platform (the desktop "icon near the
+// address bar" doesn't exist on phones — mobile pass 2026-09-25)
+function cameraHelp() {
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return /CriOS/.test(ua)
+      ? "On iPhone: Settings › Chrome › Camera → Allow, then come back and Try again."
+      : "On iPhone: Settings › Safari › Camera → Allow (or tap “aA” in the address bar › Website Settings), then Try again.";
+  }
+  if (/Android/.test(ua)) return "On Android: tap the icon left of the address › Permissions › Camera → Allow, then Try again.";
+  return "Allow it via the camera icon near the address bar, then Try again.";
+}
+
 function friendlyError(err) {
   switch (err?.name) {
     case "NotAllowedError":
-      return "Camera blocked. Allow it via the camera icon near the address bar, then Try again.";
+      return `Camera blocked. ${cameraHelp()}`;
     case "NotFoundError":
       return "No camera found on this device.";
     case "NotReadableError":
@@ -3356,6 +3375,10 @@ function friendlyError(err) {
 // ---- wiring ------------------------------------------------
 
 startBtn.addEventListener("click", start); // "Turn on camera" and "Try again"
+// iOS only lets audio resume inside a user gesture: after a phone call / app
+// switch the context stays "interrupted" until the next tap — so any tap
+// quietly brings the sound back (cheap no-op when it's already running)
+document.addEventListener("pointerdown", () => sound.resume?.(), { passive: true, capture: true });
 stopBtn.addEventListener("click", stop);
 flipBtn.addEventListener("click", flip);
 clearTargetBtn.addEventListener("click", () => setTarget(null));

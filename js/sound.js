@@ -54,7 +54,8 @@ export function createSound() {
         ctx = null;
       }
     }
-    if (ctx && ctx.state === "suspended") ctx.resume();
+    // iOS reports "interrupted" (not "suspended") after a call / app switch
+    if (ctx && (ctx.state === "suspended" || ctx.state === "interrupted")) ctx.resume().catch(() => {});
     return ctx;
   };
 

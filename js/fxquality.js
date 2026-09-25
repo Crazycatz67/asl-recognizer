@@ -39,6 +39,22 @@ export const OVERRIDES = ["auto", "full", "lite", "off"];
 export const LOW_FPS = 26;
 export const DROP_MS = 3000;
 export const RESTORE_MS = 10000;
+// phones: recover more slowly (a warm phone's fps swings, and flipping
+// effects on/off every 10 s is its own kind of jank)
+export const MOBILE_RESTORE_MS = 30000;
+
+/**
+ * Start-up budget from what the device reports (mobile pass, 2026-09-25):
+ * a touch device with <= 6 cores or <= 4 GB of memory starts at "lite" — it
+ * used to start everything at "full" and only drop AFTER the phone had
+ * already stuttered for a few seconds. Pure (tested in Node).
+ * @returns {{ mobile: boolean, startLite: boolean }}
+ */
+export function deviceBudget({ coarse = false, cores = 8, memGB = 8 } = {}) {
+  const mobile = !!coarse;
+  const weak = (Number(cores) || 8) <= 6 || (Number(memGB) || 8) <= 4;
+  return { mobile, startLite: mobile && weak };
+}
 export const JANK_MS = 50; // a frame gap longer than this is a stall
 export const JANK_COUNT = 3; // this many stalls ...
 export const JANK_WINDOW_MS = 5000; // ... within this window -> lite
@@ -52,9 +68,12 @@ export function createGovernor({
   webgl2 = true,
   hidden = false,
   mode = null,
+  device = null, // { coarse, cores, memGB } — see deviceBudget()
 } = {}) {
   const env = { override: OVERRIDES.includes(override) ? override : "auto", reducedMotion, webgl2, hidden, mode };
-  let degraded = false;
+  const budget = deviceBudget(device || {});
+  const restoreMs = budget.mobile ? MOBILE_RESTORE_MS : RESTORE_MS;
+  let degraded = budget.startLite; // weak phones start at lite (recover if healthy)
   let lowSince = null; // when fps first dipped below LOW_FPS (camera on)
   let okSince = null; // when fps first came back >= LOW_FPS while degraded
   let lastFps = null;
@@ -105,7 +124,7 @@ export function createGovernor({
         if (degraded) {
           if (okSince == null) okSince = now;
           // recover only after RESTORE_MS of healthy fps AND no stalls
-          if (now - okSince >= RESTORE_MS && now - lastJank >= RESTORE_MS) { degraded = false; okSince = null; }
+          if (now - okSince >= restoreMs && now - lastJank >= restoreMs) { degraded = false; okSince = null; }
         }
       }
       publish();
@@ -131,7 +150,7 @@ export function createGovernor({
     },
     clearCost(name) { costs.delete(name); },
     costs() { return Object.fromEntries(costs); },
-    state() { return { level, degraded, lastFps, ...env }; },
+    state() { return { level, degraded, lastFps, mobile: budget.mobile, ...env }; },
   };
 }
 
