@@ -445,6 +445,11 @@ references are as of commit `41c43f0` and will drift.
     so the marker landed on the knuckle; now it goes to the flagged finger's
     most-off joint (js/overlay.js). Selftest guard.
 
+51. **Visual layer v2 (2026-09-25).** `SHIPPED (needs live confirm)` — hero,
+    aurora, on-hand feedback, rewards, adaptive Challenge; Effects setting is
+    the kill switch. Owner to check: real-camera det fps under Off vs Auto
+    (?debug), framing-cue thresholds, aurora strength, Race P2 colour.
+
 ---
 
 ## Working the list
