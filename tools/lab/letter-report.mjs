@@ -48,6 +48,7 @@ const PER = QUICK ? 8 : 30; // hands per perturbation sweep
 const SPELL_TRIALS = QUICK ? 2 : 8; // = spell-letters' default: same seeds, same numbers
 const MOTION_TRIALS = QUICK ? 3 : 12;
 const log = (s) => process.stderr.write(s);
+const since = (t) => `${((performance.now() - t) / 1000).toFixed(1)} s`; // phase timings on stderr
 
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
 const cfg = await imp("js/config.js");
@@ -60,10 +61,12 @@ const { buildReference } = await imp("js/reference.js");
 const { createRefiner } = await imp("js/heads.js");
 
 const lab = await loadLab();
-const { test, judge, predict, countsWith, judgeLetter, rotateVector } = lab;
+log(`lab ready ${since(T0)} · `);
+const { test, judge, predict, read, readNow, countsWith, judgeLetter, rotateVector } = lab;
 const P = await createProbeAxes(lab);
 const { refresh, sweep, AX, synth } = P;
 const sim = await createSpellSim({ lab });
+log(`sims ready ${since(T0)}\n`);
 
 const STATIC = lab.letters; // 24 static letters with held-out hands
 const ALL = [...STATIC, "J", "Z"].sort();
@@ -96,6 +99,7 @@ const A = {
   out: at("js/handshape.js", /want === OUT \? \(q\(vals, 0\.05\)/),
   in: at("js/handshape.js", /\(q\(vals, 0\.95\) \+ outStart\(key\)\) \/ 2/),
   inOwn: at("js/handshape.js", /want === IN_OWN \? q\(vals, 0\.95\)/),
+  touch: at("js/handshape.js", /want === TOUCH \? \(q\(vals, 0\.5\)/),
   fold: at("js/handshape.js", /want === FOLD \? Math\.max/),
   rangeLo: at("js/handshape.js", /^\s+: q\(vals, 0\.05\);/),
   rangeHi: at("js/handshape.js", /^\s+: q\(vals, 0\.95\);/),
@@ -126,6 +130,7 @@ const MEANING = {
   thumbNear: { name: "thumb-to-fingers distance", low: "thumb pressed in too close to the fingers", high: "thumb too far from the fingers (sticking out)" },
   thumbOut: { name: "thumb tip out from the index knuckle", low: "thumb not out far enough", high: "thumb too far out from the index knuckle" },
   thumbTip: { name: "thumb-tip to index-tip gap", low: "thumb tip too close to the index tip", high: "thumb tip not touching the index tip" },
+  thumbMid: { name: "thumb-tip to middle-tip gap", low: "thumb tip too close to the middle tip", high: "thumb tip not touching the middle tip" },
   fingerSplay: { name: "finger splay (deg)", low: "fingers not spread", high: "fingers fanned apart" },
   thumbAlong: { name: "thumb tip along the knuckle line (0 index, 1 pinky)", low: "thumb too far to the index side", high: "thumb too far across toward the pinky" },
   knuckleFold: { name: "knuckle fold (deg)", low: "fingers not folded forward at the knuckles", high: "fingers folded too far forward" },
@@ -154,7 +159,7 @@ function traitAnchor(L, key) {
   if (sp.kind === "up") return A.up;
   const lo = sp.range[0], hi = sp.range[1];
   if (hi === Infinity && lo !== -Infinity) return key === "knuckleFold" ? A.fold : A.out;
-  if (lo === -Infinity) return key === "thumbOut" && L === "T" ? A.inOwn : A.in;
+  if (lo === -Infinity) return key === "thumbOut" && L === "T" ? A.inOwn : key === "thumbMid" ? A.touch : A.in;
   return `${A.rangeLo} / ${A.rangeHi}`;
 }
 // the effective accept edge in the trait's own measure (for the hints)
@@ -173,7 +178,7 @@ log("predicting held-out hands… ");
 const heldLabels = [...STATIC, "space"].filter((L) => test[L]);
 const PRED = new Map(); // vector -> pred label | null
 for (const L of heldLabels) for (const s of test[L]) PRED.set(s.v, predict(s.v));
-log(`${PRED.size} hands\n`);
+log(`${PRED.size} hands (${since(T0)})\n`);
 
 // ---- 2. static letter analysis ------------------------------------------------------
 function analyseStatic(L) {
@@ -188,7 +193,7 @@ function analyseStatic(L) {
     const pred = PRED.get(v);
     readAs[pred ?? "none"] = (readAs[pred ?? "none"] || 0) + 1;
     if (pred == null) nonLetter++;
-    const j = judgeLetter(judge, v, L, pred, 0.3);
+    const j = judgeLetter(judge, v, L, pred, 0.3, read(v));
     const t = handTraits(v);
     const bucket = j.strict ? passVals : failVals;
     for (const k of keys) {
@@ -239,7 +244,7 @@ function analyseStatic(L) {
       let nf = 0;
       for (const v of vs) {
         const pv = refresh(apply(v, th, R)), pred = predict(pv);
-        const j = judgeLetter(judge, pv, L, pred, 0.3);
+        const j = judgeLetter(judge, pv, L, pred, 0.3, read(pv));
         if (j.strict) continue;
         nf++;
         let k;
@@ -637,16 +642,16 @@ function strugglesMotion(L, x) {
 function measureSpeed() {
   const R = rng(4242);
   const samples = [];
-  for (const L of STATIC) for (const s of test[L].slice(0, 8)) samples.push({ L, hand: noisy(sim.handAt(s.v, 0.5, 0.55), R) });
+  for (const L of STATIC) for (const s of test[L].slice(0, QUICK ? 2 : 8)) samples.push({ L, hand: noisy(sim.handAt(s.v, 0.5, 0.55), R) });
   const refiner = (() => { try { return createRefiner(JSON.parse(fs.readFileSync(path.join(ROOT, "js", "heads.json"), "utf8"))); } catch { return null; } })();
   const reference = buildReference(lab.train.filter((s) => cfg.LETTERS.includes(s.label)), cfg.LETTERS);
   const norm = (h) => normalizeLandmarks(h, { aspect: 1, mirrorX: false, extended: cfg.USE_EXTENDED_FEATURES });
-  // median of 5 timed rounds (after a warm-up) — single rounds swung ~2x
+  // median of 5 timed rounds (3 in --quick, on 2 hands per letter instead of 8: the quick run is a CI smoke test, its speed line only has to exist) after a warm-up — single rounds swung ~2x
   // between runs on this machine (JIT / GC / CPU clock)
   const time = (fn, reps = 1) => {
     for (const s of samples) fn(s); // warm up
     const rounds = [];
-    for (let q = 0; q < 5; q++) {
+    for (let q = 0; q < (QUICK ? 3 : 5); q++) {
       const t0 = performance.now();
       for (let r = 0; r < reps; r++) for (const s of samples) fn(s);
       rounds.push((performance.now() - t0) / (reps * samples.length));
@@ -654,11 +659,11 @@ function measureSpeed() {
     return median(rounds);
   };
   const vecs = new Map(samples.map((s) => [s, norm(s.hand)]));
-  const preds = new Map(samples.map((s) => [s, predict(vecs.get(s))]));
+  const reads = new Map(samples.map((s) => [s, readNow(vecs.get(s))]));
   const normalizeMs = time((s) => norm(s.hand));
-  const knnHeadsMs = time((s) => predict(vecs.get(s)));
+  const knnHeadsMs = time((s) => readNow(vecs.get(s))); // uncached: the real per-frame cost
   const classifyMs = time((s) => sim.classify(s.hand));
-  const judgeMs = time((s) => judgeLetter(judge, vecs.get(s), s.L, preds.get(s), 0.3), 10);
+  const judgeMs = time((s) => { const r = reads.get(s); judgeLetter(judge, vecs.get(s), s.L, r.pred?.label ?? null, 0.3, r); }, 10);
   const refScoreMs = time((s) => reference.score(vecs.get(s), s.L, { refiner }), 5);
   const filter = createLandmarkFilter({ mincutoff: cfg.ONE_EURO_MIN_CUTOFF, beta: cfg.ONE_EURO_BETA, dcutoff: cfg.ONE_EURO_DCUTOFF });
   const mm = createMotionMatcher();
@@ -669,16 +674,16 @@ function measureSpeed() {
     const h = filter.filter(s.hand, t / 1000);
     mm.push(h, t, 1); mm.match(t);
     const v = norm(h);
-    const p = predict(v);
+    const r = readNow(v);
     reference.score(v, s.L, { refiner });
-    judgeLetter(judge, v, s.L, p, 0.3);
+    judgeLetter(judge, v, s.L, r.pred?.label ?? null, 0.3, r);
   });
   const spellFrameMs = time((s) => {
     t += 33;
     const h = filter.filter(s.hand, t / 1000);
     mm.push(h, t, 1); const st = mm.match(t);
     const v = norm(h);
-    const p = predict(v);
+    const p = readNow(v).pred?.label ?? null;
     gate.feed({ now: t, letter: p, conf: 0.9, stroke: st, pos: { x: h[0].x, y: h[0].y, span: 0.12 } });
   });
   const motionMs = time((s) => { t += 33; mm.push(s.hand, t, 1); mm.match(t); });
@@ -687,7 +692,7 @@ function measureSpeed() {
     referenceScoreMs: r3(refScoreMs), motionPushMatchMs: r3(motionMs),
     practiceFrameMs: r3(practiceFrameMs), spellFrameMs: r3(spellFrameMs),
     frameBudgetMs: 33.3, calls: samples.length,
-    note: "measured, mean ms per call on this machine (Electron's Node/V8), held-out hands as noisy image landmarks. classify = normalize + either-hand kNN (2 passes) + REJECT_DIST + heads (main.js per-frame path). practiceFrame = one-euro + motion push/match + normalize + kNN/heads + reference.score + judgeLetter; spellFrame = one-euro + motion + normalize + kNN/heads + spellgate.feed. Excludes MediaPipe inference, swipe/twohand, drawing.",
+    note: "measured, mean ms per call on this machine (Electron's Node/V8), held-out hands as noisy image landmarks. classify = normalize + either-hand kNN (knn.js recognise: full pass + a mirrored hasWithin check, a 2nd full pass only when the mirror wins) + REJECT_DIST + heads (main.js per-frame path). practiceFrame = one-euro + motion push/match + normalize + kNN/heads + reference.score + judgeLetter; spellFrame = one-euro + motion + normalize + kNN/heads + spellgate.feed. Excludes MediaPipe inference, swipe/twohand, drawing.",
   };
 }
 
@@ -700,9 +705,9 @@ for (const L of scope) {
   x.struggles = L === "J" || L === "Z" ? strugglesMotion(L, x) : strugglesStatic(L, x);
   letters[L] = x;
 }
-log("\nspeed… ");
+log(`(${since(T0)})\nspeed… `);
 const speed = measureSpeed();
-log("done\n");
+log(`done (${since(T0)})\n`);
 
 let commit = null;
 try { commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch {}

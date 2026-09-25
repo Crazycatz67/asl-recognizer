@@ -19,9 +19,7 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
 export async function createSpellSim({ lab = null, gateSet = {}, debug = false } = {}) {
   lab ||= await loadLab();
   const cfg = await imp("js/config.js");
-  const { normalizeLandmarks, mirrorVector, rotateVector } = await imp("js/normalize.js");
-  const { createClassifier, classifyEitherHand } = await imp("js/knn.js");
-  const { createRefiner } = await imp("js/heads.js");
+  const { normalizeLandmarks } = await imp("js/normalize.js");
   const { createStabilizer } = await imp("js/stabilizer.js");
   const { createTransitionMatcher } = await imp("js/transition.js");
   const { createSpeller, STROKE_START } = await imp("js/speller.js");
@@ -31,22 +29,12 @@ export async function createSpellSim({ lab = null, gateSet = {}, debug = false }
   try { ({ createSpellGate } = await imp("js/spellgate.js")); } catch {}
 
   // ---- recogniser: exactly main.js's per-frame classify ----------------------
-  const trainAug = [];
-  for (const s of lab.train) {
-    if (!cfg.LETTERS.includes(s.label)) continue;
-    trainAug.push({ label: s.label, v: s.v });
-    for (const a of lab.data.augmentRotations || []) trainAug.push({ label: s.label, v: rotateVector(s.v, a) });
-  }
-  const clf = createClassifier(trainAug, { k: cfg.KNN_K });
-  let refiner = null;
-  try { refiner = createRefiner(JSON.parse(fs.readFileSync(path.join(ROOT, "js", "heads.json"), "utf8"))); } catch {}
+  // the lab's own classifier + heads (tools/lab/lab-data.mjs builds them once
+  // from the same augmented train split) through knn.js recognise
   function classify(hand) {
     const vec = normalizeLandmarks(hand, { aspect: 1, mirrorX: false, extended: cfg.USE_EXTENDED_FEATURES });
-    const e = classifyEitherHand(clf, vec, mirrorVector);
-    let p = e.pred ? { ...e.pred } : null;
-    if (p && p.distance > cfg.REJECT_DIST) p = null;
-    if (p && refiner) p.label = refiner.refine(e.vec, p.label);
-    return p;
+    const p = lab.readNow(vec).pred;
+    return p ? { ...p } : null;
   }
 
   // ---- synthetic hands from held-out vectors ---------------------------------

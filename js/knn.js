@@ -13,7 +13,7 @@
 // PUBLIC API:
 //   createClassifier(samples, { k }) → classifier
 //     classifier.classify(vec) → { label, votes, confidence, distance,
-//                                  runnerUp, margin } | null
+//                                  runnerUp, margin, near } | null
 //     classifier.hasWithin(vec, r) → true if any sample is closer than r
 //     classifier.classes       → sorted unique labels
 //     classifier.size / .dims  → number of stored samples / vector length
@@ -64,20 +64,26 @@ export function createClassifier(samples, { k = 5 } = {}) {
   const kEff = Math.min(k, n);
 
   // ---- build: principal axis, variance-ordered dims, projection-sorted rows ----
+  // Both are estimated on an evenly strided subset (<= ~4k rows) to keep
+  // startup cheap on phones: ANY unit axis keeps the search exact, a better
+  // one only makes it faster.
+  const stride = Math.max(1, Math.floor(n / 4000));
+  const est = samples.filter((_, i) => i % stride === 0);
+  const m = est.length;
   // per-dimension mean + variance
   const mean = new Float64Array(DIMS), vari = new Float64Array(DIMS);
-  for (const s of samples) for (let j = 0; j < DIMS; j++) mean[j] += s.v[j];
-  for (let j = 0; j < DIMS; j++) mean[j] /= n;
-  for (const s of samples) for (let j = 0; j < DIMS; j++) { const d = s.v[j] - mean[j]; vari[j] += d * d; }
+  for (const s of est) for (let j = 0; j < DIMS; j++) mean[j] += s.v[j];
+  for (let j = 0; j < DIMS; j++) mean[j] /= m;
+  for (const s of est) for (let j = 0; j < DIMS; j++) { const d = s.v[j] - mean[j]; vari[j] += d * d; }
   // dims summed in decreasing variance (partial distance search aborts sooner)
   const order = Int32Array.from({ length: DIMS }, (_, j) => j).sort((a, b) => vari[b] - vari[a]);
   // principal axis by power iteration on the covariance (deterministic start:
   // the per-dim spread, so it never starts orthogonal to the answer)
   let u = new Float64Array(DIMS);
-  for (let j = 0; j < DIMS; j++) u[j] = Math.sqrt(vari[j] / n) + 1e-9;
+  for (let j = 0; j < DIMS; j++) u[j] = Math.sqrt(vari[j] / m) + 1e-9;
   for (let it = 0; it < 12; it++) {
     const w = new Float64Array(DIMS);
-    for (const s of samples) {
+    for (const s of est) {
       let p = 0;
       for (let j = 0; j < DIMS; j++) p += (s.v[j] - mean[j]) * u[j];
       for (let j = 0; j < DIMS; j++) w[j] += p * (s.v[j] - mean[j]);
@@ -214,6 +220,7 @@ export function createClassifier(samples, { k = 5 } = {}) {
       distance: Math.sqrt(nearDist[0]),
       runnerUp, // 2nd most-voted label, or null
       margin: bestVotes - Math.max(0, runnerVotes), // vote gap to the runner-up
+      near: [...tally.keys()], // every label among the k neighbours, nearest first
     };
   }
 
@@ -270,3 +277,31 @@ export function classifyEitherHand(clf, vec, mirror, ratio = 0.9) {
   return { pred: a, vec, mirrored: false };
 }
 
+
+/**
+ * The recogniser's reading of one hand — the ONE place main.js (per frame +
+ * the two-hand path) and the offline lab (tools/lab/) turn a normalized
+ * vector into a letter, so they can't drift apart:
+ *   either-hand kNN -> non-letter rejection (nearest training hand farther
+ *   than rejectDist) -> learned heads (M/N, D/O/C) on the winning orientation.
+ * @param {{classify: Function, hasWithin?: Function}} clf
+ * @param {number[]} vec  normalized hand vector
+ * @param {{mirror: (v: number[]) => number[], refiner?: {refine: Function}|null,
+ *          rejectDist?: number}} opts
+ * @returns {{pred: object|null, guess: string|null, near: string[], vec: number[], mirrored: boolean}}
+ *   pred  classify()'s result with the heads' label, or null when the hand
+ *         isn't a letter (too far from every real one) or unreadable;
+ *   guess the recogniser's best label EVEN when rejected (kNN + heads) —
+ *         low-trust, only for "whose neighbourhood is this hand in?";
+ *   near  every label among the k nearest training hands (+ guess).
+ */
+export function recognise(clf, vec, { mirror, refiner = null, rejectDist = Infinity }) {
+  const e = classifyEitherHand(clf, vec, mirror);
+  if (!e.pred) return { pred: null, guess: null, near: [], vec, mirrored: false };
+  const pred = e.pred;
+  const guess = refiner ? refiner.refine(e.vec, pred.label) : pred.label;
+  const near = pred.near.includes(guess) ? pred.near : [...pred.near, guess];
+  if (pred.distance > rejectDist) return { pred: null, guess, near, vec: e.vec, mirrored: e.mirrored };
+  if (guess !== pred.label) { pred.label = guess; pred.refined = true; }
+  return { pred, guess, near, vec: e.vec, mirrored: e.mirrored };
+}

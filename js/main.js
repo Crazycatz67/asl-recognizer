@@ -15,7 +15,7 @@ import { createHandTracker } from "./handTracker.js";
 import { createOverlay } from "./overlay.js";
 import { normalizeLandmarks, aspectOf, mirrorVector } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
-import { createClassifier, classifyEitherHand } from "./knn.js";
+import { createClassifier, recognise } from "./knn.js";
 import { createHandshapeJudge } from "./handshape.js";
 import { judgeLetter } from "./verdict.js";
 import { loadRefiner } from "./heads.js";
@@ -851,6 +851,7 @@ let readStyle = loadPref("read-style") === "course" ? "course" : "free";
 let readPlayer = null; // animates the word being spelled
 let readTimers = []; // per-letter playback timeouts
 let lastPred = null;
+let lastReading = null; // knn.js recognise() for this frame (the verdict needs a rejected hand's neighbourhood)
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
 let handshape = null; // js/handshape.js judge — the letter's defining traits
 let targetLetter = null;
@@ -2524,11 +2525,7 @@ function racePlayers(landmarks) {
 function classifyHand(lm, mpLabel) {
   if (!classifier || !lm || lm.length < 21 || !lm.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return null;
   const v = normalizeLandmarks(lm, { aspect: aspectOf(video), mirrorX: MIRROR_LEFT_HAND && mpLabel === "Left", extended: USE_EXTENDED_FEATURES });
-  const either = classifyEitherHand(classifier, v, mirrorVector);
-  const pred = either.pred;
-  if (!pred || pred.distance > REJECT_DIST) return null;
-  if (refiner) pred.label = refiner.refine(either.vec, pred.label);
-  return pred;
+  return recognise(classifier, v, { mirror: mirrorVector, refiner, rejectDist: REJECT_DIST }).pred;
 }
 
 let lastRafAt = 0; // for the effects governor's stall detection
@@ -2680,18 +2677,12 @@ function loop() {
   // classify up front too (badge is drawn later) so the practice meter can
   // accept a sign the recogniser reads even if the shape isn't textbook
   if (classifier) {
-    // either way round: a wrong MediaPipe handedness call mirrors the vector
-    // (see classifyEitherHand) — the heads then see the winning orientation
-    const either = hasHand && vec ? classifyEitherHand(classifier, vec, mirrorVector) : null;
-    lastPred = either?.pred ?? null;
-    // too far from ANY real letter (a relaxed / rising / in-between hand) ->
-    // no prediction at all, rather than its nearest letter (see REJECT_DIST)
-    if (lastPred && lastPred.distance > REJECT_DIST) lastPred = null;
-    // learned heads clean up kNN's M↔N / D↔O↔C mixups (no-op if unavailable)
-    if (lastPred && refiner) {
-      const refined = refiner.refine(either.vec, lastPred.label);
-      if (refined !== lastPred.label) { lastPred.label = refined; lastPred.refined = true; }
-    }
+    // knn.js recognise: either way round (a wrong MediaPipe handedness call
+    // mirrors the vector), no prediction at all when the hand is too far from
+    // ANY real letter (a relaxed / rising / in-between hand — REJECT_DIST),
+    // then the learned heads clean up kNN's M↔N / D↔O↔C mixups
+    lastReading = hasHand && vec ? recognise(classifier, vec, { mirror: mirrorVector, refiner, rejectDist: REJECT_DIST }) : null;
+    lastPred = lastReading?.pred ?? null;
     stabilizer.push(hasHand ? lastPred : null);
     if (spellStab) spellStab.push(mode === "spell" && hasHand && !handEntering ? lastPred : null);
   }
@@ -2715,7 +2706,7 @@ function loop() {
   // recogniser: it must not be reading a DIFFERENT letter whose traits also
   // match (for the fist letters A E M N S T it's the only signal).
   if (m && handshape) {
-    const v = judgeLetter(handshape, vec, targetLetter, lastPred?.label, m.tol);
+    const v = judgeLetter(handshape, vec, targetLetter, lastPred?.label, m.tol, lastReading);
     m.traits = v.traits;
     m.strict = v.strict;
     m.confusedWith = v.confusedWith;
