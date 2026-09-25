@@ -118,3 +118,57 @@ export function curlAtMiddle(v, bendDeg) {
   }
   return out;
 }
+
+// Palm side: +n where n = (index knuckle - wrist) x (pinky knuckle - wrist).
+// The dataset is canonicalized to right-hand geometry, and measured on
+// data/dataset.json ~97% of hands curl their fingers (and hold the thumb)
+// toward +n, so "fold" = rotate toward +n, "raise" = rotate away from it.
+const palmNormal = (v) => unit3(cross3(sub3(P3(v, 5), P3(v, 0)), sub3(P3(v, 17), P3(v, 0))));
+const FINGER_MCP = { index: 5, middle: 9, ring: 13, pinky: 17 };
+
+// signed bend (deg) at joint j of a chain prev -> j -> next, positive = flexed
+// toward the palm; the flexion axis is cross(segment into j, palm normal)
+function bendAt(v, prev, j, next, n) {
+  const a = sub3(P3(v, j), P3(v, prev)), b = sub3(P3(v, next), P3(v, j));
+  const ax = unit3(cross3(a, n));
+  const ang = Math.acos(Math.max(-1, Math.min(1, dot3(unit3(a), unit3(b)))));
+  return { ax, deg: (Math.sign(dot3(cross3(a, b), ax)) || 1) * (ang * 180) / Math.PI };
+}
+
+/**
+ * Physically fold (deg > 0) or raise (deg < 0) ONE finger: rotate everything
+ * beyond the base knuckle about the knuckle, then everything beyond the middle
+ * joint about the middle joint, by `deg` each (a real finger folds at both).
+ * Raising never straightens a joint past straight (no hyperextension), so a
+ * fist finger raised 90° ends straight, not bent backwards.
+ */
+export function bendFinger(v, finger, deg) {
+  const m = FINGER_MCP[finger];
+  const n = palmNormal(v);
+  let out = v.slice();
+  // base knuckle: its "segment in" is wrist -> knuckle
+  for (const [prev, j, next] of [[0, m, m + 1], [m, m + 1, m + 2]]) {
+    const { ax, deg: cur } = bendAt(out, prev, j, next, n);
+    const d = deg < 0 ? -Math.min(-deg, Math.max(0, cur)) : deg;
+    const rad = (d * Math.PI) / 180, c = P3(out, j);
+    const src = out.slice();
+    for (let k = j + 1; k <= m + 3; k++) setP(out, k, rotAbout(P3(src, k), c, ax, rad));
+  }
+  return out;
+}
+
+/**
+ * Swing the thumb (joints 2-4) about its base (joint 1), around the palm
+ * normal: deg > 0 moves the thumb tip AWAY from the index knuckle (out to the
+ * side, toward an L), deg < 0 toward it (tucked in). The direction is picked
+ * per hand so it means the same on every hand.
+ */
+export function swingThumb(v, deg) {
+  const n = palmNormal(v), c = P3(v, 1);
+  const tip = (rad) => rotAbout(P3(v, 4), c, n, rad);
+  const d5 = (p) => Math.hypot(...sub3(p, P3(v, 5)));
+  const sgn = d5(tip(0.1)) >= d5(tip(-0.1)) ? 1 : -1;
+  const out = v.slice(), rad = (sgn * deg * Math.PI) / 180;
+  for (const k of [2, 3, 4]) setP(out, k, rotAbout(P3(v, k), c, n, rad));
+  return out;
+}
