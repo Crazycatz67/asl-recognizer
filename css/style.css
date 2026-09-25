@@ -22,6 +22,30 @@
   --guide-fix: #ec4899;
   --guide-worst: #fde047;
   --guide-target: #e2e8f0;
+
+  /* ---- visual layer v2: brand amber + effects ramp (2026-09-25) ----------
+     Amber is a CHROME + REWARD colour only (hero, CTAs, streak/combo HUD,
+     reward blooms, the aurora's warm stops). It must never be a steady tint
+     near the hand while the guide is correcting: the app already uses
+     amber/orange to mean "close" (--close, --searching, --guide-close) and
+     yellow for the worst finger (--guide-worst). Those tokens are NOT
+     aliased to these and stay unchanged. Every amber effect also carries a
+     shape twin (spark / rise / ring) so hue is never the only cue.
+     WCAG ratios measured against --bg #0f172a (and --panel #1e293b). */
+  --amber-300: #fcd34d;   /* spark core / highlight: 12.4:1 bg, 10.2:1 panel */
+  --amber-400: #fbbf24;   /* MAIN BRAND ACCENT (CTA fill, focus ring, streak chip, hero dye): 10.7:1 bg */
+  --gold: #ffc861;        /* reward bloom (new best, mastery): 11.6:1 bg */
+  --honey: #e8a33a;       /* aurora middle stop, low-alpha glows: 8.3:1 bg */
+  --ember: #b45309;       /* gradient stop / glow shadow ONLY: 3.6:1, never text */
+  --amber-ink: #1a1204;   /* text ON amber fills: 11.1:1 on --amber-400 (never white on amber) */
+  --amber-glow: rgba(251, 191, 36, 0.35); /* halos, box-shadow */
+  --amber-wash: rgba(251, 191, 36, 0.08); /* aurora/background tint ceiling (<= .15 alpha) */
+  --bg-deep: #0b0f19;     /* hero backdrop: amber-400 is 11.5:1 on it */
+  --calm: var(--accent);  /* #38bdf8 — idle / always-on base hue near the camera */
+  --fx-cool: #38bdf8;     /* Challenge intensity ramp x1 ... */
+  --fx-electric: #a78bfa; /* ... x2/x3 ... */
+  --fx-gold: var(--gold); /* ... x4 */
+  --drain: var(--guide-fix); /* draining / low lives: keeps the meaning "needs fixing" */
 }
 
 * { box-sizing: border-box; }

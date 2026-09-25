@@ -1582,6 +1582,13 @@ function mkHand() {
         tourMod.accumulateLegend(s, null) !== s && !tourMod.legendComplete(null);
     })());
 
+    // ---- fxmath.js (visual layer v2: palette contrast helper, pure) ----
+    const fxm = await import("../js/fxmath.js");
+    ok("fxmath: contrastRatio white/black = 21, amber-ink on amber-400 >= 7, white on amber fails",
+      Math.abs(fxm.contrastRatio("#fff", "#000") - 21) < 1e-9 &&
+      fxm.contrastRatio("#1a1204", "#fbbf24") >= 7 && fxm.contrastRatio("#ffffff", "#fbbf24") < 4.5,
+      fxm.contrastRatio("#1a1204", "#fbbf24").toFixed(2));
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

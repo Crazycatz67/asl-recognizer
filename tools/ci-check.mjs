@@ -957,6 +957,41 @@ await check("main.js: A->Z bridge timers are tracked and cancelled when the run 
   return "2 bridge timers tracked; setAzRun clears them";
 });
 
+// ---- 16. visual layer v2: amber palette stays accessible + separate -------
+// The brand amber is a chrome/reward colour; "close" already owns
+// amber/orange near the hand. Guard (a) the contrast the palette promises,
+// (b) that --close / --guide-close / --guide-worst were NOT re-pointed at the
+// new tokens, and (c) the contrast helper itself against known WCAG values.
+await check("style.css: amber palette tokens meet contrast + don't alias the guide colours", async () => {
+  const fm = await import(pathToFileURL(path.join(ROOT, "js", "fxmath.js")));
+  const white = fm.contrastRatio("#ffffff", "#000000");
+  if (Math.abs(white - 21) > 1e-9) throw new Error(`contrastRatio(white, black) = ${white}, want 21`);
+  if (Math.abs(fm.contrastRatio("#777777", "#ffffff") - 4.478) > 0.01) throw new Error("contrastRatio(#777, #fff) != 4.48");
+  const css = fs.readFileSync(path.join(ROOT, "css", "style.css"), "utf8");
+  const tok = (name) => {
+    const m = css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,6})\\b`));
+    if (!m) throw new Error(`token --${name} missing from css/style.css`);
+    return m[1];
+  };
+  const bg = tok("bg"), panel = tok("panel");
+  const out = [];
+  for (const [name, min] of [["amber-300", 7], ["amber-400", 7], ["gold", 7], ["honey", 7]]) {
+    const r = fm.contrastRatio(tok(name), bg);
+    if (r < min) throw new Error(`--${name} is ${r.toFixed(2)}:1 on --bg, want >= ${min}`);
+    if (fm.contrastRatio(tok(name), panel) < 4.5) throw new Error(`--${name} under 4.5:1 on --panel`);
+    out.push(`${name} ${r.toFixed(1)}`);
+  }
+  const ink = fm.contrastRatio(tok("amber-ink"), tok("amber-400"));
+  if (ink < 7) throw new Error(`--amber-ink on --amber-400 is ${ink.toFixed(2)}:1, want >= 7`);
+  if (fm.contrastRatio("#ffffff", tok("amber-400")) >= 4.5) throw new Error("white on amber unexpectedly passes — recheck the ink rule");
+  // the correction-guide / verdict colours keep their meaning and values
+  const fixed = { close: "#f59e0b", "guide-close": "#fb923c", "guide-worst": "#fde047", "guide-good": "#38bdf8", "guide-fix": "#ec4899" };
+  for (const [k, v] of Object.entries(fixed))
+    if (tok(k).toLowerCase() !== v) throw new Error(`--${k} changed to ${tok(k)} (was ${v}) — needs a colour-blind review first`);
+  if (/--(close|guide-[a-z]+):\s*var\(--(amber|gold|honey|ember)/.test(css)) throw new Error("a guide/verdict token aliases the brand amber");
+  return `${out.join(", ")} on --bg; ink ${ink.toFixed(1)}:1; guide colours unchanged`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
