@@ -10,6 +10,9 @@
 //   - tab hidden                      -> off (effects pause)
 //   - no WebGL2                       -> lite at most
 //   - Race (two hands tracked)        -> lite at most (heaviest detection load)
+//   - camera on and >= 3 frame stalls (> 50 ms between frames) within 5 s
+//     -> lite too ("degraded"): the fps average hides short spikes, which
+//     are what the owner felt as lag (2026-09-25); reportJank() from loop().
 //   - camera on and detection fps < 26 for 3 s -> lite ("degraded"); it
 //     recovers after 10 s of healthy (>= 26) fps. fps reports only count
 //     while the camera is on; turning the camera off clears the timers but
@@ -36,6 +39,9 @@ export const OVERRIDES = ["auto", "full", "lite", "off"];
 export const LOW_FPS = 26;
 export const DROP_MS = 3000;
 export const RESTORE_MS = 10000;
+export const JANK_MS = 50; // a frame gap longer than this is a stall
+export const JANK_COUNT = 3; // this many stalls ...
+export const JANK_WINDOW_MS = 5000; // ... within this window -> lite
 
 const RANK = { off: 0, lite: 1, full: 2 };
 const cap = (a, b) => (RANK[a] <= RANK[b] ? a : b);
@@ -52,6 +58,8 @@ export function createGovernor({
   let lowSince = null; // when fps first dipped below LOW_FPS (camera on)
   let okSince = null; // when fps first came back >= LOW_FPS while degraded
   let lastFps = null;
+  let jank = []; // recent stall timestamps
+  let lastJank = -Infinity;
   let level = compute();
   const subs = new Set();
   const costs = new Map();
@@ -96,10 +104,20 @@ export function createGovernor({
         lowSince = null;
         if (degraded) {
           if (okSince == null) okSince = now;
-          if (now - okSince >= RESTORE_MS) { degraded = false; okSince = null; }
+          // recover only after RESTORE_MS of healthy fps AND no stalls
+          if (now - okSince >= RESTORE_MS && now - lastJank >= RESTORE_MS) { degraded = false; okSince = null; }
         }
       }
       publish();
+      return level;
+    },
+    // one frame gap (ms) from the camera loop; stalls push effects to lite
+    reportJank(gapMs, now) {
+      if (!(gapMs > JANK_MS) || gapMs > 1000) return level; // >1 s = tab/camera pause, not jank
+      lastJank = now;
+      jank = jank.filter((t) => now - t < JANK_WINDOW_MS);
+      jank.push(now);
+      if (!degraded && jank.length >= JANK_COUNT) { degraded = true; okSince = null; publish(); }
       return level;
     },
     subscribe(fn) {

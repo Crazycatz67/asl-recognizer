@@ -52,18 +52,25 @@ export function createFx() {
     height: "100%",
     pointerEvents: "none",
     zIndex: "60",
+    display: "none", // perf: an idle full-screen canvas still costs compositing
   });
   document.body.appendChild(cv);
+  // the edge flash is a CSS layer animated on opacity (compositor-only) —
+  // it used to repaint a full-screen radial gradient on the canvas every
+  // frame for 440 ms on each reward (owner: lag spikes)
+  const flashEl = document.createElement("div");
+  flashEl.setAttribute("aria-hidden", "true");
+  Object.assign(flashEl.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "59", opacity: "0" });
+  document.body.appendChild(flashEl);
+  let flashAnim = null;
   const ctx = cv.getContext("2d");
 
   let parts = [];
   let rings = [];
-  let flashUntil = 0;
-  let flashColor = "#22c55e";
   let raf = 0;
 
   const resize = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // particles don't need 2x
     cv.width = window.innerWidth * dpr;
     cv.height = window.innerHeight * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -80,19 +87,6 @@ export function createFx() {
     ctx.clearRect(0, 0, cv.width, cv.height);
     const now = performance.now();
 
-    if (now < flashUntil) {
-      const a = (flashUntil - now) / FLASH_MS;
-      const g = ctx.createRadialGradient(
-        W / 2, H / 2, Math.min(W, H) * 0.28,
-        W / 2, H / 2, Math.max(W, H) * 0.75
-      );
-      g.addColorStop(0, "transparent");
-      g.addColorStop(1, flashColor);
-      ctx.globalAlpha = 0.55 * a;
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalAlpha = 1;
-    }
 
     if (parts.length) {
       const next = [];
@@ -135,10 +129,11 @@ export function createFx() {
       ctx.globalAlpha = 1;
     }
 
-    if (parts.length || rings.length || now < flashUntil) raf = requestAnimationFrame(tick);
-    else raf = 0;
+    if (parts.length || rings.length) raf = requestAnimationFrame(tick);
+    else { raf = 0; cv.style.display = "none"; }
   }
   const wake = () => {
+    if (cv.style.display === "none") cv.style.display = "";
     if (!raf) raf = requestAnimationFrame(tick);
   };
   // 5-point star path around the current origin (first-time / mastery sparkle)
@@ -245,9 +240,9 @@ export function createFx() {
     },
 
     flash(color = "#22c55e") {
-      flashColor = color;
-      flashUntil = performance.now() + (reduce ? 160 : FLASH_MS);
-      wake();
+      flashEl.style.background = `radial-gradient(ellipse at 50% 50%, transparent 38%, ${color} 100%)`;
+      flashAnim?.cancel();
+      flashAnim = flashEl.animate([{ opacity: 0.55 }, { opacity: 0 }], { duration: reduce ? 160 : FLASH_MS, easing: "ease-out", fill: "forwards" });
     },
   };
 }

@@ -466,9 +466,11 @@ body {
     mask-repeat: repeat-x;
     box-shadow: none;
     background: linear-gradient(180deg, #86efac, #22c55e 60%, #16a34a);
-    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.75));
-    animation: liquid-flow 1.4s linear infinite;
   }
+  /* perf (owner: lag spikes): the flow only runs while a hold is filling —
+     it used to animate mask-position (main-thread paint) forever, and a
+     drop-shadow filter re-rendered with it */
+  .viewport.holding::before { animation: liquid-flow 1.4s linear infinite; }
 }
 @keyframes liquid-flow { from { -webkit-mask-position: 0 0; mask-position: 0 0; } to { -webkit-mask-position: 120px 0; mask-position: 120px 0; } }
 @media (prefers-reduced-motion: reduce) { .viewport::before { animation: none; } }
@@ -500,9 +502,8 @@ body {
 .viewport[data-match="correct"] {
   box-shadow: inset 0 0 0 6px var(--correct), 0 0 55px 0 rgba(34, 197, 94, 0.6);
 }
-.viewport.celebrate {
-  animation: pop-scale 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
-}
+/* (the whole-viewport pop-scale was dropped for performance: scaling the
+   camera frame re-rasterised it and every backdrop-blurred pill on it) */
 .viewport.celebrate::after {
   content: "";
   position: absolute;
@@ -1101,8 +1102,8 @@ body {
   animation: meter-shimmer 1.1s ease-in-out infinite;
 }
 @keyframes meter-shimmer {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.35); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }
 .meter-label {
   font-size: 0.85rem; font-weight: 800; letter-spacing: 0.01em; color: var(--muted);
@@ -2202,7 +2203,7 @@ summary:focus-visible,
 .combo-glow[data-level="2"] { opacity: 1; box-shadow: inset 0 0 0 4px rgba(253, 224, 71, 0.6), inset 0 0 38px rgba(253, 224, 71, 0.4); }
 .combo-glow[data-level="3"] { opacity: 1; box-shadow: inset 0 0 0 5px rgba(244, 114, 182, 0.65), inset 0 0 50px rgba(253, 224, 71, 0.45); }
 .combo-glow[data-level="2"], .combo-glow[data-level="3"] { animation: combo-breathe 1.6s ease-in-out infinite; }
-@keyframes combo-breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.45); } }
+@keyframes combo-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } } /* opacity: compositor-only (was a filter) */
 
 /* A->Z finale: the letter chips light up in a wave (staggered via --i) */
 .chips.finale > * { animation: chip-wave 0.9s ease-out both; animation-delay: calc(var(--i, 0) * 40ms); }

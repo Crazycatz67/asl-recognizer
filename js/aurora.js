@@ -210,6 +210,8 @@ export function createAurora({ governor = null, viewport = null, debug = false }
   let split = false;
   let hole = [0.3, 0.2, 0.7, 0.8];
   let holeAt = 0;
+  let holeStale = true; // set by ResizeObserver / resize — measured on demand
+  let paused = false; // e.g. under the full-screen landing page
   let dirty = true;
   let lost = false;
   let level = governor?.level ?? "full";
@@ -224,8 +226,16 @@ export function createAurora({ governor = null, viewport = null, debug = false }
   const tq = debug ? gl.getExtension("EXT_disjoint_timer_query_webgl2") : null;
   let pendingQ = null;
 
+  // perf: measure the camera frame only when its layout actually changed —
+  // it used to read getBoundingClientRect every 500 ms inside this rAF,
+  // after main.js's style writes (a forced layout)
+  const ro = viewport && typeof ResizeObserver === "function" ? new ResizeObserver(() => { holeStale = true; }) : null;
+  ro?.observe(viewport);
+  const markHole = () => { holeStale = true; };
+  window.addEventListener("scroll", markHole, { passive: true });
   function measureHole(now) {
-    if (!viewport || now - holeAt < 500) return;
+    if (!viewport || (!holeStale && now - holeAt < 5000)) return;
+    holeStale = false;
     holeAt = now;
     const r = viewport.getBoundingClientRect();
     const iw = window.innerWidth || 1, ih = window.innerHeight || 1;
@@ -292,9 +302,9 @@ export function createAurora({ governor = null, viewport = null, debug = false }
 
   function frame(now) {
     raf = 0;
-    if (lost || document.visibilityState === "hidden") return; // resumed by visibilitychange
+    if (lost || paused || document.visibilityState === "hidden") return; // resumed by visibilitychange / setPaused
     schedule();
-    const minGap = level === "full" ? 50 : 200; // <= 20 fps full, <= 5 fps static
+    const minGap = level === "full" ? 83 : 200; // <= 12 fps full (it drifts slowly), <= 5 fps static
     if (now - lastDraw < minGap - 2) return;
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
@@ -380,10 +390,18 @@ export function createAurora({ governor = null, viewport = null, debug = false }
       split = on;
       want.seam = on ? 0.5 - 0.12 * Math.max(-1, Math.min(1, Number(lean))) : 0.5;
     },
+    // stop drawing while something covers the whole screen (landing page)
+    setPaused(on) {
+      if (fb) return;
+      paused = !!on;
+      if (!paused) { last = performance.now(); dirty = true; schedule(); }
+    },
     stop() {
       cancelAnimationFrame(raf);
       raf = 0;
       unsub?.();
+      ro?.disconnect();
+      window.removeEventListener("scroll", markHole);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("resize", resize);
       cv.remove();
@@ -395,7 +413,7 @@ export function createAurora({ governor = null, viewport = null, debug = false }
 
   function fallback() {
     const b = createBackground({ governor });
-    return { kind: "canvas2d", setMatch: b.setMatch, setHand() {}, setStreak() {}, pulse() {}, setIntensity() {}, setSplit() {}, stop: b.stop };
+    return { kind: "canvas2d", setMatch: b.setMatch, setHand() {}, setStreak() {}, pulse() {}, setIntensity() {}, setSplit() {}, setPaused() {}, stop: b.stop };
   }
 }
 

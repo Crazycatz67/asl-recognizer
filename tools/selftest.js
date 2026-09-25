@@ -1604,6 +1604,17 @@ function mkHand() {
 
     // ---- fxquality.js (visual layer v2 B0: quality governor, pure) ----
     const fxq = await import("../js/fxquality.js");
+    ok("fxquality: 3 frame stalls (> 50 ms) within 5 s -> lite; 1 s gaps (tab pause) ignored; recovers after 10 s smooth + healthy fps", (() => {
+      const g = fxq.createGovernor();
+      g.reportJank(2000, 1000); g.reportJank(1500, 1100); // pauses, not jank
+      const a = g.level;
+      g.reportJank(80, 2000); g.reportJank(70, 3000);
+      const b = g.level;
+      g.reportJank(90, 4000);
+      const c = g.level;
+      for (let t = 4500; t <= 16000; t += 500) g.reportFps(30, true, t);
+      return a === "full" && b === "full" && c === "lite" && g.level === "full";
+    })());
     ok("fxquality: auto starts full; reduced-motion / hidden / manual off -> off; Race + no-WebGL2 cap lite", (() => {
       const g = fxq.createGovernor();
       const seq = [g.level];

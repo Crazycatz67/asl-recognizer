@@ -28,7 +28,6 @@ import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createHero } from "./hero.js";
 import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
 import { createHandFx, createFramingJudge, handSpanH } from "./handfx.js";
-import { createInkBloom } from "./inkbloom.js";
 import { createGlyphFx } from "./glyphfx.js";
 import { createChallengeFx, burstCount } from "./challengefx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
@@ -77,6 +76,13 @@ let curriculumFailed = false;
 let decoderFailed = false;
 
 const $ = (id) => document.getElementById(id);
+// write-only-if-changed DOM helpers for per-frame code: an unchanged
+// textContent/className/innerHTML write still replaces nodes / invalidates
+// style, 30x a second (perf: owner-reported lag spikes)
+const setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+const setCls = (el, v) => { if (el.className !== v) el.className = v; };
+const setHidden = (el, v) => { if (el.hidden !== v) el.hidden = v; };
+const setHtml = (el, v) => { if (el._html !== v) { el.innerHTML = v; el._html = v; } };
 const workspace = $("workspace");
 const viewport = $("viewport");
 const video = $("camera");
@@ -234,7 +240,6 @@ const fx = createFx();
 // drawn into the overlay canvas, so it's created once the overlay exists
 let handfx = null;
 let fxHand = null; // the latest smoothed hand, for rewards fired outside loop()
-let inkbloom = null; // B3: fingertip ink bloom (fluid core, "full" only)
 let glyphfx = null; // B3: particles assemble into the letter (first / mastery)
 const framing = createFramingJudge();
 
@@ -259,8 +264,7 @@ const RUN_WINDOW_MS = 30000;
 let practiceRun = 0;
 let practiceRunAt = null;
 // a landmark (normalized video coords) -> page coords, un-mirroring selfie view
-function pagePoint(lm) {
-  const r = viewport.getBoundingClientRect();
+function pagePoint(lm, r = viewport.getBoundingClientRect()) {
   if (!lm) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   const mx = facingMode === "user" ? 1 - lm.x : lm.x;
   return { x: r.left + mx * r.width, y: r.top + lm.y * r.height };
@@ -1202,6 +1206,8 @@ function setHold(v) {
   if (v === lastHold) return;
   lastHold = v;
   viewport.style.setProperty("--hold", v);
+  const on = Number(v) > 0;
+  if (on !== viewport.classList.contains("holding")) viewport.classList.toggle("holding", on);
 }
 
 function updateMeter(score, bucket) {
@@ -1839,7 +1845,7 @@ function renderChallenge(snap, near) {
   }
 
   chLives.hidden = false;
-  chLives.textContent = "♥".repeat(snap.lives) + "♡".repeat(Math.max(0, START_LIVES - snap.lives));
+  setText(chLives, "♥".repeat(snap.lives) + "♡".repeat(Math.max(0, START_LIVES - snap.lives)));
 
   if (snap.event === "letter") {
     const isWord = snap.target.length > 1;
@@ -1937,7 +1943,7 @@ function renderChallenge(snap, near) {
     if (snap.newBest) {
       sound.newBest();
       fx.flash("#fde047");
-      if (fxHand) inkbloom?.bloom(fxHand, "mastery"); // gold bloom (full quality only)
+      // (gold ink bloom retired for performance)
       fx.rain({ count: 90, colors: ["#fde047", "#facc15", "#f8fafc", "#22c55e"] });
       buzz([0, 40, 30, 60, 30, 120]);
     } else {
@@ -1954,15 +1960,15 @@ function renderChallenge(snap, near) {
   if (snap.phase === "play") {
     refPanel.hidden = true;
     workspace.dataset.target = "off";
-    chBanner.className = `ch-banner${snap.target.length > 1 ? " word" : ""}`;
+    setCls(chBanner, `ch-banner${snap.target.length > 1 ? " word" : ""}`);
     setBannerHtml(bannerFor(snap));
-    chBanner.hidden = false;
+    setHidden(chBanner, false);
     // live QA: "Challenge is too easy". The old live "seeing X" readout let
     // you cycle shapes until the model agreed — now play shows only whether
     // you're holding a WRONG shape (the clock drains), never which letter.
-    chSeeing.className = `ch-seeing${snap.draining ? " drain" : ""}`;
-    chSeeing.textContent = snap.draining ? "✕ not that shape — the clock is draining" : near ? "~ close…" : "";
-    chSeeing.hidden = !snap.draining && !near;
+    setCls(chSeeing, `ch-seeing${snap.draining ? " drain" : ""}`);
+    setText(chSeeing, snap.draining ? "✕ not that shape — the clock is draining" : near ? "~ close…" : "");
+    setHidden(chSeeing, !snap.draining && !near);
     if (snap.draining && performance.now() - lastDrainAt > 400) {
       lastDrainAt = performance.now();
       sound.drain();
@@ -2067,11 +2073,11 @@ function renderVersus(snap) {
     tracker?.setNumHands(1);
   }
   if (snap.phase === "play") {
-    chBanner.className = `ch-banner${word ? " word" : ""}`;
-    chBanner.innerHTML = word
+    setCls(chBanner, `ch-banner${word ? " word" : ""}`);
+    setHtml(chBanner, word
       ? [...snap.target].map((c, i) => `<span class="${race ? "" : i < snap.progress[snap.current] ? "done" : i === snap.progress[snap.current] ? "next" : ""}">${c}</span>`).join("")
-      : escapeHtml(snap.target || "");
-    chBanner.hidden = false;
+      : escapeHtml(snap.target || ""));
+    setHidden(chBanner, false);
   }
 }
 
@@ -2116,10 +2122,9 @@ function reward(originLandmark, handLm = null) {
     s.last = Date.now(); // feeds the Review queue's "longest since practiced" ranking
     const ms = firstHandAt ? performance.now() - firstHandAt : Infinity;
     if (ms < s.bestMs) s.bestMs = ms;
-    saveJSON("stats", statsMap);
-    updateLetterStat();
-    renderProgressCount();
-    touchStreak();
+    // bookkeeping (storage write + text updates) after this frame, so the
+    // reward frame itself stays light (perf: lag spikes on each letter)
+    setTimeout(() => { saveJSON("stats", statsMap); updateLetterStat(); renderProgressCount(); touchStreak(); }, 0);
   }
   // reps in a row climb the scale + grow the celebration (bounded)
   const now = performance.now();
@@ -2127,23 +2132,25 @@ function reward(originLandmark, handLm = null) {
   practiceRunAt = now;
   const plan = celebrationPlan(tier, practiceRun);
   buzz(tier === "letter" ? [0, 35, 25, 55] : [0, 35, 25, 55, 25, 80]);
-  const { x, y } = pagePoint(originLandmark);
+  const vr = viewport.getBoundingClientRect(); // one layout read for the whole reward
+  const { x, y } = pagePoint(originLandmark, vr);
   const colors = tier === "mastery"
     ? ["#fde047", "#facc15", "#fef9c3", "#f8fafc", "#22c55e"]
     : tier === "first" ? ["#38bdf8", "#7dd3fc", "#22c55e", "#f8fafc", "#fde047"] : undefined;
   fx.burst(x, y, { count: plan.particles, stars: plan.stars, ...(colors ? { colors } : {}) });
-  // B3: ink blooms out of the fingertips that made the sign (full quality),
-  // and the big tiers assemble the glyph beside the hand
+  // the big tiers show the letter tile beside the hand. (The fingertip ink
+  // bloom was retired for performance: it needed its own WebGL context and
+  // compiled/allocated GPU resources on the reward frame — owner: lag spikes.)
   const rh = handLm || fxHand;
+  let tileShown = false;
   if (rh) {
-    inkbloom?.bloom(rh, tier);
     if ((tier === "first" || tier === "mastery") && targetLetter) {
-      const pts = rh.map(pagePoint);
+      const pts = rh.map((lm) => pagePoint(lm, vr));
       const box = {
         left: Math.min(...pts.map((p) => p.x)), right: Math.max(...pts.map((p) => p.x)),
         top: Math.min(...pts.map((p) => p.y)), bottom: Math.max(...pts.map((p) => p.y)),
       };
-      glyphfx?.assemble(targetLetter, { from: [4, 8, 12, 16, 20].map((i) => pts[i]), box, tier });
+      tileShown = !!glyphfx?.assemble(targetLetter, { box, tier });
     }
   }
   fx.ring(x, y, { color: plan.color, rings: plan.rings }); // "locked in" on the hand
@@ -2151,7 +2158,7 @@ function reward(originLandmark, handLm = null) {
   bg.pulse(tier === "mastery" ? 1 : tier === "first" ? 0.75 : 0.45);
   sound.success({ step: practiceRun - 1, tier });
   setGlow(glowLevel(practiceRun - 1), RUN_WINDOW_MS); // runs of 3+ light the frame
-  if (plan.moment && targetLetter) {
+  if (plan.moment && targetLetter && !tileShown) { // the tile already says it
     fx.moment(tier === "mastery" ? `${targetLetter} mastered ★` : `First ${targetLetter}!`,
       { x, y: Math.max(40, y - 70), tone: plan.moment });
   }
@@ -2267,9 +2274,8 @@ async function start() {
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
     handfx = createHandFx({ ctx: overlay.ctx, governor: fxq });
-    inkbloom ||= createInkBloom({ stage: $("stage"), before: canvas, governor: fxq, debug: DEBUG });
     glyphfx ||= createGlyphFx({ governor: fxq });
-    if (DEBUG) Object.assign(window.__fx, { inkbloom, glyphfx });
+    if (DEBUG) Object.assign(window.__fx, { glyphfx });
     tracker.setNumHands(mode === "spell" ? 2 : 1);
     await acquireWakeLock();
     await datasetPromise;
@@ -2405,11 +2411,16 @@ function classifyHand(lm, mpLabel) {
   return pred;
 }
 
+let lastRafAt = 0; // for the effects governor's stall detection
 function loop() {
   if (!tracker) return;
   rafId = requestAnimationFrame(loop);
 
   const now = performance.now();
+  // a long gap between animation frames = a visible stall: let the effects
+  // governor drop to lite if they keep happening (fxquality.reportJank)
+  if (lastRafAt && !document.hidden) fxq.reportJank(now - lastRafAt, now);
+  lastRafAt = now;
   // throttle to TARGET_FPS. A strict `now - last < interval` misfires on a
   // 60 Hz display: two frames are ~33.3 ms +/- jitter, so about half the time
   // it waits a third frame (50 ms) and detection averages ~22-24/s instead of
@@ -2703,8 +2714,8 @@ function loop() {
       mode === "practice" ? stabilizer.current
       : mode === "spell" ? spellStab?.current
       : null;
-    letterBadge.hidden = !shown;
-    if (shown) letterBadge.textContent = shown;
+    setHidden(letterBadge, !shown);
+    if (shown) setText(letterBadge, shown);
   }
 
   // spell mode: continuous fingerspelling -> a running transcript
@@ -3053,13 +3064,13 @@ function loop() {
       // calm recogniser-agreement readout — reassures that the computer reads
       // the letter, not just that the shape meter is happy
       const agrees = stabilizer.current === targetLetter;
-      reco.hidden = false;
-      reco.classList.toggle("match", agrees);
-      recoText.textContent = agrees
+      setHidden(reco, false);
+      if (reco.classList.contains("match") !== agrees) reco.classList.toggle("match", agrees);
+      setText(recoText, agrees
         ? "recognised"
         : stabilizer.current
         ? `reads ${stabilizer.current}`
-        : "…";
+        : "…");
 
       // reward when the sign is readable (m.bucket === "correct" — a decent
       // shape OR one the recogniser reads as the target) and held for HOLD_MS.
@@ -3173,7 +3184,7 @@ function loop() {
   }
 
   // "pick a letter" nudge — only in practice, camera live, nothing chosen yet
-  pickHint.hidden = !(mode === "practice" && !targetLetter);
+  setHidden(pickHint, !(mode === "practice" && !targetLetter));
 
   tickDetStats(now);
 }
@@ -3666,6 +3677,7 @@ const hero = createHero({
   shapesReady: datasetPromise,
   startCamera: () => start(),
   cameraLive: () => state === "searching" || state === "tracking",
+  onToggle: (open) => bg.setPaused?.(open), // nothing to see under the landing page
   debug: DEBUG,
 });
 if (DEBUG) window.__fx.hero = hero;

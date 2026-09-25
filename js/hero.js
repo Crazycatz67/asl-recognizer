@@ -80,6 +80,7 @@ export function createHero({
   shapesReady = Promise.resolve(),
   startCamera = null,
   cameraLive = () => false,
+  onToggle = null, // (open) => void — e.g. pause the background under the hero
   debug = false,
 }) {
   const titleEl = root.querySelector(".hero-title");
@@ -237,7 +238,9 @@ export function createHero({
   // lost contexts when the logo is tapped repeatedly)
   function stopFluid() {
     if (fluid && !fluid.asleep) fluid.sleep();
-    if (canvas) canvas.hidden = true;
+    // shrink the drawing buffer too (wake() re-sizes it): a hidden full-size
+    // WebGL backbuffer still holds GPU memory while the app runs
+    if (canvas) { canvas.hidden = true; canvas.width = canvas.height = 1; }
     governor?.clearCost("fluid");
   }
 
@@ -415,6 +418,7 @@ export function createHero({
     if (open) return;
     open = true;
     onStart = cb;
+    onToggle?.(true);
     returnFocus = document.activeElement;
     root.hidden = false;
     document.documentElement.classList.add("hero-open");
@@ -446,6 +450,7 @@ export function createHero({
   function close() {
     if (!open) return;
     open = false;
+    onToggle?.(false);
     cancelAnimationFrame(raf);
     raf = 0;
     stopFluid();

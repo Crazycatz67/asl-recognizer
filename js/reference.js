@@ -1029,7 +1029,14 @@ export function createCanonicalPlayer(canvasEl) {
   // its last letter after totalMs — the pixels don't change, so don't redraw
   // them 60-120 times a second. Reset to null whenever what's shown changes.
   let lastPaintKey = null;
+  // perf (owner: lag spikes): the demo hand is a slow, smooth motion — 30 fps
+  // is plenty. It used to redraw at the display rate (120 Hz on ProMotion)
+  // during every move phase.
+  let lastPaintTs = 0;
   function loop(ts) {
+    raf = requestAnimationFrame(loop);
+    if (ts - lastPaintTs < 32) return;
+    lastPaintTs = ts;
     if (!t0) t0 = ts;
     const elapsed = ts - t0;
     if (word) {
@@ -1045,7 +1052,6 @@ export function createCanonicalPlayer(canvasEl) {
       if (f !== lastPaintKey) paint(f);
       lastPaintKey = f;
     }
-    raf = requestAnimationFrame(loop);
   }
 
   return {

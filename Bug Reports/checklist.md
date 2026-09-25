@@ -454,6 +454,10 @@ references are as of commit `41c43f0` and will drift.
     Take-turns cheat.** `FIXED (needs live confirm)` — letter tile, per-player
     word progress, side-owned turns (v102).
 
+53. **Lag spikes / slowdowns after the visual layer (owner, 2026-09-25).**
+    `FIXED (needs live confirm)` — perf pass v103 (ink bloom retired, CSS
+    flash, capped loops, deduped DOM writes, stall-aware governor).
+
 ---
 
 ## Working the list
