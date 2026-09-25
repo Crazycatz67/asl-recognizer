@@ -979,6 +979,19 @@ function mkHand() {
       })());
     }
 
+    {
+      const achMod = await import("../js/achievements.js");
+      ok("achievements: a letter event unlocks First Sign once; list/letters/theme views are consistent", (() => {
+        const m = new Map(); const st = { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) };
+        const a = achMod.createAchievements({ storage: st });
+        const first = a.record("letter", { L: "A", done: 1, ms: 2000 });
+        const again = a.record("letter", { L: "A", done: 2, ms: 2000 });
+        const lt = a.letters;
+        return first.some((x) => x.id === "first-sign") && !again.length && lt.learned === 1 && lt.map.A === 1 &&
+          a.list().find((x) => x.id === "first-sign").unlocked > 0 && a.theme.id === "amber";
+      })());
+    }
+
     // ---- speller.js (continuous fingerspelling -> text) ----
     const spMod = await import("../js/speller.js");
     // hold a letter = many frames of {holding:true}; a gap = frames of not-holding

@@ -9,7 +9,7 @@
 // BUMP `VERSION` on every deploy so old caches are cleared. Paths are relative
 // so this works both at "/" (dev) and "/asl-recognizer/" (GitHub Pages).
 
-const VERSION = "v105";
+const VERSION = "v106";
 const SHELL = `asl-shell-${VERSION}`;
 const RUNTIME = `asl-runtime-${VERSION}`;
 const MP = `asl-mediapipe-${VERSION}`;
@@ -22,7 +22,7 @@ const CORE = [
   "./about.html",
   "./manifest.webmanifest",
   "./css/style.css",
-  "./js/aurora.js", "./js/bg.js", "./js/camera.js", "./js/challenge.js", "./js/config.js",
+  "./js/achievements.js", "./js/aurora.js", "./js/bg.js", "./js/camera.js", "./js/challenge.js", "./js/config.js",
   "./js/curriculum.js", "./js/dataset.js", "./js/decode.js", "./js/fx.js", "./js/fxmath.js", "./js/fxquality.js",
   "./js/fluid.js", "./js/hero.js", "./js/handfx.js", "./js/inkbloom.js", "./js/glyphfx.js", "./js/challengefx.js",
   "./js/handTracker.js", "./js/handshape.js", "./js/heads.js", "./js/jointstate.js", "./js/heads.json", "./js/juice.js", "./js/leaderboard.js", "./js/knn.js",

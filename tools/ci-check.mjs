@@ -963,6 +963,59 @@ await check("main.js/index.html: the '?' tour pauses a live run and restores the
   return "tour pauses runs + restores mode; SW reload deferred while busy; Home -> welcome -> tour";
 });
 
+// ---- 13m. achievements.js — unlock rules, records, themes, wiring ----------
+await check("achievements.js: events unlock the right ids once; records only improve; themes unlock + guard; corrupt storage -> fresh; main.js records every event", async () => {
+  const A = await import(pathToFileURL(path.join(ROOT, "js", "achievements.js")).href);
+  const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), m }; };
+  let t = 1000;
+  const st = mem();
+  const a = A.createAchievements({ storage: st, now: () => ++t });
+  const ids = (l) => l.map((x) => x.id).sort().join(",");
+  const bad = [];
+  // sync adopts earlier stats quietly (no unseen themes)
+  const syncGot = a.sync({ stats: { A: { done: 3, bestMs: 1200 }, B: { done: 1 } } });
+  if (ids(syncGot) !== "first-mastery,first-sign,speedy") bad.push(`sync unlocked ${ids(syncGot)}`);
+  if (a.takeUnseen().length) bad.push("sync must not queue theme celebrations");
+  if (a.record("letter", { L: "A", done: 4, ms: 900 }).length) bad.push("re-unlocked something");
+  for (const L of "CDE") a.record("letter", { L, done: 1, ms: 3000 });
+  if (!a.isUnlocked("five-down")) bad.push("five-down");
+  // A->Z: run with skips = complete but not clean; clean fast run -> clean + fast + Aurora
+  let g = a.record("run", { kind: "az", skipped: 2, ms: 100000 });
+  if (!g.some((x) => x.id === "az-complete" && x.theme?.id === "aurora")) bad.push("az-complete must unlock Aurora");
+  if (a.isUnlocked("az-clean") || a.records.fastestAz) bad.push("skipped run counted as clean/fastest");
+  g = a.record("run", { kind: "az", skipped: 0, ms: 150000 });
+  if (ids(g) !== "az-clean,az-fast") bad.push(`clean run unlocked ${ids(g)}`);
+  a.record("run", { kind: "az", skipped: 0, ms: 170000 });
+  if (a.records.fastestAz !== 150000) bad.push("fastest A->Z got worse");
+  if (a.theme.id !== "aurora" || a.takeUnseen().map((x) => x.id).join() !== "aurora" || a.takeUnseen().length) bad.push("Aurora auto-select / unseen once");
+  // modes -> explorer
+  for (const m of ["practice", "challenge", "spell"]) a.record("mode", { name: m });
+  if (a.isUnlocked("explorer")) bad.push("explorer too early");
+  if (!a.record("mode", { name: "read" }).some((x) => x.id === "explorer")) bad.push("explorer");
+  // challenge + records only improve
+  a.record("challenge", { score: 520, difficulty: "hard", round: 11, maxMult: 4 });
+  a.record("challenge", { score: 100, difficulty: "hard", round: 2, maxMult: 1 });
+  if (!["challenge-200", "challenge-500", "hard-10", "combo-4"].every((id) => a.isUnlocked(id))) bad.push("challenge unlocks");
+  if (a.records.bestChallenge !== 520 || a.records.bestMult !== 4) bad.push("challenge records regressed");
+  // theme guard
+  if (a.setTheme("gold")) bad.push("locked theme selectable");
+  if (!a.setTheme("ember") || a.theme.id !== "ember") bad.push("ember should be selectable after 500");
+  // unknown events + junk data are harmless
+  if (a.record("nope", {}).length || a.record("letter", { L: "?", done: NaN, ms: -5 }).length) bad.push("junk events unlocked something");
+  // persistence + corrupt storage
+  const b = A.createAchievements({ storage: st });
+  if (!b.isUnlocked("explorer") || b.records.fastestAz !== 150000 || b.theme.id !== "ember") bad.push("did not persist");
+  const broken = mem(); broken.setItem(A.KEY, "{not json");
+  const c = A.createAchievements({ storage: broken });
+  if (c.unlockedCount !== 0 || c.theme.id !== "amber") bad.push("corrupt storage must start fresh");
+  // every theme's unlock is a real achievement; every event is recorded in main.js
+  for (const th of A.THEMES) if (th.unlock && !A.ACHIEVEMENTS.some((x) => x.id === th.unlock)) bad.push(`theme ${th.id} unlock ${th.unlock} missing`);
+  const main = fs.readFileSync(path.join(ROOT, "js", "main.js"), "utf8");
+  for (const ev of ["letter", "run", "mode", "challenge", "versus", "spellWord", "drill", "read", "tier", "day"]) if (!main.includes(`ach.record("${ev}"`)) bad.push(`main.js never records "${ev}"`);
+  if (bad.length) throw new Error(bad.join("; "));
+  return `${A.ACHIEVEMENTS.length} achievements, ${A.THEMES.length} themes; unlock/record/theme/persist rules hold; 10 events wired`;
+});
+
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
 // Static check (main.js is DOM-bound): both bridge timers (advanceAz and
 // skipLetter) must be stored in azBridgeTimer, and setAzRun — which every

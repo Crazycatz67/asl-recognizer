@@ -81,6 +81,10 @@ export function createHero({
   startCamera = null,
   cameraLive = () => false,
   onToggle = null, // (open) => void — e.g. pause the background under the hero
+  // () => { letters: {learned, mastered, map: {L: 0|1|2}}, theme: {name,
+  // accent, dye:[hex...]}, count, unseen: [theme...] } — read on every open()
+  // so the Home page shows your alphabet + unlocked ink (js/achievements.js)
+  getProgress = null,
   debug = false,
 }) {
   const titleEl = root.querySelector(".hero-title");
@@ -108,6 +112,36 @@ export function createHero({
   let handTips = [null, null];
   let lastHandAt = 0;
   let camMode = false;
+  // the unlocked ink theme (achievements) — recolours the dye + handshapes
+  let tint = { accent: "#fbbf24", dye: [DYE.amber, DYE.honey, DYE.ember] };
+  let masteredCount = 0;
+  const wallEl = root.querySelector(".hero-wall");
+  const wallCap = root.querySelector(".hero-wall-cap");
+  const unlockEl = root.querySelector(".hero-unlock");
+  function applyProgress() {
+    const pr = getProgress?.();
+    if (!pr) return [];
+    if (pr.theme?.dye?.length) tint = { accent: pr.theme.accent, dye: pr.theme.dye.map(hex) };
+    masteredCount = pr.letters?.mastered || 0;
+    if (wallEl && pr.letters?.map) {
+      wallEl.style.setProperty("--wall-accent", tint.accent);
+      wallEl.innerHTML = Object.entries(pr.letters.map).map(([L, lv]) =>
+        `<span class="hw-t${lv === 2 ? " l2" : lv === 1 ? " l1" : ""}" title="${L}${lv === 2 ? " — mastered" : lv === 1 ? " — learned" : ""}">${L}</span>`).join("");
+      wallEl.classList.toggle("has-mastered", masteredCount > 0);
+    }
+    if (wallCap) {
+      const { learned = 0, mastered = 0 } = pr.letters || {};
+      wallCap.textContent = learned
+        ? `${learned} learned · ${mastered} mastered · ${pr.count || 0} achievement${pr.count === 1 ? "" : "s"}`
+        : "Your alphabet fills in here as you learn each letter";
+    }
+    const unseen = pr.unseen || [];
+    if (unlockEl) {
+      unlockEl.hidden = !unseen.length;
+      if (unseen.length) unlockEl.textContent = `✨ Unlocked: ${unseen.map((t) => t.name).join(" + ")} ink`;
+    }
+    return unseen;
+  }
 
   // ---- title markup (built once; screen readers get the aria-label) -------
   titleEl.setAttribute("aria-label", TITLE);
@@ -163,7 +197,7 @@ export function createHero({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
       try {
-        drawHandShape(ctx, vectorToPixels(vec, size, size, { pad: 0.1 }), { fill: "#fbbf24", outline: "#b45309", nails: false });
+        drawHandShape(ctx, vectorToPixels(vec, size, size, { pad: 0.1 }), { fill: tint.accent, outline: "#1a1204", nails: false });
         L.drawn = true;
       } catch {
         L.drawn = false;
@@ -231,7 +265,7 @@ export function createHero({
     // opening swirl: a few amber splats from the bottom edge
     for (let i = 0; i < 3; i++) {
       const x = 0.25 + 0.25 * i;
-      fluid.splat(x, 0.95, (Math.random() - 0.5) * 120, -320 - Math.random() * 160, dim(i % 2 ? DYE.honey : DYE.ember, 0.16), 0.008);
+      fluid.splat(x, 0.95, (Math.random() - 0.5) * 120, -320 - Math.random() * 160, dim(i % 2 ? tint.dye[1] : tint.dye[2], 0.16), 0.008);
     }
   }
   // free the textures, keep the context for the next open (no churn of
@@ -260,7 +294,11 @@ export function createHero({
       // ambient life when nobody's stirring: one soft amber curl
       nextAuto = now + 2600 + Math.random() * 1800;
       const x = 0.1 + Math.random() * 0.8, y = 0.6 + Math.random() * 0.35;
-      fluid.splat(x, y, (Math.random() - 0.5) * 160, -120 - Math.random() * 120, dim(Math.random() < 0.8 ? DYE.honey : DYE.calm, 0.1), 0.008);
+      fluid.splat(x, y, (Math.random() - 0.5) * 160, -120 - Math.random() * 120, dim(Math.random() < 0.8 ? tint.dye[1] : DYE.calm, 0.1), 0.008);
+      // your mastered letters glow through: an extra faint accent swirl
+      if (masteredCount && Math.random() < Math.min(0.6, 0.1 + masteredCount / 40)) {
+        fluid.splat(1 - x, 0.7 + Math.random() * 0.25, (Math.random() - 0.5) * 120, -100, dim(tint.dye[0], 0.08), 0.006);
+      }
     }
     const t0 = performance.now();
     const [s, d] = wantRes();
@@ -279,7 +317,7 @@ export function createHero({
     if (pointer) {
       const dx = x - pointer.x, dy = y - pointer.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.0005) {
-        const c = pointer.flip ? DYE.gold : DYE.amber;
+        const c = pointer.flip ? tint.dye[1] : tint.dye[0];
         fluid.splat(x, y, dx * 2200, dy * 2200, dim(c, 0.1), 0.005);
         pointer.flip = !pointer.flip;
       }
@@ -427,9 +465,17 @@ export function createHero({
     inerted = [...document.body.children].filter((c) => c !== host && !c.inert);
     for (const c of inerted) c.inert = true;
     statusEl.textContent = cameraLive() ? "Camera on. Hold a hand up to the camera to stir the ink." : "";
+    const unseen = applyProgress();
     if (handBtn) handBtn.hidden = !startCamera || cameraLive();
     if (animated()) {
       startFluid();
+      // a newly unlocked ink theme gets one slow bloom in its colours
+      if (unseen.length && fluid) {
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          fluid.splat(0.5 + 0.18 * Math.cos(a), 0.55 + 0.18 * Math.sin(a), Math.cos(a) * 220, Math.sin(a) * 220, dim(tint.dye[i % tint.dye.length], 0.22), 0.01);
+        }
+      }
       titleDone = false;
       for (const L of letters) { L.s = { x: 0, v: 0 }; L.gs = { x: 0, v: 0 }; L.g.style.opacity = "0"; L.shape.style.opacity = "0"; }
       // wait (briefly) for the dataset so letters can start as handshapes

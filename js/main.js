@@ -32,7 +32,8 @@ import { createInkBloom } from "./inkbloom.js";
 import { createGlyphFx } from "./glyphfx.js";
 import { createChallengeFx, burstCount } from "./challengefx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
-import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
+import { createChallenge, START_LIVES, PAUSE_GAP_MS, multFor } from "./challenge.js";
+import { createAchievements } from "./achievements.js";
 import { createVersus } from "./versus.js";
 import { createLeaderboard } from "./leaderboard.js";
 import { createMotionMatcher } from "./motion.js";
@@ -137,6 +138,7 @@ const handPick = $("handPick");
 const muteBtn = $("muteBtn");
 const controls = document.querySelector(".controls");
 const toast = $("toast");
+const achCard = $("achCard");
 const modeToggle = $("modeToggle");
 const pickHint = $("pickHint");
 const framingCue = $("framingCue");
@@ -506,6 +508,31 @@ function updateColorKey(visible, stats, now) {
 const HARD_LETTERS = new Set(["M", "N", "D"]); // recogniser is weaker on these
 const statsMap = loadJSON("stats", {});
 const MASTERY_DONE = 3; // completions before a letter counts as "mastered"
+// achievements, records + unlockable Home ink themes (js/achievements.js).
+// sync() adopts letters already learned before this existed (no fanfare).
+const ach = createAchievements({ masteryAt: MASTERY_DONE });
+ach.sync({ stats: statsMap });
+// something unlocked: a small card per achievement (top right) + the
+// screen-reader toast. Calm: no extra flash/confetti (the moment that earned
+// it already celebrated).
+const achQueue = [];
+let achShowing = false;
+function celebrateAch(list) {
+  if (!list?.length) return;
+  achQueue.push(...list);
+  if (!achShowing) nextAchCard();
+}
+function nextAchCard() {
+  const a = achQueue.shift();
+  if (!a) { achShowing = false; achCard.hidden = true; return; }
+  achShowing = true;
+  achCard.innerHTML = `<span class="ach-ic" aria-hidden="true">${a.icon}</span><span><b>${escapeHtml(a.name)}</b><small>${a.theme ? `New ink colour unlocked — ${escapeHtml(a.theme.name)}. See Home` : escapeHtml(a.desc)}</small></span>`;
+  achCard.hidden = false;
+  achCard.classList.remove("in"); void achCard.offsetWidth; achCard.classList.add("in");
+  showToast(`Achievement: ${a.name}`);
+  sound.success?.({ tier: "mastery", step: 2 });
+  setTimeout(nextAchCard, 2600);
+}
 
 // ---- practice progress: mastery grid + daily streak ---------------
 // statsMap already tracked {done, bestMs} per letter for the small
@@ -540,7 +567,58 @@ function renderProgressPanel() {
   const streak = Number(loadPref("streak", "0"));
   progressStreak.textContent = streak >= 2 ? `🔥 ${streak}-day streak` : "Practice today to start a streak";
   renderProgressCount();
+  renderAchievements();
 }
+
+// ---- achievements + records tabs (js/achievements.js) ----------------------
+const fmtSec = (ms) => (ms > 0 ? `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} s` : "—");
+const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function renderAchievements() {
+  const list = ach.list();
+  const got = list.filter((a) => a.unlocked).length;
+  $("pgAchCount").textContent = `${got}/${list.length}`;
+  let html = "", group = "";
+  for (const a of list) {
+    if (a.group !== group) { group = a.group; html += `<h3>${escapeHtml(group)}</h3>`; }
+    html += `<div class="pg-badge${a.unlocked ? " on" : ""}" title="${escapeHtml(a.desc)}"><span class="pg-ic" aria-hidden="true">${a.unlocked ? a.icon : "🔒"}</span><span><b>${escapeHtml(a.name)}</b><small>${a.unlocked ? `✓ ${fmtDate(a.unlocked)}` : escapeHtml(a.desc)}</small></span></div>`;
+  }
+  $("pgAch").innerHTML = html;
+  const cur = ach.theme.id;
+  $("pgThemes").innerHTML = ach.themes().map((t) => {
+    const why = t.unlock ? (list.find((a) => a.id === t.unlock)?.desc || "") : "";
+    return `<button type="button" role="radio" aria-checked="${t.id === cur}" data-theme="${t.id}" ${t.unlocked ? "" : "disabled"} title="${t.unlocked ? t.name : `Locked — ${escapeHtml(why)}`}" style="--sw:${t.accent};--sw2:${t.dye[1]}"><i aria-hidden="true"></i>${escapeHtml(t.name)}${t.unlocked ? "" : " 🔒"}</button>`;
+  }).join("");
+  const r = ach.records, lt = ach.letters;
+  const chNormal = Number(localStorage.getItem("asl-challenge-best") || 0) || 0;
+  const chHard = Number(localStorage.getItem("asl-challenge-best-hard") || 0) || 0;
+  const rows = [
+    ["Letters learned", `${lt.learned} / 26`], ["Letters mastered", `${lt.mastered} / 26`],
+    ["Challenge best (Normal)", chNormal || "—"], ["Challenge best (Hard)", chHard || "—"],
+    ["Highest combo", r.bestMult ? `×${r.bestMult}` : "—"],
+    ["Fastest A→Z (no skips)", fmtSec(r.fastestAz)], ["A→Z runs finished", r.azRuns || "—"],
+    ["Fastest letter", fmtSec(r.fastestLetter)],
+    ["Words spelled", r.words || "—"], ["Best drill session", r.bestDrill ? `${r.bestDrill} words` : "—"],
+    ["Best Read streak", r.bestRead ? `${r.bestRead} in a row` : "—"],
+    ["Longest day streak", r.bestDay ? `${r.bestDay} day${r.bestDay === 1 ? "" : "s"}` : "—"],
+    ["Two-player wins", `Race ${r.raceWins} · Turns ${r.turnsWins}`],
+  ];
+  $("pgRecords").innerHTML = rows.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd></div>`).join("");
+}
+$("pgTabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (!b) return;
+  for (const t of $("pgTabs").children) t.setAttribute("aria-selected", String(t === b));
+  for (const p of document.querySelectorAll("#progressPanel .pg-pane")) p.hidden = p.dataset.pane !== b.dataset.tab;
+});
+$("pgThemes").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-theme]");
+  if (b && ach.setTheme(b.dataset.theme)) renderAchievements();
+});
+$("pgBoardBtn").addEventListener("click", () => {
+  progressPanel.hidden = true;
+  setMode("challenge");
+  $("chBoardBtn")?.click();
+});
 
 // call once per completed rep. Local calendar day, not UTC, so it lines up
 // with when the user actually feels like their "day" is.
@@ -555,6 +633,7 @@ function touchStreak() {
   const streak = prevDay === yKey ? Number(loadPref("streak", "0")) + 1 : 1;
   savePref("streak", String(streak));
   savePref("last-practice-day", key);
+  celebrateAch(ach.record("day", { streak }));
 }
 
 progressBtn.addEventListener("click", () => {
@@ -1133,6 +1212,8 @@ function showRunCard() {
     (tricky.length ? `<br><b>Took a while:</b> ${tricky.join(" ")}` : "") +
     (azSkipped.size ? `<br><b>Skipped:</b> ${[...azSkipped].join(" ")}` : "");
   runCard.hidden = false;
+  // signing time for the run (sum of per-letter times; skipped letters don't count)
+  celebrateAch(ach.record("run", { kind: runKind, skipped: azSkipped.size, ms: azTimes.reduce((a, t) => a + (Number.isFinite(t.ms) ? t.ms : 0), 0) }));
   fx.flash("#22c55e");
   sound.runComplete();
   buzz([0, 40, 30, 60, 30, 90]);
@@ -1546,9 +1627,11 @@ function judgeRead(revealed) {
   rdInput.disabled = true;
   rdScore.textContent = String(reader.score) + (reader.streak >= 2 ? `  🔥${reader.streak}` : "");
   let promo = null;
+  if (ok) celebrateAch(ach.record("read", { streak: reader.streak }));
   if (readStyle === "course" && course) {
     promo = course.record(ok);
     saveJSON("course", course.state());
+    if (promo?.unlocked || course.complete) celebrateAch(ach.record("tier", { index: promo?.tierIndex ?? 0, complete: !!course.complete }));
     buildReadPath();
     renderLesson();
   }
@@ -1591,6 +1674,7 @@ function judgeRead(revealed) {
 function setMode(next) {
   if (!challenge || next === mode) return;
   mode = next;
+  celebrateAch(ach.record("mode", { name: mode }));
   savePref("mode", mode);
   tracker?.setNumHands(mode === "spell" ? 2 : 1);
   // live QA: "when switching modes the audio gets bugged and loud ... stuck".
@@ -1940,6 +2024,10 @@ function renderChallenge(snap, near) {
     chCombo.hidden = true;
     refPanel.hidden = true;
     renderChallengeSummary(snap);
+    {
+      const sm = snap.summary || {};
+      celebrateAch(ach.record("challenge", { score: sm.score ?? snap.score, difficulty: sm.difficulty || chDifficulty, round: sm.round ?? snap.round, maxMult: multFor(sm.bestStreak ?? 0) }));
+    }
     chStart.textContent = "Play again";
     chCard.hidden = false;
     sound.charge(0);
@@ -2063,6 +2151,7 @@ function renderVersus(snap) {
     chBanner.hidden = true;
     const [a, b] = snap.players;
     const w = snap.gameWinner;
+    celebrateAch(ach.record("versus", { mode: snap.mode, won: w >= 0 }));
     chCardTitle.textContent = w < 0 ? "It's a tie!" : `${vsName(w)} wins!`;
     chCardSub.textContent = race
       ? `Rounds ${a.wins}–${b.wins} · points ${a.score}–${b.score}`
@@ -2129,7 +2218,11 @@ function reward(originLandmark, handLm = null) {
     if (ms < s.bestMs) s.bestMs = ms;
     // bookkeeping (storage write + text updates) after this frame, so the
     // reward frame itself stays light (perf: lag spikes on each letter)
-    setTimeout(() => { saveJSON("stats", statsMap); updateLetterStat(); renderProgressCount(); touchStreak(); }, 0);
+    const L0 = targetLetter, d0 = s.done;
+    setTimeout(() => {
+      saveJSON("stats", statsMap); updateLetterStat(); renderProgressCount(); touchStreak();
+      celebrateAch(ach.record("letter", { L: L0, done: d0, ms }));
+    }, 0);
   }
   // reps in a row climb the scale + grow the celebration (bounded)
   const now = performance.now();
@@ -2823,7 +2916,9 @@ function loop() {
       }
       if (gs.space) {
         const had = !!speller.pending;
+        const word = speller.pending;
         speller.space();
+        if (had) celebrateAch(ach.record("spellWord", { word }));
         spellSpaceAt = now;
         if (had) {
           sound.word?.(); // its own quiet cue — success() is the big reward sound
@@ -2853,6 +2948,7 @@ function loop() {
       if (!solved && drill.match(attempt).ok && now - drillHitAt > 900) {
         drillHitAt = now;
         drill.submit(attempt);
+        celebrateAch([...ach.record("spellWord", { word: attempt }), ...ach.record("drill", { done: drill.done })]);
         spDrillWord.classList.add("solved");
         spDrillWord.querySelectorAll(".ltr").forEach((s) => s.classList.remove("miss"));
         renderDrillScoreOnly();
@@ -3695,9 +3791,12 @@ const hero = createHero({
   startCamera: () => start(),
   cameraLive: () => state === "searching" || state === "tracking",
   onToggle: (open) => bg.setPaused?.(open), // nothing to see under the landing page
+  // your alphabet + unlocked ink theme on the Home page (js/achievements.js)
+  getProgress: () => ({ letters: ach.letters, theme: ach.theme, count: ach.unlockedCount, unseen: ach.takeUnseen() }),
   debug: DEBUG,
 });
 if (DEBUG) window.__fx.hero = hero;
+celebrateAch(ach.record("mode", { name: mode })); // the mode you start in counts as "tried"
 // Home (and the logo): the whole first-visit experience again — the welcome
 // screen, then the tour on Start (owner, 2026-09-25: "a way to go back to the
 // starting intro and page"). The tour's own mode/run handling still applies.

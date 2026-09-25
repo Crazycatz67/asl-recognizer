@@ -465,6 +465,10 @@ references are as of commit `41c43f0` and will drift.
     before/after in docs/CHANGELOG.md (2026-09-25). Owner to check on a real
     camera: does 650 ms feel right, is 2.2 s enough to find the next letter.
 
+55. **Achievements + records + unlockable Home ink (owner, 2026-09-25).**
+    `SHIPPED (needs live confirm)` — v106. Check the look of the Home wall,
+    unlock cards and ink themes on the owner's devices.
+
 ---
 
 ## Working the list

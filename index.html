@@ -410,13 +410,29 @@
         <h2>Your progress</h2>
         <button class="icon-btn" id="progressClose" type="button" aria-label="close">✕</button>
       </div>
-      <p class="progress-streak" id="progressStreak"></p>
-      <div class="progress-grid" id="progressGrid" role="group" aria-label="Letter mastery"></div>
-      <p class="progress-legend">
-        <span class="pg-dot pg-mastered" aria-hidden="true"></span> mastered
-        <span class="pg-dot pg-started" aria-hidden="true"></span> practicing
-        <span class="pg-dot pg-none" aria-hidden="true"></span> not started yet
-      </p>
+      <div class="pg-tabs" id="pgTabs" role="tablist" aria-label="Progress sections">
+        <button type="button" role="tab" data-tab="letters" aria-selected="true">Letters</button>
+        <button type="button" role="tab" data-tab="ach" aria-selected="false">Achievements <span id="pgAchCount"></span></button>
+        <button type="button" role="tab" data-tab="records" aria-selected="false">Records</button>
+      </div>
+      <section class="pg-pane" data-pane="letters">
+        <p class="progress-streak" id="progressStreak"></p>
+        <div class="progress-grid" id="progressGrid" role="group" aria-label="Letter mastery"></div>
+        <p class="progress-legend">
+          <span class="pg-dot pg-mastered" aria-hidden="true"></span> mastered
+          <span class="pg-dot pg-started" aria-hidden="true"></span> practicing
+          <span class="pg-dot pg-none" aria-hidden="true"></span> not started yet
+        </p>
+      </section>
+      <section class="pg-pane" data-pane="ach" hidden>
+        <p class="pg-sub">Home ink colour — unlock more with achievements</p>
+        <div class="pg-themes" id="pgThemes" role="radiogroup" aria-label="Home ink colour"></div>
+        <div class="pg-ach" id="pgAch"></div>
+      </section>
+      <section class="pg-pane" data-pane="records" hidden>
+        <dl class="pg-records" id="pgRecords"></dl>
+        <button type="button" class="pg-board-btn" id="pgBoardBtn">🏆 Challenge leaderboards</button>
+      </section>
     </div>
   </div>
 
@@ -438,6 +454,8 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <!-- achievement unlocked card (the toast above carries the words for screen readers) -->
+  <div class="ach-card" id="achCard" aria-hidden="true" hidden></div>
 
   <!-- visual layer v2 (B2): landing / hero — js/hero.js. First visit (before
        the tour) and the logo button. The fluid canvas is created on open and
@@ -456,6 +474,10 @@
         <button class="hero-hand" id="heroHand" type="button">✋ Try it with your hand</button>
       </div>
       <p class="hero-handstatus" id="heroHandStatus" aria-live="polite"></p>
+        <!-- your alphabet so far (js/hero.js getProgress): learned / mastered -->
+        <div class="hero-wall" id="heroWall" aria-label="Your alphabet so far"></div>
+        <p class="hero-wall-cap" id="heroWallCap"></p>
+        <p class="hero-unlock" id="heroUnlock" hidden></p>
     </div>
     <svg class="hero-defs" width="0" height="0" aria-hidden="true" focusable="false">
       <filter id="heroGoo"><feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b" /><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" /></filter>

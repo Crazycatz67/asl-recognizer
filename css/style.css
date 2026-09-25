@@ -2615,3 +2615,80 @@ summary:focus-visible,
     conic-gradient(var(--amber-400, #fbbf24) 360deg, transparent 0);
 }
 .speller:not(.fluid) .sp-hint { color: var(--fg); opacity: 0.85; }
+
+/* ---- achievements (js/achievements.js) --------------------------------- */
+/* progress panel tabs: Letters · Achievements · Records */
+.pg-tabs { display: flex; gap: 0.3rem; margin: 0.2rem 0 0.8rem; flex-wrap: wrap; }
+.pg-tabs button {
+  flex: 1 1 auto; min-height: 44px; padding: 0.45rem 0.8rem; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  font: 700 0.9rem system-ui, sans-serif; cursor: pointer;
+}
+.pg-tabs button[aria-selected="true"] { background: var(--amber-400, #fbbf24); color: var(--amber-ink, #1a1204); border-color: transparent; }
+.pg-pane { max-height: min(60svh, 34rem); overflow-y: auto; }
+.pg-sub { margin: 0 0 0.4rem; font-size: 0.85rem; color: var(--muted); }
+.pg-themes { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+.pg-themes button {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; padding: 0.35rem 0.8rem;
+  border-radius: 999px; border: 2px solid var(--line); background: #0b1220; color: var(--fg);
+  font: 700 0.85rem system-ui, sans-serif; cursor: pointer;
+}
+.pg-themes button i { width: 1.1rem; height: 1.1rem; border-radius: 50%; background: linear-gradient(135deg, var(--sw), var(--sw2)); }
+.pg-themes button[aria-checked="true"] { border-color: var(--sw); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4) inset; }
+.pg-themes button:disabled { opacity: 0.5; cursor: default; }
+.pg-ach h3 { margin: 0.8rem 0 0.35rem; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pg-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.4rem; }
+.pg-ach h3 { grid-column: 1 / -1; }
+.pg-badge { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.65rem; border-radius: 0.8rem; background: #0b1220; border: 1px solid var(--line); opacity: 0.6; }
+.pg-badge.on { opacity: 1; border-color: rgba(251, 191, 36, 0.45); background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), #0b1220 70%); }
+.pg-badge .pg-ic { font-size: 1.4rem; width: 2rem; text-align: center; }
+.pg-badge b { display: block; font-size: 0.92rem; }
+.pg-badge small { display: block; font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
+.pg-records { display: grid; gap: 0.3rem; margin: 0 0 0.9rem; }
+.pg-records div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--line); }
+.pg-records dt { color: var(--muted); font-size: 0.9rem; }
+.pg-records dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pg-board-btn { min-height: 44px; padding: 0.5rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: #0b1220; color: var(--fg); font: 700 0.9rem system-ui, sans-serif; cursor: pointer; }
+
+/* unlock card (top right; the #toast carries the words for screen readers) */
+.ach-card {
+  position: fixed; z-index: 130;
+  top: calc(0.8rem + env(safe-area-inset-top, 0px)); right: calc(0.8rem + env(safe-area-inset-right, 0px));
+  display: flex; align-items: center; gap: 0.7rem; max-width: min(22rem, calc(100vw - 1.6rem));
+  padding: 0.7rem 0.95rem; border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.7), 0 0 24px -8px rgba(251, 191, 36, 0.5);
+  pointer-events: none;
+}
+.ach-card .ach-ic { font-size: 1.8rem; }
+.ach-card b { display: block; color: var(--amber-300, #fcd34d); font-size: 0.95rem; }
+.ach-card b::before { content: "Achievement · "; color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+.ach-card small { display: block; color: var(--fg); font-size: 0.85rem; line-height: 1.3; }
+.ach-card.in { animation: ach-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes ach-in { from { opacity: 0; transform: translateY(-10px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ach-card.in { animation: none; } }
+
+/* Home: your alphabet so far (learned = theme accent, mastered = gold) */
+.hero-wall {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem;
+  max-width: 36rem; margin: 1.2rem auto 0; pointer-events: auto;
+}
+.hw-t {
+  display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 0.45rem;
+  font: 800 0.85rem system-ui, sans-serif; color: rgba(203, 213, 225, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.22); background: rgba(15, 23, 42, 0.5);
+}
+.hw-t.l1 { color: #0b1220; background: var(--wall-accent, #fbbf24); border-color: transparent; opacity: 0.85; }
+.hw-t.l2 { color: #1a1204; background: linear-gradient(135deg, #ffc861, #f59e0b); border-color: #fff8e1; box-shadow: 0 0 10px -2px rgba(255, 200, 97, 0.7); }
+/* ONE shared, slow glow for all mastered tiles (opacity only: compositor) */
+.hero-wall.has-mastered { animation: wall-glow 3.6s ease-in-out infinite; }
+@keyframes wall-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.88; } }
+.hero-static .hero-wall, :root[data-fx="off"] .hero-wall { animation: none; }
+@media (prefers-reduced-motion: reduce) { .hero-wall { animation: none; } }
+.hero-wall-cap { margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--muted); }
+.hero-unlock {
+  display: inline-block; margin: 0.6rem auto 0; padding: 0.35rem 0.9rem; border-radius: 999px;
+  background: rgba(251, 191, 36, 0.14); border: 1px solid rgba(251, 191, 36, 0.5);
+  color: var(--amber-300, #fcd34d); font-weight: 800; font-size: 0.9rem;
+}
+@media (max-width: 420px) { .hw-t { width: 1.75rem; height: 1.75rem; font-size: 0.8rem; } }
