@@ -158,17 +158,18 @@ export function bendFinger(v, finger, deg) {
 }
 
 /**
- * Swing the thumb (joints 2-4) about its base (joint 1), around the palm
- * normal: deg > 0 moves the thumb tip AWAY from the index knuckle (out to the
- * side, toward an L), deg < 0 toward it (tucked in). The direction is picked
- * per hand so it means the same on every hand.
+ * Swing the thumb (joints 2-4) about its base (joint 1) in the plane holding
+ * the thumb tip and the index knuckle: deg > 0 moves the tip AWAY from the
+ * index knuckle (out to the side, toward an L), deg < 0 toward it (tucked
+ * in). The thumb's base joint moves in two directions, so this is physical
+ * whichever way the thumb already points — rotating about the palm normal
+ * (the first version) barely moved a thumb that points along it (Q, C).
  */
 export function swingThumb(v, deg) {
-  const n = palmNormal(v), c = P3(v, 1);
-  const tip = (rad) => rotAbout(P3(v, 4), c, n, rad);
-  const d5 = (p) => Math.hypot(...sub3(p, P3(v, 5)));
-  const sgn = d5(tip(0.1)) >= d5(tip(-0.1)) ? 1 : -1;
-  const out = v.slice(), rad = (sgn * deg * Math.PI) / 180;
-  for (const k of [2, 3, 4]) setP(out, k, rotAbout(P3(v, k), c, n, rad));
+  const c = P3(v, 1);
+  let ax = cross3(sub3(P3(v, 4), c), sub3(P3(v, 5), c)); // positive rotation: tip -> index knuckle
+  ax = Math.hypot(...ax) > 1e-6 ? unit3(ax) : palmNormal(v);
+  const out = v.slice(), rad = (-deg * Math.PI) / 180;
+  for (const k of [2, 3, 4]) setP(out, k, rotAbout(P3(v, k), c, ax, rad));
   return out;
 }
