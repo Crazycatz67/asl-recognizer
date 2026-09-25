@@ -41,6 +41,7 @@ import { createSpellDrill } from "./spelldrill.js";
 import { createSwipeMatcher } from "./swipe.js";
 import { createTwoHandMatcher } from "./twohand.js";
 import { createTransitionMatcher } from "./transition.js";
+import { createSpellGate } from "./spellgate.js";
 import { buildLexicon, createDecoder, mergeConfusion } from "./decode.js";
 import { createReader } from "./reader.js";
 import { createCourse } from "./curriculum.js";
@@ -69,6 +70,8 @@ const motion = createMotionMatcher();
 const swipe = createSwipeMatcher(); // spell mode: open-hand sideways sweep = delete
 const twohand = createTwoHandMatcher(); // spell mode: hands together = copy, apart = paste
 const transition = createTransitionMatcher(); // fluid mode: rhythm-based letter segmentation
+// Spell's default input: the circle lock (a ring per letter + a word window)
+const spellGate = createSpellGate();
 let decoder = null; // fluid mode: lexicon decoder — loaded in the background
 let lastDecodeAt = 0;
 let loadedConfusion = null; // data/confusion.json, blended — shared with reader.js's near-miss diff
@@ -675,7 +678,9 @@ let spellLastCommitAt = 0;
 let handSeenSince = 0; // when the current continuous hand sighting began
 let lastHandSeenAt = 0;
 const HAND_ENTRY_MS = 400;
-let spellMaxAway = 0; // Spell: farthest (hand-spans) the wrist got from the last letter while NOT holding // Spell: when the last letter landed (gates J/Z strokes)
+let spellCaption = ""; // Spell: the live caption last written into #spHint
+let spellSpaceAt = 0; // Spell: when the word window last ran out (brief "space added" caption)
+let spellLandedAt = 0; // Spell: last confirm (the panel ring's amber flash)
 let lastHold = null; // setHold(): last --hold value written
 let lastMeterKey = null; // updateMeter(): last score|bucket shown
 let missStreak = 0;
@@ -730,9 +735,7 @@ let mode = "practice"; // "practice" | "challenge" | "spell"
 let pendingChallengeStart = false; // start the game as soon as the camera is up
 let speller = null; // spell mode: continuous fingerspelling -> transcript
 let spellStab = null; // its own (faster) stabilizer so held letters commit sooner
-let spellAnchor = null; // wrist position at the last commit — for "moved" re-arm
 let spellClipboard = ""; // last text "grabbed" in spell mode (for the paste gesture)
-let spellWrist = []; // short wrist-position history — a "hand is still" gate
 let spellSuppressUntil = 0; // block letter commits briefly after a gesture
 let fluidMode = loadPref("fluid") === "1"; // spell: transition.js letters + decode + speak
 let fluidLastLetterAt = 0; // for auto-speak-on-pause
@@ -1620,8 +1623,8 @@ function setMode(next) {
     swipe.reset();
     twohand.reset();
     transition.reset();
-    spellWrist = [];
-    spellAnchor = null;
+    spellGate.reset();
+    spellCaption = "";
     spDecodedRow.hidden = !fluidMode;
     if (spDecodedText) spDecodedText.textContent = "…";
     syncSpellText();
@@ -2717,7 +2720,7 @@ function loop() {
       syncSpellText();
       spellStab.reset(); // the moving hand mustn't then register as a letter
       transition.reset();
-      spellAnchor = null;
+      spellGate.reset(); // the scrapped word's window closes with it
       spellSuppressUntil = now + 500;
       buzz([0, 25, 45, 25]);
       fx.flash("rgba(248, 113, 113, 0.4)");
@@ -2729,11 +2732,13 @@ function loop() {
       doSpellCopy();
       spellStab.reset();
       transition.reset();
+      spellGate.reset();
       spellSuppressUntil = now + 600; // open hands settling after a gesture aren't a letter
     } else if (two === "paste" && spellClipboard && speller.insert(spellClipboard)) {
       syncSpellText();
       spellStab.reset();
       transition.reset();
+      spellGate.reset();
       spellSuppressUntil = now + 600;
       buzz([0, 12, 22, 12, 22]);
       fx.flash("rgba(56, 189, 248, 0.5)");
@@ -2758,90 +2763,65 @@ function loop() {
       }
     }
 
-    // "hand is still" gate — a held letter barely moves; a hand mid-transition
-    // or mid-swipe moves a lot and used to register a string of junk letters
-    spellWrist.push({ t: now, x: hand?.[0]?.x ?? 0, y: hand?.[0]?.y ?? 0, has: hasHand });
-    while (spellWrist.length && now - spellWrist[0].t > 200) spellWrist.shift();
-    // unknown speed (too few frames, or a frame without a hand in the window)
-    // counts as MOVING — it used to default to 0 = still
-    let handSpeed = Infinity;
-    if (hasHand && hand && spellWrist.length >= 3 && spellWrist.every((f) => f.has)) {
-      const a = spellWrist[0], b = spellWrist.at(-1);
-      const w = hand[0];
-      let mx = 0, my = 0;
-      for (const j of [5, 9, 13, 17]) { mx += hand[j].x; my += hand[j].y; }
-      const span = Math.hypot(mx / 4 - w.x, my / 4 - w.y) || 1e-6;
-      handSpeed = Math.hypot(b.x - a.x, b.y - a.y) / span; // hand-spans moved in ~0.2 s
-    }
-    const still = handSpeed < 0.3 && now >= spellSuppressUntil && !handEntering;
-
-    const cand = spellStab.candidate;
-    const cur = spellStab.current;
-    // in fluid mode the stabiliser never drives a commit — transition.js does
-    const holding = !fluidMode && still && spellStab.progress >= 1 && !!cand && cand === cur;
-
-    // a notable wrist shift since the last commit lets a deliberate bounce
-    // re-arm a doubled letter (LL, SS) without waiting for the full pause
-    // Measured in hand-spans (like handSpeed above), not raw frame units —
-    // 0.14 of the frame was a small nudge for a hand far from the camera and
-    // a large move up close, so drift re-armed repeats for some signers.
-    // A re-arm needs a real bounce AWAY from the letter: only distance
-    // covered while NOT holding counts, and the anchor follows the hand while
-    // it holds — slow drift during a long hold used to add up to 0.8 spans
-    // and re-commit the same letter.
-    if (hasHand && hand && spellAnchor) {
-      let mx = 0, my = 0;
-      for (const j of [5, 9, 13, 17]) { mx += hand[j].x; my += hand[j].y; }
-      const span = Math.hypot(mx / 4 - hand[0].x, my / 4 - hand[0].y) || 1e-6;
-      if (holding) spellAnchor = { x: hand[0].x, y: hand[0].y };
-      else spellMaxAway = Math.max(spellMaxAway, Math.hypot(hand[0].x - spellAnchor.x, hand[0].y - spellAnchor.y) / span);
-    }
-    const moved = spellMaxAway > 0.8;
-
-    // J/Z motion letters bypassed every Spell gate (stillness, the post-swipe
-    // suppression window) and re-armed repeats — moving between handshapes
-    // could land a stray J/Z about once a second. Only accept a stroke outside
-    // the suppression window and not right on the heels of another commit.
-    // (A stroke right after its own start shape — J after a held I — is
-    // exempt: speller.feed() swaps that letter for the stroke.)
-    const spellStroke =
-      stroke && now >= spellSuppressUntil &&
-      (now - spellLastCommitAt > 700 || speller.last === STROKE_START[stroke])
-        ? stroke : null;
-
-    const res = speller.feed({
-      holding,
-      letter: cur,
-      stroke: spellStroke,
-      handPresent: hasHand,
-      moved,
-      now,
-    });
-
-    if (res.event === "letter") {
-      spellLastCommitAt = now;
-      spellMaxAway = 0;
-      spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
-      sound.lock?.(Math.max(0, (speller.pending?.length || 1) - 1)); // climbs through the word
-      if (hasHand && hand) { const p = pagePoint(hand[9]); fx.ring(p.x, p.y, { color: "#38bdf8", radius: 46 }); }
-      buzz(10);
-    } else if (res.event === "word") {
-      sound.word?.(); // its own quiet cue — success() is the big reward sound
-      buzz([0, 18, 30, 18]);
-      fx.flash("rgba(56, 189, 248, 0.4)");
-    } else if (res.event === "full") {
-      showToast("Line full — Clear or Copy");
+    // CIRCLE LOCK (default; js/spellgate.js) — a letter enters only after
+    // the same letter fills a ring on the hand (~0.65 s steady). Each
+    // confirm opens a word window (the thin outer ring): the next letter
+    // confirmed inside it joins the word; when it runs out, the word is
+    // saved with a space. Holding a letter never repeats it — a doubled
+    // letter needs a release (bounce, open the hand, or lower it).
+    let gs = null;
+    if (!fluidMode) {
+      const live = hasHand && !handEntering && now >= spellSuppressUntil ? lastPred : null;
+      // J/Z: not inside the post-gesture suppression window, and not right
+      // on the heels of another letter — unless it follows its own start
+      // shape (J after a held I), which the stroke then replaces
+      const gStroke =
+        stroke && now >= spellSuppressUntil &&
+        (now - spellLastCommitAt > 700 || spellGate.held === STROKE_START[stroke])
+          ? stroke : null;
+      gs = spellGate.feed({
+        now,
+        letter: live?.label ?? null,
+        conf: live?.confidence ?? 0,
+        stroke: gStroke,
+        pos: hasHand && hand ? { x: hand[0].x, y: hand[0].y, span: handSpan(hand) } : null,
+      });
+      if (gs.confirm) {
+        const added = gs.replace
+          ? speller.replaceLast(gs.confirm, 0.85, now)
+          : speller.addLetter(gs.confirm, 0.85, now);
+        if (added === "full") {
+          showToast("Line full — Clear or Copy");
+        } else if (added === "letter") {
+          spellLastCommitAt = now;
+          spellLandedAt = now;
+          sound.lock?.(Math.max(0, (speller.pending?.length || 1) - 1)); // climbs through the word
+          if (hasHand && hand) handfx?.landed(hand, now); // the amber "landed" ring, as in Practice
+          buzz(10);
+        }
+      }
+      if (gs.space) {
+        const had = !!speller.pending;
+        speller.space();
+        spellSpaceAt = now;
+        if (had) {
+          sound.word?.(); // its own quiet cue — success() is the big reward sound
+          buzz([0, 18, 30, 18]);
+        }
+      }
+      if (hasHand && hand) handfx?.drawSpell(hand, { progress: gs.progress, windowFrac: gs.windowFrac });
+      setSpellCaption(spellCaptionFor(gs, hasHand, now));
     }
 
     syncSpellText();
-    const building = !fluidMode && cand && /^[A-Z]$/.test(cand) ? cand : "";
-    spPending.textContent = fluidMode
-      ? (transition.metrics().held || "–")
-      : building || "–";
-    spRing.style.setProperty(
-      "--p",
-      building ? spellStab.progress.toFixed(2) : "0"
-    );
+    // the panel's twin of the on-hand rings: the letter being confirmed and
+    // its fill, the word window as a thin outer ring, amber on a confirm
+    const building = gs && gs.candidate && gs.progress > 0 ? gs.candidate : "";
+    const pendTxt = fluidMode ? (transition.metrics().held || "–") : building || "–";
+    if (spPending.textContent !== pendTxt) spPending.textContent = pendTxt;
+    spRing.style.setProperty("--p", building ? gs.progress.toFixed(2) : "0");
+    spRing.style.setProperty("--w", gs ? gs.windowFrac.toFixed(3) : "0");
+    spRing.classList.toggle("landed", !fluidMode && now - spellLandedAt < 400);
 
     // word drill: match what's been spelled so far against the target word
     if (drillMode && drill && drill.target && !spDrillRow.hidden) {
@@ -2862,6 +2842,7 @@ function loop() {
         fx.burst(dw.x, dw.y, { count: 22 + 4 * Math.min(5, drill.streak || 0), colors: ["#38bdf8", "#4ade80", "#f8fafc", "#fde047"] });
         setTimeout(() => {
           speller.clearPending();
+          spellGate.closeWord();
           syncSpellText();
           nextDrillWord();
         }, 700);
@@ -2913,7 +2894,7 @@ function loop() {
         const sm = swipe.metrics();
         spMetrics.textContent =
           hasHand && sm
-            ? `${still ? "still ✓" : "moving — hold to lock"} · swipe sideways ${sm.dx}/1.1`
+            ? `${gs ? `gate ${gs.state} ${gs.candidate || ""} ${gs.progress.toFixed(2)} · word ${gs.windowFrac.toFixed(2)}` : "fluid"} · swipe sideways ${sm.dx}/1.1`
             : "";
       }
     }
@@ -3292,6 +3273,29 @@ chStart.addEventListener("click", () => {
 });
 chSkip.addEventListener("click", () => challenge?.skip());
 
+// Spell circle lock: wrist -> mean of the four knuckles (hand-span units,
+// the same measure transition.js and js/spellgate.js use)
+function handSpan(h) {
+  let mx = 0, my = 0;
+  for (const j of [5, 9, 13, 17]) { mx += h[j].x; my += h[j].y; }
+  return Math.hypot(mx / 4 - h[0].x, my / 4 - h[0].y) || 1e-6;
+}
+// the caption under the panel ring: the visual twin of every gate state
+function spellCaptionFor(gs, hasHand, now) {
+  const word = speller?.pending || "";
+  if (now - spellSpaceAt < 1400 && !gs.inWord) return "Space added — the next letter starts a new word";
+  if (gs.state === "charging") return `Hold ${gs.candidate} until the ring fills`;
+  if (gs.inWord && word) return `Next letter joins ${word} · pause for a space`;
+  if (!hasHand) return "Show your hand, then hold a letter until the ring fills";
+  if (gs.held) return "Change shape for the next letter — same letter again? Bounce or open your hand";
+  return "Hold a letter until the ring fills";
+}
+function setSpellCaption(text) {
+  if (text === spellCaption) return;
+  spellCaption = text;
+  spHint.textContent = text;
+}
+
 // spell-mode transcript controls
 const escapeHtml = (s) =>
   s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -3310,11 +3314,12 @@ const syncSpellText = () => {
     (p ? `<span class="sp-pending">${escapeHtml(p)}</span>` : "");
   spText.scrollTop = spText.scrollHeight;
 };
-spSpace.addEventListener("click", () => { speller?.space(); syncSpellText(); });
+spSpace.addEventListener("click", () => { speller?.space(); spellGate.closeWord(); syncSpellText(); });
 spBack.addEventListener("click", () => { speller?.backspace(); syncSpellText(); });
 spClear.addEventListener("click", () => {
   speller?.clear();
   transition.reset();
+  spellGate.reset();
   fluidSpoke = false;
   fluidLastLetterAt = 0;
   syncSpellText();
@@ -3328,12 +3333,14 @@ function applyFluid() {
   savePref("fluid", fluidMode ? "1" : "0");
   transition.reset();
   spellStab?.reset();
-  spellWrist = [];
+  spellGate.reset();
   spDecodedRow.hidden = !fluidMode;
   spellPanel.classList.toggle("fluid", fluidMode);
+  spellCaption = "";
+  spRing.style.setProperty("--w", "0");
   spHint.textContent = fluidMode
     ? "Sign at a natural pace — each settled shape is a letter, a pause finishes a word. Tap 🔊 to hear it."
-    : "Spell a word (shown dashed) — pause a second and it's saved. Swipe to scrap it.";
+    : "Hold a letter until the ring fills";
   // The "Hand gestures" / "How to spell" copy below was written for the
   // still-mode mechanic ("hold it still until the ring fills") and stayed
   // that way even in fluid mode, where a letter locks in when the hand
@@ -3343,17 +3350,17 @@ function applyFluid() {
   if (gHoldText) {
     gHoldText.innerHTML = fluidMode
       ? "<b>Add a letter</b> — form the handshape at a natural signing pace; it locks in once your hand <b>settles</b> after moving."
-      : "<b>Add a letter</b> — form the handshape and <b>hold it still</b> until the ring fills (about half a second).";
+      : "<b>Add a letter</b> — form the handshape and <b>hold it</b> until the ring around your hand fills (about ⅔ of a second). Nothing enters without a full ring.";
   }
   if (spStep1) {
     spStep1.innerHTML = fluidMode
       ? "<b>Spell a word</b> — sign continuously at a natural pace. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet."
-      : "<b>Spell a word</b> — form each letter and hold it briefly. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet.";
+      : "<b>Spell a word</b> — hold each letter until its ring fills. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet.";
   }
   if (spStep2) {
     spStep2.innerHTML = fluidMode
       ? "<b>Next letter</b> — keep moving into the next handshape; a brief settle after each one is what locks it in, not a held pose."
-      : "<b>Next letter</b> — just change handshape; no pause needed. Hold each one still for a beat so it's read cleanly.";
+      : "<b>Next letter</b> — change handshape while the thin outer ring is still running and it joins the word (H, then I = HI). Let the thin ring run out and the word is saved with a space.";
   }
 }
 spFluid.checked = fluidMode;
@@ -3582,7 +3589,7 @@ document.addEventListener("keydown", (e) => {
 
   if (mode === "spell") {
     if (e.key === "Backspace") { e.preventDefault(); speller?.backspace(); syncSpellText(); return; }
-    if (e.key === " ") { e.preventDefault(); speller?.space(); syncSpellText(); return; }
+    if (e.key === " ") { e.preventDefault(); speller?.space(); spellGate.closeWord(); syncSpellText(); return; }
   }
 
   if (e.key === "ArrowRight") stepLetter(1);
