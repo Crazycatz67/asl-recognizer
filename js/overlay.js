@@ -8,6 +8,7 @@
 
 import { drawSkeleton, HAND_CONNECTIONS, handSpan } from "./skeleton.js";
 import { STROKE } from "./motion.js";
+import { jointState, fullError, FIX_BAND } from "./jointstate.js";
 
 const MOTION_TIP = { J: 20, Z: 8 }; // pinky tip / index tip
 
@@ -73,9 +74,8 @@ export const GUIDE_RGB = {
   fix: [236, 72, 153], // #ec4899 magenta
 };
 export const GUIDE_GLYPH = { good: "✓", close: "~", fix: "✕" };
-// the close/fix cut on the normalized error band (0 = just past tolerance,
-// 1 = ERR_FULL or worse)
-const FIX_BAND = 0.5;
+// the close/fix cut (FIX_BAND) and the state rule live in js/jointstate.js —
+// shared with reference.js's scoring so colours == the "counts" verdict
 
 const mix = (a, b, t) => [
   a[0] + (b[0] - a[0]) * t,
@@ -87,9 +87,7 @@ const rgb = (a) => `rgb(${a[0] | 0}, ${a[1] | 0}, ${a[2] | 0})`;
 // Which of the three legend states an error is in. tol = the per-joint "on
 // target" error; full = the error that counts as fully off.
 export function guideState(e, tol, full) {
-  if (!(e > tol)) return "good";
-  const t = (e - tol) / Math.max(1e-9, full - tol);
-  return t < FIX_BAND ? "close" : "fix";
+  return jointState(e, tol, full);
 }
 
 // orange -> magenta as t goes 0 -> 1 (t = normalized error band, already past
@@ -224,6 +222,7 @@ export function createOverlay(canvas) {
         mirror = false,
         tol = 0.06,
         align = 0,
+        errors = null, // optional 21 per-joint errors from reference.score()
         reveal = 1,
         settled = false,
         // Is the canvas itself displayed CSS-mirrored (front camera)? This is
@@ -277,7 +276,11 @@ export function createOverlay(canvas) {
         err[i] = Math.hypot(ox, oy);
         tp[i] = [lp[i][0] + (ox / aspect) * radPx, lp[i][1] + oy * radPx];
       }
-      const ERR_FULL = Math.max(tol * 6, 0.32);
+      const ERR_FULL = fullError(tol);
+      // colour with the SCORER's per-joint errors when given (reference.js
+      // score().errors) — then every colour on the hand is exactly the state
+      // the reward is judged on. Positions (ghost, lead lines) stay geometric.
+      if (errors && errors.length === 21) for (let i = 0; i < 21; i++) err[i] = errors[i];
       const band = (e) => Math.max(0, Math.min(1, (e - tol) / (ERR_FULL - tol)));
 
       // stroke sizes scale to the hand's on-screen size

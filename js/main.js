@@ -2078,24 +2078,15 @@ function loop() {
   // score the shape once — the guide's reveal ramp and the practice block need it
   // (motion letters J/Z have no static shape to score)
   const m = hasHand && vec && reference && targetLetter && !motionTarget
-    ? reference.score(vec, targetLetter)
+    ? reference.score(vec, targetLetter, { refiner }) // heads settle M/N + D/O/C look-alikes
     : null;
-  // strict = the shape itself matches: every joint within the tolerance the
-  // live guide colours "good" (reference.js `matched`). Only this can earn
-  // the reward (2026-09-24 live QA: letters registered "despite the skeleton
-  // overlay being incomplete ... red or nowhere near fully green").
+  // m.bucket === "correct" <=> the hand is READABLE by the shared per-joint
+  // rule (js/jointstate.js): no joint badly off, at most a few slightly off.
+  // The guide colours the hand with the same joint states and the reward
+  // uses the same verdict, so what you see is what counts. (The old
+  // "the recogniser reads it" upgrade is gone: it made the meter say correct
+  // while joints were still drawn off.)
   if (m) m.strict = m.bucket === "correct";
-  // a "close" shape the recogniser confidently reads AS the target shows as
-  // correct on the METER (a readable sign) — encouragement only, no reward
-  if (
-    m &&
-    m.bucket === "close" &&
-    lastPred &&
-    lastPred.label === targetLetter &&
-    lastPred.confidence >= 0.6
-  ) {
-    m.bucket = "correct";
-  }
 
   // progressive disclosure: the correction guide is on at a low floor as soon
   // as a hand is scored (Stage 7c — staying plain blue until score >= 0.35
@@ -2126,6 +2117,7 @@ function loop() {
         mirror: guideMirror,
         tol: reference.matchTolerance(targetLetter),
         align: guideMirror ? o.deg : -o.deg,
+        errors: m?.errors, // colour with the scorer's own per-joint verdict
         reveal: guideAmt,
         settled: !!m?.strict, // don't nag once it really counts
         screenMirror: facingMode === "user", // the stage is CSS-mirrored for the front camera
@@ -2493,9 +2485,9 @@ function loop() {
       // be flagged instantly.
       if (needRelease && (!hasHand || m.bucket === "off" ||
           (stabilizer.current && stabilizer.current !== releaseFrom))) needRelease = false;
-      // the recogniser mustn't be confidently reading a DIFFERENT letter
-      const notContradicted = !stabilizer.current || stabilizer.current === targetLetter;
-      const complete = m.strict && notContradicted && !needRelease && now >= armedAt;
+      // counts exactly when the guide shows no magenta and only a few orange
+      // joints (the shared rule) — room for user error, same verdict you see
+      const complete = m.strict && !needRelease && now >= armedAt;
       if (complete) {
         if (!holdStart) holdStart = now;
         lastGoodAt = now;
@@ -2532,8 +2524,11 @@ function loop() {
 
       if (now - lastHintAt >= HINT_INTERVAL) {
         lastHintAt = now;
-        const misread =
-          lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8;
+        // the shape is nearer a look-alike (the reason it isn't counting) or
+        // the recogniser confidently reads another letter
+        const lookAs = m.confusedWith ||
+          (lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8 ? lastPred.label : null);
+        const misread = !complete && !!lookAs;
         let tip = reference.hint(vec, targetLetter);
         // hint() can say "looks right" from the coarse feature check while the
         // meter is still short — fall back to the precise joint the on-camera
@@ -2550,7 +2545,7 @@ function loop() {
         }
         // "(reading as X)" was cryptic; say what it looks like and what to change
         const misreadTip = misread
-          ? `Looks like ${lastPred.label} right now — ${ORIENT_TIP[targetLetter] || tip.charAt(0).toLowerCase() + tip.slice(1)}`
+          ? `Looks like ${lookAs} right now — ${ORIENT_TIP[targetLetter] || tip.charAt(0).toLowerCase() + tip.slice(1)}`
           : "";
         const dots = "●".repeat(Math.round(heldFrac * 5)).padEnd(5, "·");
         const prefix = stuckShown && !complete ? "Still tricky? " : "";

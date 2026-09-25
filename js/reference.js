@@ -14,6 +14,7 @@
 import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
+import { jointState, fullError, countStates, isReadable } from "./jointstate.js";
 import { makeInterpolator, angleDistance } from "./posekin.js";
 import {
   catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions, rotate2D,
@@ -31,7 +32,28 @@ const ALIGN_MAX_DEG = 22;
 // exhausting for testers). The live guide overlay must colour joints green up
 // to this SAME widened line, or it keeps flagging joints yellow that the meter
 // already calls correct — see matchTolerance() below and its one caller.
-const MATCH_TOL_MULT = 1.8;
+// 2026-09-24: 1.8 -> 2.6 — owner: "sensitivity is too high ... I want room
+// for some user error". The overlay's blue line and the reward use this same
+// value via matchTolerance() + js/jointstate.js, so widening it here widens
+// both together.
+const MATCH_TOL_MULT = 2.6;
+
+// ASL look-alikes (static letters). With per-joint room for error, a hand can
+// be "close enough" to BOTH letters of a pair — so a sign only counts if it's
+// also nearer its own letter than any look-alike (measured 2026-09-24: without
+// this, 57% of look-alike hands were accepted as the other letter).
+// only when CLEARLY nearer the look-alike (within 10% counts as ambiguous ->
+// benefit of the doubt to the letter you're practising)
+const LOOKALIKE_MARGIN = 0.9;
+const LOOKALIKE = {
+  M: ["N", "S", "A", "T"], N: ["M", "S", "T"], S: ["A", "T", "E", "M", "N"],
+  A: ["S", "T", "E"], T: ["A", "S", "N", "M"], E: ["A", "S", "O"],
+  U: ["V", "R", "H"], V: ["U", "K", "W"], R: ["U", "V"], K: ["V", "P"],
+  W: ["V", "F"], F: ["W", "B"], B: ["F", "E"],
+  G: ["H", "Q"], H: ["G", "U"], P: ["Q", "K"], Q: ["P", "G"],
+  D: ["O", "C", "F"], O: ["D", "C", "E"], C: ["O", "D"],
+  I: ["Y"], Y: ["I", "L"], L: ["Y", "G"], X: ["R", "D"],
+};
 
 // in-plane angle of the palm axis: wrist(0) -> mean of the four finger MCPs
 // (5,9,13,17). Averaging the knuckles is far steadier than a single bone, so a
@@ -250,7 +272,11 @@ export function buildReference(samples, letters) {
       return alignDegFor(liveVec, label);
     },
 
-    score(liveVec, label) {
+    // opts.refiner: heads.js's learned M/N + D/O/C heads (optional). Raw
+    // centroid distance can't separate those pairs (their shapes overlap), so
+    // when a look-alike conflict is between letters a head covers, the head
+    // decides instead.
+    score(liveVec, label, opts = {}) {
       const c = centroids.get(label);
       const b = bands.get(label);
       if (!c || !b || !liveVec)
@@ -263,10 +289,38 @@ export function buildReference(samples, letters) {
       // ~1.8x the tight "green" tolerance and still count — holding a perfect
       // pose was exhausting. (A truly wrong finger, several x tol, still fails.)
       const worst = worstJoint(v, c);
-      const matched = worst <= tolFor(b) * MATCH_TOL_MULT;
-      let bucket = s >= 0.7 ? "correct" : s >= 0.5 ? "close" : "off";
-      if (bucket === "correct" && !matched) bucket = "close";
-      return { dist: d, score: s, bucket, matched, worst, mirrored };
+      // every joint judged ONCE, with the shared rule (js/jointstate.js) —
+      // overlay.js colours the live hand with exactly these states and
+      // main.js rewards on the same verdict, so the colours can't disagree
+      // with whether the sign counts.
+      const tol = tolFor(b) * MATCH_TOL_MULT;
+      const full = fullError(tol);
+      const errors = new Array(21);
+      const states = new Array(21);
+      for (let j = 0; j < 21; j++) {
+        errors[j] = Math.hypot(v[j * 3] - c[j * 3], v[j * 3 + 1] - c[j * 3 + 1]);
+        states[j] = jointState(errors[j], tol, full);
+      }
+      const counts = countStates(states);
+      // nearer a look-alike than this letter? then it isn't this letter yet
+      let confusedWith = null;
+      for (const other of LOOKALIKE[label] || []) {
+        const c2 = centroids.get(other);
+        if (!c2) continue;
+        const d2 = coordDist(bestOrientation(liveVec, other).v, c2);
+        if (d2 < d * LOOKALIKE_MARGIN && (!confusedWith || d2 < confusedWith.d)) confusedWith = { letter: other, d: d2 };
+      }
+      const rf = opts.refiner;
+      if (confusedWith && rf && rf.covers.includes(label) && rf.covers.includes(confusedWith.letter)) {
+        const oriented = bestOrientation(liveVec, label).v;
+        if (rf.refine(oriented, confusedWith.letter) === label) confusedWith = null;
+      }
+      const readable = isReadable(counts, s) && !confusedWith;
+      const bucket = readable ? "correct" : counts.fix <= 2 && s >= 0.45 ? "close" : "off";
+      return {
+        dist: d, score: s, bucket, matched: readable, worst, mirrored, errors, states, counts, tol,
+        confusedWith: confusedWith ? confusedWith.letter : null,
+      };
     },
 
     // Where on the (mirrored) view the shape is wrong: 0..1 per screen zone.

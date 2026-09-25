@@ -278,6 +278,34 @@ function mkHand() {
     // the letter in the live frame, so it must rotate the target by -deg
     // (unless the target is mirrored). The old +deg drew the ghost 2x the
     // tilt off, so a hand the meter called matched still showed red tips.
+    // 2026-09-24: ONE per-joint verdict (js/jointstate.js) drives the colours
+    // on the hand AND whether the sign counts — with room for user error.
+    {
+      const L = "B", aspect = 4 / 3, c = ref.centroid(L);
+      const toLm = (v) => Array.from({ length: 21 }, (_, i) => ({ x: 0.5 + (v[i * 3] * 0.2) / aspect, y: 0.55 + v[i * 3 + 1] * 0.2, z: v[i * 3 + 2] * 0.2 }));
+      const nudge = (joints, amt) => { const v = c.slice(); for (const j of joints) v[j * 3] += amt; return v; };
+      const scoreOf = (v) => ref.score(nz.normalizeLandmarks(toLm(v), { extended: cfg.USE_EXTENDED_FEATURES, aspect }), L);
+      ok("jointstate: overlay colours == scorer's per-joint states (colours can't disagree with the verdict)", (() => {
+        const v = nudge([8, 12], 0.35);
+        const lm = toLm(v);
+        const m = ref.score(nz.normalizeLandmarks(lm, { extended: cfg.USE_EXTENDED_FEATURES, aspect }), L);
+        overlay.drawGuide(lm, c, { aspect, tol: m.tol, errors: m.errors, reveal: 1 });
+        const g = overlay.guideStats()?.joints;
+        return g && g.good === m.counts.good && g.close === m.counts.close && g.fix === m.counts.fix;
+      })());
+      ok("jointstate: a few joints slightly off still counts (room for user error)", (() => {
+        const m = scoreOf(nudge([4, 8], 0.4));
+        return m.bucket === "correct" && m.counts.close >= 1 && m.counts.fix === 0;
+      })());
+      ok("jointstate: one clearly wrong finger (a magenta joint) does not count", (() => {
+        const m = scoreOf(nudge([8], 0.9));
+        return m.counts.fix >= 1 && m.bucket !== "correct";
+      })());
+      ok("jointstate: a look-alike's shape doesn't count as the target (N's shape scored as M)", (() => {
+        const m = ref.score(ref.centroid("N"), "M");
+        return m.bucket !== "correct" && m.confusedWith === "N";
+      })());
+    }
     ok("overlay+reference: a hand tilted to exactly match a letter draws every joint 'good' (guide rotation sign)", (() => {
       const L = "L", aspect = 4 / 3, c = ref.centroid(L);
       const results = [];
@@ -335,7 +363,7 @@ function mkHand() {
     ok("reference: matchTolerance('N') is tolerance('N') widened by score()'s own correct-cutoff factor",
       (() => {
         const t = ref.tolerance("N"), m = ref.matchTolerance("N");
-        return m > t && Math.abs(m - t * 1.8) < 1e-9;
+        return m > t && Math.abs(m - t * 2.6) < 1e-9; // MATCH_TOL_MULT (2.6 since 2026-09-24)
       })(), `tolerance=${ref.tolerance("N")} matchTolerance=${ref.matchTolerance("N")}`);
     ok("reference: a joint just inside matchTolerance scores 'correct' AND would be drawn green",
       (() => {
