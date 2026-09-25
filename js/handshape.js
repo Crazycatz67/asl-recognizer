@@ -42,6 +42,8 @@ const angle = (a, b) => {
   return (Math.acos(Math.max(-1, Math.min(1, d))) * 180) / Math.PI;
 };
 const FINGER = { index: [5, 8], middle: [9, 12], ring: [13, 16], pinky: [17, 20] };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = (a) => { const l = len(a) || 1e-9; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /** Measure the handshape traits of a normalized landmark vector. */
 export function handTraits(v) {
@@ -62,6 +64,32 @@ export function handTraits(v) {
   let near = Infinity;
   for (let j = 5; j <= 20; j++) near = Math.min(near, len(sub(P(v, 4), P(v, j))));
   t.thumbNear = near / palm;
+  // finger SPLAY: mean angle between neighbouring fingers' base segments
+  // (knuckle -> middle joint), with the component toward the palm removed —
+  // so curling doesn't count as spreading, fanning sideways does. Measured:
+  // held-together fists A E T ~3-4°, S 8°, M 9°, N 11° (median); an N with its
+  // fingers fanned 20° apart per gap ~30°. Owner 2026-09-24: "I spread my
+  // fingers wide but they were curled and it registered [N]".
+  const pn = unit(cross(sub(P(v, 5), P(v, 0)), sub(P(v, 17), P(v, 0))));
+  const base = (m) => {
+    const a = sub(P(v, m + 1), P(v, m));
+    const k = a[0] * pn[0] + a[1] * pn[1] + a[2] * pn[2];
+    return unit([a[0] - k * pn[0], a[1] - k * pn[1], a[2] - k * pn[2]]);
+  };
+  const b = [base(5), base(9), base(13), base(17)];
+  let sp = 0;
+  for (let i = 0; i < 3; i++) sp += angle(b[i], b[i + 1]);
+  t.fingerSplay = sp / 3;
+  // how far the fingers fold forward AT THE BASE KNUCKLE (mean angle of each
+  // knuckle -> middle-joint segment vs the palm axis). N and M drape the
+  // fingers forward over the thumb from the knuckles (N median 117°, M 97°);
+  // a claw — fingers raised at the knuckles, curled at the middle joints —
+  // stays ~13-27° however far it's fanned, yet its curled tips read as
+  // "folded" by indexFlex etc. This is what separates a real N from a curled,
+  // spread hand (owner 2026-09-24).
+  let kf = 0;
+  for (const m of [5, 9, 13, 17]) kf += angle(palmAxis, sub(P(v, m + 1), P(v, m)));
+  t.knuckleFold = kf / 4;
   t.spread = angle(sub(P(v, 8), P(v, 5)), sub(P(v, 12), P(v, 9))); // index vs middle
   // which way the hand points in the image: 0 = up, 90 = sideways, 180 = down
   t.dir = Math.abs((Math.atan2(palmAxis[0], -palmAxis[1]) * 180) / Math.PI);
@@ -75,26 +103,29 @@ const UP = "up", DOWN = "down"; // resolved to calibrated flex ranges below
 // signers (B: the thumb just has to be tucked, not at an exact spot); "out" =
 // at least as far out as they go (L, Y: thumb clearly out to the side)
 const IN = "in", OUT = "out";
+// "folded at the knuckles" (M, N): at least as folded as the letter's own
+// signers' p10 — a floor, no ceiling
+const FOLD = "fold";
 const TRAITS = {
-  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
-  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN, thumbNear: IN },
+  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
+  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN, thumbNear: IN, fingerSplay: IN },
   C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
   D: { index: UP, middle: DOWN, ring: DOWN },
-  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
+  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
   F: { middle: UP, ring: UP, pinky: UP, thumbTip: true },
   G: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, dir: true },
   H: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, dir: true },
   I: { index: DOWN, middle: DOWN, ring: DOWN, pinky: UP },
   K: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   L: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, thumbOut: OUT, thumbNear: OUT },
-  M: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
-  N: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
+  M: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, knuckleFold: FOLD }, // no fingerSplay: fingers folded forward at the knuckle make it noise (held-out N 38-90°); knuckleFold rejects claws
+  N: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, knuckleFold: FOLD }, // no fingerSplay: fingers folded forward at the knuckle make it noise (held-out N 38-90°); knuckleFold rejects claws
   O: { index: true, middle: true, ring: true, pinky: true, thumbTip: true },
   P: { index: true, middle: true, dir: true },
   Q: { index: true, thumbOut: OUT, thumbNear: OUT, dir: true },
   R: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
-  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
-  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN }, // index bent over the thumb
+  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
+  T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN, fingerSplay: IN }, // index bent over the thumb
   U: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true, dir: true },
   V: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   W: { index: UP, middle: UP, ring: UP, pinky: DOWN },
@@ -106,7 +137,7 @@ export const THUMB_GROUP = new Set(["A", "E", "M", "N", "S", "T"]);
 
 // slack beyond the calibrated range: inside SLACK = still "good" (room for
 // user error); inside 2x SLACK = "close"; beyond = "fix"
-const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
+const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, fingerSplay: 5, knuckleFold: 15, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
 const slackFor = (name) => (name.endsWith("Flex") ? SLACK.flex : SLACK[name]);
 
 const HINTS = {
@@ -115,6 +146,8 @@ const HINTS = {
   thumbOut: { low: "Tuck your thumb in", high: "Bring your thumb out to the side" },
   thumbTip: { low: "Open the gap between thumb and index", high: "Touch your thumb to your index fingertip" },
   thumbNear: { low: "Move your thumb out, away from your fingers", high: "Tuck your thumb in against your fingers" },
+  fingerSplay: { low: "Spread your fingers a little", high: "Keep your fingers together — don't fan them apart" },
+  knuckleFold: { low: "Fold your fingers forward at the knuckles, over your thumb", high: "Fold your fingers a little less" },
   spread: { low: "Spread your index and middle fingers apart", high: "Keep index and middle fingers together" },
   dir: { low: "Point your hand more upward", high: "Turn your hand to point more sideways / down" },
   flexMid: (f) => `Adjust how much your ${f} finger bends`,
@@ -157,6 +190,14 @@ export function createHandshapeJudge(samples) {
   const outStart = (key) =>
     Math.min(...[...byL.keys()].filter((L) => TRAITS[L][key] === OUT).map((L) => pOf(L, key, 0.05)));
 
+  // How folded a STRAIGHT base knuckle looks: p95 of knuckleFold over the
+  // letters whose index + middle are raised (B, U, V, W, K, R, H). A claw
+  // (raised at the knuckles, curled at the middle joints) sits here, so a
+  // "folded at the knuckles" floor must clear it by 2x slack — M's own p10
+  // (37°, a noisy class) alone let 57% of claws through.
+  const raised = [...byL.keys()].filter((L) => TRAITS[L].index === UP && TRAITS[L].middle === UP);
+  const straightKnuckle = q(raised.flatMap((L) => byL.get(L).map((t) => t.knuckleFold)).sort((a, b) => a - b), 0.95);
+
   // per letter, per trait: the [lo, hi] a real signer's hand falls in
   const ranges = new Map();
   for (const [L, ts] of byL) {
@@ -169,11 +210,15 @@ export function createHandshapeJudge(samples) {
         const vals = ts.map((t) => t[key]).sort((a, b) => a - b);
         // "thumb out" is what separates Y from I and L from D/G/X, so its floor
         // sits between the signers' low end (p5) and their typical (p50)
-        const lo = want === IN ? -Infinity
+        const lo = want === FOLD ? Math.max(q(vals, 0.1), straightKnuckle + 2 * SLACK.knuckleFold)
+          : want === IN ? -Infinity
           : want === OUT ? (q(vals, 0.05) + q(vals, 0.5)) / 2
           : q(vals, 0.05);
-        const hi = want === OUT ? Infinity
-          : want === IN ? (q(vals, 0.95) + outStart(key)) / 2
+        const hi = want === OUT || want === FOLD ? Infinity
+          : want === IN
+            ? (Number.isFinite(outStart(key))
+                ? (q(vals, 0.95) + outStart(key)) / 2 // halfway to the letters that need it OUT
+                : q(vals, 0.9)) // nothing needs it out (finger splay): the letter's own p90
           : q(vals, 0.95);
         r[key] = { range: [lo, hi], kind: "range", finger: FINGER[name] ? name : null };
       }

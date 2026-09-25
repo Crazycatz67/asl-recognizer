@@ -83,3 +83,38 @@ export function runScenario(createMotionMatcher, sc, aspect = 1, dtMs = 33) {
   }
   return hits;
 }
+
+// ---- operations on NORMALIZED landmark vectors (dataset rows / live vecs) ----
+// Used by tools/ci-check.mjs to build shapes a learner might make by mistake.
+const P3 = (v, j) => [v[j * 3], v[j * 3 + 1], v[j * 3 + 2]];
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit3 = (a) => { const l = Math.hypot(...a) || 1e-9; return a.map((x) => x / l); };
+const rotAbout = (p, c, axis, rad) => {
+  const r = sub3(p, c), cs = Math.cos(rad), sn = Math.sin(rad), k = dot3(r, axis), cr = cross3(axis, r);
+  return [0, 1, 2].map((i) => c[i] + r[i] * cs + cr[i] * sn + axis[i] * k * (1 - cs));
+};
+const setP = (v, j, q) => { v[j * 3] = q[0]; v[j * 3 + 1] = q[1]; v[j * 3 + 2] = q[2]; };
+
+/** fan the four fingers apart by `deg` per gap (rotation about the palm normal at each knuckle) */
+export function fanFingers(v, deg) {
+  const out = v.slice();
+  const n = unit3(cross3(sub3(P3(v, 5), P3(v, 0)), sub3(P3(v, 17), P3(v, 0))));
+  [[5, -1.5], [9, -0.5], [13, 0.5], [17, 1.5]].forEach(([m, w]) => {
+    for (let j = m + 1; j <= m + 3; j++) setP(out, j, rotAbout(P3(v, j), P3(v, m), n, (w * deg * Math.PI) / 180));
+  });
+  return out;
+}
+
+/** curl each finger `bendDeg` at its middle joint — raised knuckles + curled fingers = a claw */
+export function curlAtMiddle(v, bendDeg) {
+  const out = v.slice();
+  const n = unit3(cross3(sub3(P3(v, 5), P3(v, 0)), sub3(P3(v, 17), P3(v, 0))));
+  for (const m of [5, 9, 13, 17]) {
+    const pip = P3(v, m + 1);
+    const axis = unit3(cross3(sub3(pip, P3(v, m)), n));
+    for (const j of [m + 2, m + 3]) setP(out, j, rotAbout(P3(out, j), pip, axis, (bendDeg * Math.PI) / 180));
+  }
+  return out;
+}

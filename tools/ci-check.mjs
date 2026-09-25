@@ -692,8 +692,16 @@ await check("handshape.js: real held-out hands pass their own letter's traits; c
   const mustFail = [["B", "A"], ["B", "S"], ["V", "U"], ["L", "B"], ["Y", "L"], ["W", "V"], ["A", "B"], ["I", "Y", 0.35]];
   const leaks = mustFail.filter(([a, b, lim = 0.15]) => passRate(a, b) > lim).map(([a, b]) => `${a} as ${b} ${(100 * passRate(a, b)).toFixed(0)}%`);
   if (leaks.length) throw new Error(`clearly different shapes pass: ${leaks.join(", ")}`);
+  // owner 2026-09-24: "I spread my fingers wide but they were curled and it
+  // registered [N]". Claws built from held-out raised-finger hands (fanned,
+  // then curled at the middle joints) must not pass as the fist letters that
+  // fold at the KNUCKLES.
+  const { fanFingers, curlAtMiddle } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")));
+  const claws = ["B", "V", "W"].flatMap((L) => test[L]).flatMap((x) => [curlAtMiddle(fanFingers(x.v, 15), 90), curlAtMiddle(fanFingers(x.v, 25), 100), curlAtMiddle(x.v, 80)]);
+  const clawLeak = ["N", "M"].map((L) => [L, claws.filter((v) => judge.check(v, L)?.ok).length / claws.length]).filter(([, r]) => r > 0.1);
+  if (clawLeak.length) throw new Error(`curled + spread (claw) hands pass as ${clawLeak.map(([L, r]) => `${L} ${(100 * r).toFixed(0)}%`).join(", ")}`);
   const all = judge.letters.map((L) => passRate(L, L));
-  return `${judge.letters.length} letters, own-letter pass ${(100 * all.reduce((a, b) => a + b, 0) / all.length).toFixed(1)}% avg (min ${(100 * Math.min(...all)).toFixed(0)}%), ${mustFail.length} different-shape pairs rejected`;
+  return `${judge.letters.length} letters, own-letter pass ${(100 * all.reduce((a, b) => a + b, 0) / all.length).toFixed(1)}% avg (min ${(100 * Math.min(...all)).toFixed(0)}%), ${mustFail.length} different-shape pairs rejected, claws rejected as N/M`;
 });
 
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
