@@ -666,6 +666,36 @@ await check("reference.js: J demo's pinky rides STROKE.J (same path as the camer
   return `max pinky-to-path distance ${worst.toFixed(4)} spans over 41 samples`;
 });
 
+// ---- 13e. js/handshape.js — letters judged by their defining traits --------
+// 2026-09-24 owner: judge "the accuracy of the letter rather than ... the
+// photo". Calibrated on the first 80% of each letter's samples, checked on
+// the held-out last 20%: every letter's own real hands must mostly pass its
+// definition (room for error), and clearly different shapes must not.
+await check("handshape.js: real held-out hands pass their own letter's traits; clearly different shapes don't", async () => {
+  const { createHandshapeJudge } = await import(pathToFileURL(path.join(ROOT, "js", "handshape.js")));
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "dataset.json"), "utf8"));
+  const byL = {};
+  for (const x of data.samples) (byL[x.label] ||= []).push(x);
+  const train = [], test = {};
+  for (const [L, arr] of Object.entries(byL)) {
+    const cut = Math.floor(arr.length * 0.8);
+    arr.forEach((x, i) => (i < cut ? train.push(x) : (test[L] ||= []).push(x)));
+  }
+  const judge = createHandshapeJudge(train);
+  const passRate = (L, asL) => test[L].filter((x) => judge.check(x.v, asL)?.ok).length / test[L].length;
+  const weak = judge.letters.filter((L) => passRate(L, L) < 0.6).map((L) => `${L} ${(100 * passRate(L, L)).toFixed(0)}%`);
+  if (weak.length) throw new Error(`letters whose own real hands mostly fail their definition: ${weak.join(", ")}`);
+  // finger-pattern differences must be caught by the traits alone; I vs Y
+  // differ ONLY by the thumb (often seen edge-on), so traits alone are
+  // looser there and main.js's recogniser tie-break settles it (measured:
+  // I->Y doesn't appear among the gate's false passes) — bound it anyway.
+  const mustFail = [["B", "A"], ["B", "S"], ["V", "U"], ["L", "B"], ["Y", "L"], ["W", "V"], ["A", "B"], ["I", "Y", 0.35]];
+  const leaks = mustFail.filter(([a, b, lim = 0.15]) => passRate(a, b) > lim).map(([a, b]) => `${a} as ${b} ${(100 * passRate(a, b)).toFixed(0)}%`);
+  if (leaks.length) throw new Error(`clearly different shapes pass: ${leaks.join(", ")}`);
+  const all = judge.letters.map((L) => passRate(L, L));
+  return `${judge.letters.length} letters, own-letter pass ${(100 * all.reduce((a, b) => a + b, 0) / all.length).toFixed(1)}% avg (min ${(100 * Math.min(...all)).toFixed(0)}%), ${mustFail.length} different-shape pairs rejected`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

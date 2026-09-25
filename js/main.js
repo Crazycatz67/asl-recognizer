@@ -16,6 +16,7 @@ import { createOverlay } from "./overlay.js";
 import { normalizeLandmarks, aspectOf, mirrorVector } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
 import { createClassifier, classifyEitherHand } from "./knn.js";
+import { createHandshapeJudge, THUMB_GROUP } from "./handshape.js";
 import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference.js";
@@ -619,6 +620,7 @@ let readPlayer = null; // animates the word being spelled
 let readTimers = []; // per-letter playback timeouts
 let lastPred = null;
 let refiner = null; // learned M/N and D/O/C clean-up heads (optional)
+let handshape = null; // js/handshape.js judge — the letter's defining traits
 let targetLetter = null;
 
 // load the refinement heads in the background — the app works without them
@@ -735,6 +737,8 @@ const datasetPromise = loadDataset(DATASET_URL)
       minConfidence: MIN_CONFIDENCE,
     });
     reference = buildReference(train, LETTERS); // self-calibrates per letter
+    // the letter's defining traits, calibrated from real (un-rotated) samples
+    handshape = createHandshapeJudge(train.filter((s) => s.rot == null));
     refPlayer = createCanonicalPlayer(refCanvas);
     diagramPlayer = createCanonicalPlayer(diagramCanvas);
     demoZoomPlayer = createCanonicalPlayer(demoZoomCanvas);
@@ -2086,7 +2090,35 @@ function loop() {
   // uses the same verdict, so what you see is what counts. (The old
   // "the recogniser reads it" upgrade is gone: it made the meter say correct
   // while joints were still drawn off.)
-  if (m) m.strict = m.bucket === "correct";
+  // 2026-09-24 (owner: "match the accuracy of the LETTER rather than the
+  // photo"): whether a sign counts is now decided by the letter's defining
+  // traits (js/handshape.js — which fingers are up / folded, spread, thumb,
+  // pointing direction), not by every joint's distance from the average
+  // photo pose. Letters that share a finger pattern are split by the
+  // recogniser: it must not be reading a DIFFERENT letter whose traits also
+  // match (for the fist letters A E M N S T it's the only signal).
+  if (m && handshape) {
+    const hs = handshape.check(vec, targetLetter);
+    const p = lastPred?.label || null; // either-hand kNN + heads, non-letters rejected
+    let otherLetter = null;
+    if (p && p !== targetLetter) {
+      if (THUMB_GROUP.has(targetLetter)) otherLetter = THUMB_GROUP.has(p) ? p : null;
+      else if (handshape.check(vec, p)?.ok) otherLetter = p;
+    }
+    m.traits = hs;
+    m.strict = !!hs?.ok && !otherLetter;
+    m.confusedWith = hs?.ok && otherLetter ? otherLetter : null;
+    const anyFix = hs?.traits.some((t) => t.state === "fix");
+    m.bucket = m.strict ? "correct" : !anyFix ? "close" : "off";
+    // colour each finger by ITS trait (blue ok / orange nearly / magenta
+    // wrong) — the same verdict the reward uses
+    const lvl = { good: 0, close: 1.5, fix: 2.5 };
+    const JOINTS = { thumb: [1, 2, 3, 4], index: [5, 6, 7, 8], middle: [9, 10, 11, 12], ring: [13, 14, 15, 16], pinky: [17, 18, 19, 20] };
+    m.errors = new Array(21).fill(0);
+    for (const [f, js] of Object.entries(JOINTS)) for (const j of js) m.errors[j] = lvl[hs?.fingerStates[f] || "good"] * m.tol;
+  } else if (m) {
+    m.strict = m.bucket === "correct";
+  }
 
   // progressive disclosure: the correction guide is on at a low floor as soon
   // as a hand is scored (Stage 7c — staying plain blue until score >= 0.35
@@ -2529,7 +2561,9 @@ function loop() {
         const lookAs = m.confusedWith ||
           (lastPred && lastPred.label !== targetLetter && lastPred.confidence >= 0.8 ? lastPred.label : null);
         const misread = !complete && !!lookAs;
-        let tip = reference.hint(vec, targetLetter);
+        // the letter's own failing trait is the most useful instruction
+        const badTrait = m.traits?.traits.find((t) => t.state === "fix") || m.traits?.traits.find((t) => t.state === "close");
+        let tip = badTrait?.hint || reference.hint(vec, targetLetter);
         // hint() can say "looks right" from the coarse feature check while the
         // meter is still short — fall back to the precise joint the on-camera
         // guide is pointing at, so the endgame ("near perfect, can't see what")
