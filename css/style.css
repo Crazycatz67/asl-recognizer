@@ -2172,3 +2172,54 @@ summary:focus-visible,
   .combo-glow { animation: none !important; transition: none; }
   .chips.finale > * { animation: none; box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.7); }
 }
+
+/* ---- two-player Challenge + leaderboard (2026-09-25) ---- */
+.ch-play { display: flex; gap: 0.4rem; justify-content: center; margin: 0 0 0.5rem; flex-wrap: wrap; }
+.ch-play button {
+  display: grid; gap: 0.1rem; min-width: 6.6rem; padding: 0.45rem 0.7rem;
+  border-radius: 12px; border: 1px solid var(--line); background: #0b1220;
+  color: var(--fg); font: 700 0.85rem system-ui, sans-serif; cursor: pointer;
+}
+.ch-play button small { font-weight: 500; font-size: 0.66rem; color: var(--muted); }
+.ch-play button.on { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35); }
+.ch-board-btn {
+  display: block; margin: 0.6rem auto 0; background: none; border: 0; color: var(--muted);
+  font: 700 0.8rem system-ui, sans-serif; cursor: pointer; text-decoration: underline; text-underline-offset: 0.2em;
+}
+.ch-board { margin: 0.5rem auto 0; max-width: 18rem; text-align: left; font-size: 0.8rem; }
+.ch-board h4 { margin: 0 0 0.3rem; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
+.ch-board ol { margin: 0; padding-left: 1.6rem; display: grid; gap: 0.15rem; }
+.ch-board li { display: flex; justify-content: space-between; gap: 0.6rem; }
+.ch-board li b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; }
+.ch-board li.me { color: #fde047; }
+.ch-board .empty { color: var(--muted); text-align: center; }
+.ch-initials { display: flex; gap: 0.4rem; justify-content: center; align-items: center; margin: 0.2rem 0; }
+.ch-initials input {
+  width: 4.2rem; padding: 0.35rem; border-radius: 8px; border: 1px solid var(--line); background: #0b1220;
+  color: var(--fg); font: 800 1rem ui-monospace, monospace; text-transform: uppercase; text-align: center; letter-spacing: 0.15em;
+}
+.ch-initials button { padding: 0.35rem 0.7rem; border-radius: 8px; border: 0; background: var(--accent); color: #0b1220; font-weight: 800; cursor: pointer; }
+/* player colours: P1 blue, P2 orange (match the skeletons drawn in Race) */
+.vs-hud {
+  position: absolute; top: 0.6rem; left: 0.6rem; right: 0.6rem; z-index: 6; pointer-events: none;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;
+}
+.vs-p {
+  min-width: 6.5rem; padding: 0.35rem 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.82);
+  font: 800 0.95rem system-ui, sans-serif; border: 2px solid transparent; transition: opacity 0.2s, box-shadow 0.2s;
+}
+.vs-p small { display: block; font-weight: 600; font-size: 0.7rem; color: var(--muted); }
+.vs-p.p1 { border-color: #38bdf8; color: #7dd3fc; }
+.vs-p.p2 { border-color: #fb923c; color: #fdba74; text-align: right; }
+.vs-p.active { box-shadow: 0 0 16px 2px currentColor; }
+.vs-p.idle { opacity: 0.55; }
+.vs-p.locked { opacity: 0.45; filter: grayscale(0.7); }
+.vs-p.won { animation: badge-pop 0.5s ease-out; }
+.vs-turn { align-self: center; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(15, 23, 42, 0.8); font: 800 0.8rem system-ui, sans-serif; color: #e2e8f0; }
+.vs-turn:empty { display: none; }
+/* Race: a centre line so each player knows their half */
+.viewport[data-play="race"] .stage::after {
+  content: ""; position: absolute; top: 8%; bottom: 8%; left: 50%; width: 0;
+  border-left: 2px dashed rgba(226, 232, 240, 0.25); pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .vs-p.won { animation: none; } }

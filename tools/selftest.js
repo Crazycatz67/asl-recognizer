@@ -912,6 +912,42 @@ function mkHand() {
       try { localStorage.removeItem("asl-challenge-best-hard"); localStorage.removeItem("asl-challenge-stats-hard"); } catch {}
     }
 
+    // ---- leaderboard.js + versus.js (two-player Challenge, 2026-09-25) ----
+    {
+      const lbMod = await import("../js/leaderboard.js");
+      const vsMod = await import("../js/versus.js");
+      const mem = { m: {}, getItem(k) { return this.m[k] ?? null; }, setItem(k, v) { this.m[k] = v; } };
+      ok("leaderboard: ranks best-first, keeps top N, drops a score that doesn't place, cleans initials", (() => {
+        const lb = lbMod.createLeaderboard({ storage: mem, max: 3 });
+        const r1 = lb.add("b", { name: "ab1c", score: 50 }), r2 = lb.add("b", { name: "zz", score: 90 });
+        const r3 = lb.add("b", { name: "q", score: 10 }), r4 = lb.add("b", { name: "w", score: 5 });
+        const top = lb.top("b").map((r) => r.name + r.score).join(",");
+        return r1 === 1 && r2 === 1 && r3 === 3 && r4 === 0 && top === "ZZ90,ABC50,Q10" && !lb.qualifies("b", 4);
+      })());
+      const vrun = (mode, steps) => {
+        const v = vsMod.createVersus({ letters: ["A", "B", "C"], mode, rng: () => 0 });
+        v.start(0); let t = 0, s = v.update(0, [null, null]); const ev = [];
+        for (const [dt, seen] of steps) { t += dt; s = v.update(t, seen); if (s.event) ev.push(s.event + (s.event === "win" ? s.roundWinner : "")); }
+        return { ev, s };
+      };
+      ok("versus race: whoever signs the target first wins the round", (() => {
+        const { ev, s } = vrun("race", [[3000, [null, null]], [600, [null, null]], [100, [null, "A"]], [100, ["A", null]]]);
+        return ev.includes("win1") && s.players[1].wins === 1 && s.players[0].wins === 0;
+      })());
+      ok("versus race: holding a wrong shape 0.8s locks that player out of the round", (() => {
+        const { s } = vrun("race", [[3000, [null, null]], [600, [null, null]], [100, ["B", null]], [450, ["B", null]], [450, ["B", null]], [100, ["A", null]]]);
+        return s.phase === "play" && s.players[0].locked && s.players[0].wins === 0;
+      })());
+      ok("versus turns: players alternate; only the current player's letter counts; misses cost lives; game ends when both are out", (() => {
+        const turn = (seen) => [[3000, [null, null]], [600, [null, null]], [100, seen], [1000, [null, null]]];
+        let { ev, s } = vrun("turns", [...turn(["A", "A"]), [3000, [null, null]], [600, [null, null]], [100, ["B", null]]]);
+        const alternated = s.current === 1 && s.players[0].score > 0 && s.players[1].score === 0 && s.phase === "play"; // P1's "B" ignored on P2's turn
+        const v = vsMod.createVersus({ letters: ["A", "B"], mode: "turns", rng: () => 0 });
+        v.start(0); let t = 0, last; for (let i = 0; i < 400 && (!last || !last.over); i++) { t += 500; last = v.update(t, [null, null]); }
+        return alternated && last.over && last.players.every((p) => p.lives === 0) && last.gameWinner === -1;
+      })());
+    }
+
     // ---- speller.js (continuous fingerspelling -> text) ----
     const spMod = await import("../js/speller.js");
     // hold a letter = many frames of {holding:true}; a gap = frames of not-holding

@@ -27,6 +27,8 @@ import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createBackground } from "./bg.js";
 import { createChallenge, START_LIVES } from "./challenge.js";
+import { createVersus } from "./versus.js";
+import { createLeaderboard } from "./leaderboard.js";
 import { createMotionMatcher } from "./motion.js";
 import { createSpeller, STROKE_START } from "./speller.js";
 import { createSpellDrill } from "./spelldrill.js";
@@ -137,6 +139,13 @@ const chSummary = $("chSummary");
 const chDiff = $("chDiff");
 const chBests = $("chBests");
 const chCombo = $("chCombo");
+const chPlayGroup = $("chPlay");
+const chBoardBtn = $("chBoardBtn");
+const chBoard = $("chBoard");
+const vsHud = $("vsHud");
+const vsP1 = $("vsP1");
+const vsP2 = $("vsP2");
+const vsTurn = $("vsTurn");
 const chLives = $("chLives");
 const azNext = $("azNext");
 const reco = $("reco");
@@ -1506,6 +1515,8 @@ function setMode(next) {
   if (azRun) setAzRun(false); // exit an A->Z run when leaving practice
   setTarget(null); // drop any practice target
   challenge.stop();
+  versus?.stop(); // two-player game too — never leak its HUD / 2-hand tracking
+  versus = null;
   clearChallengeHud();
   // a Start click in Challenge that's still waiting on the camera (denied,
   // still prompting, etc.) leaves this armed; without clearing it here, a
@@ -1555,10 +1566,32 @@ function clearChallengeHud() {
   chSkip.hidden = true;
   chBanner.hidden = true;
   chCombo.hidden = true;
+  vsHud.hidden = true;
+  delete viewport.dataset.play;
   setGlow(0);
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
   if (targetLetter) openRefSheet();
+}
+
+function startVersus() {
+  // J/Z are traced strokes (one hand's motion) — two-player rounds use the
+  // 24 static letters (+ short words later in the game)
+  versus = createVersus({
+    letters: LETTERS.filter((L) => !MOTION.has(L)),
+    words: challengeWords,
+    mode: chPlay,
+    difficulty: chDifficulty,
+  });
+  vsStab.forEach((st) => st.reset());
+  tracker?.setNumHands(chPlay === "race" ? 2 : 1);
+  viewport.dataset.play = chPlay;
+  chCard.hidden = true;
+  chSummary.hidden = true;
+  scoreBadge.hidden = true;
+  timeBar.hidden = false;
+  vsHud.hidden = false;
+  versus.start(performance.now());
 }
 
 function startChallenge() {
@@ -1571,6 +1604,8 @@ function startChallenge() {
     return;
   }
   pendingChallengeStart = false;
+  if (chPlay !== "solo") return startVersus();
+  versus = null;
   chCard.hidden = true;
   scoreBadge.hidden = false;
   scoreVal.textContent = "0";
@@ -1588,6 +1623,62 @@ const CH_INTRO =
   "A letter flashes up — sign it before the timer runs out. Land them in a row " +
   "for a combo multiplier. Later rounds bring look-alike letters and short words.";
 let chDifficulty = loadPref("ch-diff") === "hard" ? "hard" : "normal";
+
+// ---- two-player Challenge + leaderboard (owner request 2026-09-25) ----
+// chPlay: "solo" (today's game) | "turns" (players alternate rounds, one
+// camera) | "race" (both on camera at once, left half = Player 1 blue, right
+// half = Player 2 orange; first to sign it wins the round). The engine is
+// js/versus.js; the board is js/leaderboard.js (kept on this device).
+let chPlay = ["turns", "race"].includes(loadPref("ch-play")) ? loadPref("ch-play") : "solo";
+let versus = null;
+const vsStab = [0, 1].map(() => createStabilizer({ stableFrames: STABLE_FRAMES, minConfidence: MIN_CONFIDENCE }));
+const leaderboard = createLeaderboard();
+const PLAYER_COLORS = [{ stroke: "#38bdf8", joint: "#e0f2fe" }, { stroke: "#fb923c", joint: "#ffedd5" }];
+const PLAYER_FLASH = ["#38bdf8", "#fb923c"];
+const boardKey = () => (chPlay === "solo" ? `solo-${chDifficulty}` : chPlay);
+const boardTitle = () =>
+  chPlay === "solo" ? `Solo · ${chDifficulty === "hard" ? "Hard" : "Normal"}` : chPlay === "race" ? "Race (winners)" : "Take turns (winners)";
+const CH_PLAY_INTRO = {
+  solo: CH_INTRO,
+  turns: "Two players, one camera — take turns. Each letter is one player's; the other watches. 3 lives each; highest score wins.",
+  race: "Two players side by side — left half is Player 1 (blue), right half is Player 2 (orange). You both sign the same letter: first to land it wins the round. Hold a wrong shape and you're locked out for a moment. First to 7 rounds wins.",
+};
+function renderChPlay() {
+  for (const b of chPlayGroup.querySelectorAll("button")) {
+    const on = b.dataset.play === chPlay;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
+  if (!pendingChallengeStart && (state === "tracking" || state === "searching")) chCardSub.textContent = CH_PLAY_INTRO[chPlay];
+}
+function renderBoard(highlight = -1) {
+  const rows = leaderboard.top(boardKey());
+  chBoard.innerHTML =
+    `<h4>${boardTitle()}</h4>` +
+    (rows.length
+      ? `<ol>${rows.map((r, i) => `<li class="${i === highlight ? "me" : ""}"><b>${escapeHtml(r.name)}</b><span>${r.score}${r.round ? ` · rd ${r.round}` : ""}</span></li>`).join("")}</ol>`
+      : `<p class="empty">No scores yet — be the first.</p>`);
+}
+// after a run: if the score places, ask for initials and save it
+function offerLeaderboard(board, score, round, streak, label = "") {
+  if (!leaderboard.qualifies(board, score)) return;
+  const wrap = document.createElement("div");
+  wrap.className = "ch-initials";
+  wrap.innerHTML = `<span>${label || "New high score!"} Initials:</span><input maxlength="3" aria-label="Your initials" autocomplete="off" spellcheck="false"><button type="button">Save</button>`;
+  const input = wrap.querySelector("input"), btn = wrap.querySelector("button");
+  const saveIt = () => {
+    const rank = leaderboard.add(board, { name: input.value, score, round, streak, date: new Date().toISOString().slice(0, 10) });
+    wrap.innerHTML = rank ? `<span>Saved — #${rank} on the board 🏆</span>` : "";
+    chBoard.hidden = false;
+    chBoardBtn.setAttribute("aria-expanded", "true");
+    renderBoard(rank - 1);
+  };
+  btn.addEventListener("click", saveIt);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") saveIt(); e.stopPropagation(); });
+  chSummary.appendChild(wrap);
+  chSummary.hidden = false;
+  setTimeout(() => input.focus(), 50);
+}
 function renderChDiff() {
   for (const b of chDiff.querySelectorAll("button")) {
     const on = b.dataset.diff === chDifficulty;
@@ -1609,8 +1700,23 @@ chDiff.addEventListener("click", (e) => {
   savePref("ch-diff", chDifficulty);
   renderChDiff();
   renderChBests();
+  if (!chBoard.hidden) renderBoard();
 });
 renderChDiff();
+chPlayGroup.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-play]");
+  if (!b) return;
+  chPlay = b.dataset.play;
+  savePref("ch-play", chPlay);
+  renderChPlay();
+  if (!chBoard.hidden) renderBoard();
+});
+chBoardBtn.addEventListener("click", () => {
+  chBoard.hidden = !chBoard.hidden;
+  chBoardBtn.setAttribute("aria-expanded", String(!chBoard.hidden));
+  if (!chBoard.hidden) renderBoard();
+});
+renderChPlay();
 
 let lastTickAt = 0;
 
@@ -1763,6 +1869,74 @@ function renderChallenge(snap, near) {
   }
 }
 
+let versusCurrent = 0; // whose turn it is (turns mode) — the skeleton colour follows it
+const vsName = (p) => `Player ${p + 1}`;
+function renderVersus(snap) {
+  if (!snap) return;
+  versusCurrent = snap.current;
+  timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
+  timeBar.classList.toggle("low", !!snap.low);
+  const race = snap.mode === "race";
+  [vsP1, vsP2].forEach((el, p) => {
+    const P = snap.players[p];
+    const lives = "♥".repeat(Math.max(0, P.lives)) + "♡".repeat(Math.max(0, START_LIVES - P.lives));
+    el.innerHTML = `${vsName(p)} · ${P.score}<small>${race ? `rounds ${P.wins}/7` : lives}${P.mult > 1 ? ` · ×${P.mult}` : ""}${P.locked ? " · locked" : ""}</small>`;
+    el.classList.toggle("active", !race && snap.phase !== "over" && snap.current === p);
+    el.classList.toggle("idle", !race && snap.current !== p);
+    el.classList.toggle("locked", !!P.locked);
+  });
+  vsTurn.textContent = race ? `Round ${snap.round}` : snap.phase === "over" ? "" : `${vsName(snap.current)}'s turn`;
+  const word = snap.target && snap.target.length > 1;
+  if (snap.event === "letter") {
+    chBanner.className = `ch-banner study${word ? " word" : ""}`;
+    chBanner.textContent = snap.target;
+    chBanner.hidden = false;
+    sound.roundStart();
+  } else if (snap.event === "go") {
+    chBanner.className = "ch-banner go";
+    chBanner.textContent = "GO";
+    sound.go();
+  } else if (snap.event === "win") {
+    const w = snap.roundWinner;
+    chBanner.className = "ch-banner win";
+    chBanner.textContent = race ? `${vsName(w)}!` : "✓";
+    const el = w === 0 ? vsP1 : vsP2;
+    el.classList.remove("won"); void el.offsetWidth; el.classList.add("won");
+    fx.flash(PLAYER_FLASH[w]);
+    sound.hit(snap.players[w].mult);
+    buzz([0, 30, 25, 55]);
+  } else if (snap.event === "miss") {
+    chBanner.className = "ch-banner miss";
+    chBanner.textContent = race ? "Nobody — time!" : "✕";
+    fx.flash("#f87171");
+    sound.lifeLost();
+  } else if (snap.event === "over") {
+    timeBar.hidden = true;
+    chBanner.hidden = true;
+    const [a, b] = snap.players;
+    const w = snap.gameWinner;
+    chCardTitle.textContent = w < 0 ? "It's a tie!" : `${vsName(w)} wins!`;
+    chCardSub.textContent = race
+      ? `Rounds ${a.wins}–${b.wins} · points ${a.score}–${b.score}`
+      : `Points ${a.score}–${b.score} · reached round ${snap.round}`;
+    chSummary.innerHTML = "";
+    chSummary.hidden = true;
+    if (w >= 0) offerLeaderboard(snap.mode, snap.players[w].score, snap.round, 0, `${vsName(w)} makes the board!`);
+    chStart.textContent = "Rematch";
+    chCard.hidden = false;
+    if (w >= 0) { fx.flash(PLAYER_FLASH[w]); sound.newBest(); } else sound.gameOver();
+    versus.stop();
+    tracker?.setNumHands(1);
+  }
+  if (snap.phase === "play") {
+    chBanner.className = `ch-banner${word ? " word" : ""}`;
+    chBanner.innerHTML = word
+      ? [...snap.target].map((c, i) => `<span class="${race ? "" : i < snap.progress[snap.current] ? "done" : i === snap.progress[snap.current] ? "next" : ""}">${c}</span>`).join("")
+      : escapeHtml(snap.target || "");
+    chBanner.hidden = false;
+  }
+}
+
 function renderChallengeSummary(snap) {
   const sm = snap.summary;
   chCardTitle.textContent = snap.newBest ? "New personal best!" : "Run over";
@@ -1783,6 +1957,7 @@ function renderChallengeSummary(snap) {
       : "");
   chSummary.hidden = false;
   renderChBests();
+  offerLeaderboard(`solo-${sm?.difficulty || chDifficulty}`, sm?.score ?? snap.score, sm?.round ?? snap.round, sm?.bestStreak ?? 0);
 }
 chSummary.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-practice]");
@@ -1899,8 +2074,9 @@ function setState(next, detail) {
     sound.charge(0);
     setGlow(0);
     bg.setMatch(null);
-    if (challenge?.active) {
+    if (challenge?.active || versus?.active) {
       challenge.stop();
+      versus?.stop();
       clearChallengeHud();
     }
     // camera failed (denied, no device, etc.) while a Challenge Start click
@@ -2041,6 +2217,30 @@ const landmarkFilter = createLandmarkFilter({
 // this file is performance.now() in ms. Pass raw=null to reset (hand lost).
 function smoothLandmarks(raw, nowMs) {
   return landmarkFilter.filter(raw, nowMs / 1000);
+}
+
+// ---- two-player Race: per-hand players + classification ----
+// Each detected hand belongs to a player by its ON-SCREEN side (the front
+// camera view is mirrored): left half = Player 1, right half = Player 2. Two
+// hands on the same side -> the left-most is Player 1.
+function racePlayers(landmarks) {
+  const sx = (lm) => (facingMode === "user" ? 1 - lm[0].x : lm[0].x);
+  const idx = landmarks.map((lm, i) => i).sort((a, b) => sx(landmarks[a]) - sx(landmarks[b]));
+  const owner = new Array(landmarks.length).fill(-1);
+  if (idx.length === 1) owner[idx[0]] = sx(landmarks[idx[0]]) < 0.5 ? 0 : 1;
+  else if (idx.length >= 2) { owner[idx[0]] = 0; owner[idx[1]] = 1; }
+  return owner;
+}
+// one hand -> the recogniser's letter, exactly as the solo path does it
+// (either-hand kNN, non-letter shapes rejected, learned heads)
+function classifyHand(lm, mpLabel) {
+  if (!classifier || !lm || lm.length < 21 || !lm.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return null;
+  const v = normalizeLandmarks(lm, { aspect: aspectOf(video), mirrorX: MIRROR_LEFT_HAND && mpLabel === "Left", extended: USE_EXTENDED_FEATURES });
+  const either = classifyEitherHand(classifier, v, mirrorVector);
+  const pred = either.pred;
+  if (!pred || pred.distance > REJECT_DIST) return null;
+  if (refiner) pred.label = refiner.refine(either.vec, pred.label);
+  return pred;
 }
 
 function loop() {
@@ -2228,6 +2428,11 @@ function loop() {
         settled: !!m?.strict, // don't nag once it really counts
         screenMirror: facingMode === "user", // the stage is CSS-mirrored for the front camera
       });
+    } else if (mode === "challenge" && versus?.active && versus.mode === "race") {
+      const owner = racePlayers(result.landmarks);
+      overlay.drawHands(result.landmarks, { colors: owner.map((o) => PLAYER_COLORS[o] || PLAYER_COLORS[0]) });
+    } else if (mode === "challenge" && versus?.active && versus.mode === "turns") {
+      overlay.drawHands([hand], { colors: [PLAYER_COLORS[versusCurrent]] });
     } else if (mode === "spell" && result.landmarks?.length > 1) {
       overlay.drawHands(result.landmarks); // show both hands for the copy/paste gesture
     } else {
@@ -2481,6 +2686,26 @@ function loop() {
   // challenge: you advance when the RECOGNISER reads your hand as the target
   // (a confident, debounced call — not a shape-meter guess). The "seeing"
   // readout uses the raw current prediction so it feels responsive.
+  if (mode === "challenge" && versus?.active) {
+    const seen = [null, null];
+    if (versus.mode === "race") {
+      const lms = result.landmarks || [];
+      const owner = racePlayers(lms);
+      const got = [null, null];
+      lms.forEach((lm, i) => {
+        if (owner[i] >= 0) got[owner[i]] = classifyHand(lm, result.handedness?.[i]?.[0]?.categoryName);
+      });
+      for (const p of [0, 1]) {
+        vsStab[p].push(got[p]);
+        seen[p] = got[p] ? vsStab[p].current : null; // no hand -> no (stale) letter
+      }
+    } else {
+      seen[versusCurrent] = hasHand ? stabilizer.current : null;
+    }
+    renderVersus(versus.update(now, seen));
+    bg.setMatch(null);
+  }
+
   if (mode === "challenge" && challenge?.active) {
     // a traced J/Z stroke, or the debounced classifier call for a static letter
     // (only while a hand is in view: stabilizer.current latches the last

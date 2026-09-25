@@ -214,18 +214,31 @@
         <div class="ch-banner" id="chBanner" hidden></div>
         <div class="ch-seeing" id="chSeeing" hidden></div>
         <div class="ch-combo" id="chCombo" hidden></div>
+        <!-- two-player Challenge HUD (turns / race) -->
+        <div class="vs-hud" id="vsHud" hidden>
+          <div class="vs-p p1" id="vsP1"></div>
+          <div class="vs-turn" id="vsTurn"></div>
+          <div class="vs-p p2" id="vsP2"></div>
+        </div>
         <button class="ch-skip" id="chSkip" type="button" hidden>Skip (–1 ♥)</button>
         <div class="ch-card" id="chCard" hidden>
           <div class="ch-card-inner">
             <p class="ch-card-title" id="chCardTitle">Challenge</p>
             <p class="ch-card-sub" id="chCardSub">A letter flashes up — sign it before the timer runs out. Land them in a row for a combo multiplier. Later rounds bring look-alike letters and short words. 3 lives: a time-out or a Skip costs one.</p>
             <div class="ch-summary" id="chSummary" hidden></div>
+            <div class="ch-play" id="chPlay" role="group" aria-label="Players">
+              <button type="button" data-play="solo" class="on" aria-pressed="true">Solo<small>beat your best</small></button>
+              <button type="button" data-play="turns" aria-pressed="false">Take turns<small>2 players · one camera</small></button>
+              <button type="button" data-play="race" aria-pressed="false">Race<small>2 players · side by side</small></button>
+            </div>
             <div class="ch-diff" id="chDiff" role="group" aria-label="Difficulty">
               <button type="button" data-diff="normal" class="on" aria-pressed="true">Normal<small>demo preview</small></button>
               <button type="button" data-diff="hard" aria-pressed="false">Hard<small>no preview · faster</small></button>
             </div>
             <p class="ch-bests" id="chBests"></p>
             <button class="cta" id="chStart" type="button">Start</button>
+            <button class="ch-board-btn" id="chBoardBtn" type="button" aria-expanded="false">🏆 Leaderboard</button>
+            <div class="ch-board" id="chBoard" hidden></div>
           </div>
         </div>
 

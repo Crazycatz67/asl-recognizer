@@ -131,14 +131,17 @@ export function createOverlay(canvas) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
 
-    drawHands(landmarksList) {
+    // opts.colors: optional per-hand [{stroke, joint}] (two-player race:
+    // each player's hand in their own colour); default plain blue
+    drawHands(landmarksList, { colors = null } = {}) {
       const w = canvas.width;
       const h = canvas.height;
-      for (const landmarks of landmarksList) {
+      landmarksList.forEach((landmarks, i) => {
         const px = landmarks.map((p) => [p.x * w, p.y * h]);
+        const c = colors?.[i] || { stroke: "#38bdf8", joint: "#e0f2fe" };
         // sizes auto-derive from the hand's on-screen span (see skeleton.js)
-        drawSkeleton(ctx, px, { stroke: "#38bdf8", joint: "#e0f2fe", glow: 0.5 });
-      }
+        drawSkeleton(ctx, px, { stroke: c.stroke, joint: c.joint, glow: 0.5 });
+      });
     },
 
     // J / Z: the plain skeleton plus a purple "swoosh" — the stroke path scaled
