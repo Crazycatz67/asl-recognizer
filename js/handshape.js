@@ -53,6 +53,15 @@ export function handTraits(v) {
   }
   t.thumbOut = len(sub(P(v, 4), P(v, 5))) / palm; // thumb tip away from the index knuckle
   t.thumbTip = len(sub(P(v, 4), P(v, 8))) / palm; // thumb tip to index tip (O, F: touching)
+  // how close the thumb tip is to ANY part of the fingers: small = tucked in
+  // against/under them (A B E M N S), large = sticking out (L Y C Q).
+  // thumbOut (distance from the index knuckle alone) can't say this: in M and
+  // N the thumb hides under the middle/ring fingers, far from the index
+  // knuckle yet still tucked. Owner 2026-09-24: "N would register even
+  // though the thumb was sticking out".
+  let near = Infinity;
+  for (let j = 5; j <= 20; j++) near = Math.min(near, len(sub(P(v, 4), P(v, j))));
+  t.thumbNear = near / palm;
   t.spread = angle(sub(P(v, 8), P(v, 5)), sub(P(v, 12), P(v, 9))); // index vs middle
   // which way the hand points in the image: 0 = up, 90 = sideways, 180 = down
   t.dir = Math.abs((Math.atan2(palmAxis[0], -palmAxis[1]) * 180) / Math.PI);
@@ -67,37 +76,37 @@ const UP = "up", DOWN = "down"; // resolved to calibrated flex ranges below
 // at least as far out as they go (L, Y: thumb clearly out to the side)
 const IN = "in", OUT = "out";
 const TRAITS = {
-  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN },
-  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN },
-  C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT },
+  A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
+  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN, thumbNear: IN },
+  C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
   D: { index: UP, middle: DOWN, ring: DOWN },
-  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN },
+  E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
   F: { middle: UP, ring: UP, pinky: UP, thumbTip: true },
   G: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, dir: true },
   H: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, dir: true },
   I: { index: DOWN, middle: DOWN, ring: DOWN, pinky: UP },
   K: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
-  L: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, thumbOut: OUT },
-  M: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN },
-  N: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN },
+  L: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, thumbOut: OUT, thumbNear: OUT },
+  M: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
+  N: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
   O: { index: true, middle: true, ring: true, pinky: true, thumbTip: true },
   P: { index: true, middle: true, dir: true },
-  Q: { index: true, thumbOut: OUT, dir: true },
+  Q: { index: true, thumbOut: OUT, thumbNear: OUT, dir: true },
   R: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
-  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN },
+  S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN },
   T: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN }, // index bent over the thumb
   U: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true, dir: true },
   V: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   W: { index: UP, middle: UP, ring: UP, pinky: DOWN },
   X: { index: true, middle: DOWN, ring: DOWN, pinky: DOWN }, // hooked index
-  Y: { index: DOWN, middle: DOWN, ring: DOWN, pinky: UP, thumbOut: OUT },
+  Y: { index: DOWN, middle: DOWN, ring: DOWN, pinky: UP, thumbOut: OUT, thumbNear: OUT },
 };
 // same finger pattern, told apart only by the (often hidden) thumb
 export const THUMB_GROUP = new Set(["A", "E", "M", "N", "S", "T"]);
 
 // slack beyond the calibrated range: inside SLACK = still "good" (room for
 // user error); inside 2x SLACK = "close"; beyond = "fix"
-const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
+const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
 const slackFor = (name) => (name.endsWith("Flex") ? SLACK.flex : SLACK[name]);
 
 const HINTS = {
@@ -105,6 +114,7 @@ const HINTS = {
   down: (f) => `Fold your ${f} finger down`,
   thumbOut: { low: "Tuck your thumb in", high: "Bring your thumb out to the side" },
   thumbTip: { low: "Open the gap between thumb and index", high: "Touch your thumb to your index fingertip" },
+  thumbNear: { low: "Move your thumb out, away from your fingers", high: "Tuck your thumb in against your fingers" },
   spread: { low: "Spread your index and middle fingers apart", high: "Keep index and middle fingers together" },
   dir: { low: "Point your hand more upward", high: "Turn your hand to point more sideways / down" },
   flexMid: (f) => `Adjust how much your ${f} finger bends`,
@@ -143,8 +153,9 @@ export function createHandshapeJudge(samples) {
   // thumb-out letters start (their lowest p5). Using B's own p95 alone failed
   // 60% of B's held-out hands — a different session rests the thumb a bit
   // more to the side, still clearly a B.
-  const thumbOutP = (L, p) => q(byL.get(L).map((t) => t.thumbOut).sort((a, b) => a - b), p);
-  const outStart = Math.min(...[...byL.keys()].filter((L) => TRAITS[L].thumbOut === OUT).map((L) => thumbOutP(L, 0.05)));
+  const pOf = (L, key, p) => q(byL.get(L).map((t) => t[key]).sort((a, b) => a - b), p);
+  const outStart = (key) =>
+    Math.min(...[...byL.keys()].filter((L) => TRAITS[L][key] === OUT).map((L) => pOf(L, key, 0.05)));
 
   // per letter, per trait: the [lo, hi] a real signer's hand falls in
   const ranges = new Map();
@@ -162,7 +173,7 @@ export function createHandshapeJudge(samples) {
           : want === OUT ? (q(vals, 0.05) + q(vals, 0.5)) / 2
           : q(vals, 0.05);
         const hi = want === OUT ? Infinity
-          : want === IN && key === "thumbOut" ? (q(vals, 0.95) + outStart) / 2
+          : want === IN ? (q(vals, 0.95) + outStart(key)) / 2
           : q(vals, 0.95);
         r[key] = { range: [lo, hi], kind: "range", finger: FINGER[name] ? name : null };
       }
