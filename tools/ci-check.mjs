@@ -756,6 +756,38 @@ await check("handshape.js: a folded finger raised 60° no longer passes (clean l
   return `${n} letter-fingers checked`;
 });
 
+// ---- 13h. handshape.js — a raised finger FOLDED doesn't still count; fanning does -
+// probe 2026-09-25: G's index folded 60° (flex ~80°) still counted for 60% of
+// held-out G hands, H's 23% — the UP ceiling + slack reached past the folded
+// floor. The fix measures the fold toward the palm with the sideways (fan)
+// component removed, so F / W / I, which fan their raised fingers, still pass
+// when fanned 20°/gap.
+await check("handshape.js: a raised finger folded 60° fails; raised fingers fanned 20°/gap still pass", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { bendFinger, fanFingers } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  const bad = [];
+  let n = 0;
+  for (const L of lab.letters) {
+    const spec = lab.judge.ranges.get(L);
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    if (!own.length) continue;
+    for (const f of ["index", "middle", "ring", "pinky"]) {
+      if (spec[f + "Flex"]?.kind !== "up") continue;
+      n++;
+      const rate = own.filter((v) => lab.judge.check(bendFinger(v, f, 60), L)?.ok).length / own.length;
+      if (rate > 0.25) bad.push(`${L} ${f} folded still ${Math.round(100 * rate)}%`);
+    }
+  }
+  for (const L of ["F", "W", "I"]) {
+    const own = lab.test[L].map((s) => s.v).filter((v) => lab.judge.check(v, L)?.ok);
+    const rate = own.filter((v) => lab.judge.check(fanFingers(v, 20), L)?.ok).length / own.length;
+    if (rate < 0.5) bad.push(`${L} fanned 20°/gap only ${Math.round(100 * rate)}%`);
+  }
+  if (bad.length) throw new Error(bad.join(", "));
+  return `${n} raised letter-fingers rejected when folded; F W I tolerate fanning`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
