@@ -121,7 +121,11 @@ const IN = "in", OUT = "out";
 const FOLD = "fold";
 const TRAITS = {
   A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
-  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbOut: IN, thumbNear: IN, fingerSplay: IN },
+  // B's thumb folds across the palm; how far across varies (some signers
+  // reach the ring/pinky knuckles — thumbOut 0.60-0.67 from the index
+  // knuckle, failing 5 of 30 held-out B hands). thumbNear (tucked against
+  // ANY finger) is what says "folded in, not out like an L" — no thumbOut.
+  B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbNear: IN, fingerSplay: IN },
   C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
   D: { index: UP, middle: DOWN, ring: DOWN },
   E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },

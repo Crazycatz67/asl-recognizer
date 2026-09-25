@@ -795,6 +795,25 @@ await check("handshape.js: a raised finger folded 60° fails; raised fingers fan
   return `${n} raised letter-fingers rejected when folded; F W I tolerate fanning`;
 });
 
+// ---- 13i. handshape.js — B's thumb: tucked anywhere across the palm, not out -
+// probe 2026-09-25: 5 of 30 held-out B hands failed ONLY thumbOut (thumb
+// folded across toward the ring/pinky knuckles, 0.60-0.67 from the index
+// knuckle), and a 15° thumb swing failed 97% of B. B now defines its thumb by
+// thumbNear alone; a thumb swung clearly out (45°) must still fail, and L
+// (thumb out) must not pass as B (13e).
+await check("handshape.js: B passes with the thumb tucked across the palm, fails with it swung out 45°", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { swingThumb } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  const hands = lab.test.B.map((s) => s.v);
+  const own = hands.filter((v) => lab.judge.check(v, "B")?.ok);
+  const ownRate = own.length / hands.length;
+  const out45 = own.filter((v) => lab.judge.check(swingThumb(v, 45), "B")?.ok).length / own.length;
+  if (ownRate < 0.85) throw new Error(`only ${Math.round(100 * ownRate)}% of held-out B hands pass B`);
+  if (out45 > 0.1) throw new Error(`${Math.round(100 * out45)}% of B hands still pass with the thumb swung out 45°`);
+  return `B own ${Math.round(100 * ownRate)}%, thumb out 45° ${Math.round(100 * out45)}%`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

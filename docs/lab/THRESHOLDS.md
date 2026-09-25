@@ -7,7 +7,7 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 | letter | own pass | tilt ° | jitter σ | fan °/gap | curl ° | wrong finger still counts | wrong thumb | wrong spread | other letters accepted as it |
 |---|---|---|---|---|---|---|---|---|---|
 | A | 87% | — | 0.04 | 30 | — | index raised 0%, middle raised 0%, ring raised 0%, pinky raised 7% | out 0% | n/a | M 17%, N 7%, O 7%, G 3% |
-| B | 73% | — | 0.04 | 20 | 60 | index folded 0%, middle folded 0%, ring folded 0%, pinky folded 0% | out 0% | fanned 0% | C 7%, A 3%, E 3%, I 3% |
+| B | 90% | — | 0.04 | 20 | 60 | index folded 0%, middle folded 0%, ring folded 0%, pinky folded 0% | out 0% | fanned 0% | N 10%, C 7%, A 3%, E 3% |
 | C | 87% | — | — | — | — | n/a | in 0% | n/a | Q 13%, F 3%, K 3%, T 3% |
 | D | 77% | — | — | — | 90 | index folded 3%, middle raised 13%, ring raised 10% | (out 77%) | n/a | E 13%, B 7%, I 7%, C 3% |
 | E | 80% | — | 0.06 | 20 | 90 | index raised 0%, middle raised 0%, ring raised 7%, pinky raised 13% | out 0% | n/a | M 17%, O 10%, I 7%, S 7% |
@@ -33,7 +33,6 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 
 ## Findings
 
-- P1 B: only 73% of real held-out B hands count — own pass 73%
 - P1 N: only 70% of real held-out N hands count — own pass 70%
 - P1 Q: only 70% of real held-out Q hands count — own pass 70%
 - P0 17% of real M hands count as A — M->A 17%
