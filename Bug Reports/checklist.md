@@ -435,6 +435,11 @@ references are as of commit `41c43f0` and will drift.
     Still open: M<->N ~20% (LAB-023/025), Q as C 17% (LAB-061), N own 70%
     (LAB-013), tour ends a run (LAB-055), SW reload mid-session (LAB-056).
 
+49. **Tour ended runs; deploy reloaded mid-session; N still hard.**
+    `FIXED (needs live confirm)` — tour pauses runs + restores mode (LAB-055),
+    SW reload deferred while busy (LAB-056), N own 58 -> 67% offline, M/N
+    pair tip. M<->N ~20-30% remains (data limit: needs more signers).
+
 ---
 
 ## Working the list
