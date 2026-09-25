@@ -1259,6 +1259,20 @@ await check("spellgate.js: full ring to confirm, no repeat on a long hold, relea
   return `confirm ${C} ms, window ${W} ms: "${out}"`;
 });
 
+// ---- 25. tools/lab/letter-report.mjs — the per-letter report still runs ----
+// The letter-tester pipeline (.claude/skills/letter-tester) reads its numbers
+// from this script; a refactor of the lab helpers it imports (probe-axes,
+// spell-sim, lab-data) or of the engine modules must not silently break it.
+// --quick --letters AB: a few seconds, writes nothing, files no issues.
+await check("letter-report.mjs --quick --letters AB runs", () => {
+  const t0 = Date.now();
+  const out = execFileSync(process.execPath, [path.join(ROOT, "tools", "lab", "letter-report.mjs"), "--quick", "--letters", "AB", "--no-issues"],
+    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], timeout: 60000 }).toString();
+  for (const L of ["A", "B"]) if (!new RegExp(`^${L}\\s+\\d+%`, "m").test(out)) throw new Error(`no summary row for ${L}:\n${out.slice(0, 400)}`);
+  if (!/speed: classify [\d.]+ ms/.test(out)) throw new Error("no speed line");
+  return `${((Date.now() - t0) / 1000).toFixed(1)} s`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
