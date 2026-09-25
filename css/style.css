@@ -2428,3 +2428,22 @@ summary:focus-visible,
   .goo-blob { transition: none; }
   .hero-cta:hover .goo-blob { transform: none; }
 }
+
+/* ---- visual layer v2: on-hand feedback (js/handfx.js) ------------------- */
+/* hand too near / too far: a small text chip (the words carry it; a dashed
+   frame edge is the shape twin) — never over the middle of the camera */
+.framing-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 1.5px dashed var(--calm);
+  color: #e0f2fe;
+  font: 700 0.85rem system-ui, sans-serif;
+  pointer-events: none;
+  white-space: nowrap;
+}

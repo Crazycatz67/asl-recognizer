@@ -27,6 +27,7 @@ import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createHero } from "./hero.js";
 import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
+import { createHandFx, createFramingJudge, handSpanH } from "./handfx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
@@ -125,6 +126,8 @@ const controls = document.querySelector(".controls");
 const toast = $("toast");
 const modeToggle = $("modeToggle");
 const pickHint = $("pickHint");
+const framingCue = $("framingCue");
+let raceLockFrac = [0, 0]; // Race lockout remaining 0..1 per player (versus snapshot)
 const timeBar = $("timeBar");
 const scoreBadge = $("scoreBadge");
 const scoreVal = $("scoreVal");
@@ -224,6 +227,11 @@ const spDecodeError = $("spDecodeError");
 
 const sound = createSound();
 const fx = createFx();
+// on-hand feedback (hold arc, landed ring, ripples, tip beads, Race badges) —
+// drawn into the overlay canvas, so it's created once the overlay exists
+let handfx = null;
+let fxHand = null; // the latest smoothed hand, for rewards fired outside loop()
+const framing = createFramingJudge();
 
 // ---- reward juice (2026-09-25) --------------------------------------------
 // Combo glow on the camera frame — the visual twin of a climbing streak
@@ -1838,6 +1846,7 @@ function renderChallenge(snap, near) {
       sound.comboUp(snap.mult);
     }
     fx.flash(snap.mult >= 3 ? "#fde047" : "#22c55e");
+    handfx?.landed(fxHand);
     setGlow(glowLevel(snap.mult)); // the combo's visual twin, on the frame
     bg.pulse(0.35 + 0.15 * snap.mult);
     sound.hit(snap.mult);
@@ -2008,7 +2017,8 @@ chSummary.addEventListener("click", (e) => {
   setTarget(b.dataset.practice);
 });
 
-function reward(originLandmark) {
+function reward(originLandmark, handLm = null) {
+  handfx?.landed(handLm || fxHand); // the hold arc hands off to an amber ring
   // per-letter stats: completions + best time from first-sighting to lock
   let tier = "letter";
   if (targetLetter) {
@@ -2155,6 +2165,7 @@ async function start() {
 
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
+    handfx = createHandFx({ ctx: overlay.ctx, governor: fxq });
     tracker.setNumHands(mode === "spell" ? 2 : 1);
     await acquireWakeLock();
     await datasetPromise;
@@ -2507,6 +2518,10 @@ function loop() {
     } else if (mode === "challenge" && versus?.active && versus.mode === "race") {
       const owner = racePlayers(result.landmarks);
       overlay.drawHands(result.landmarks, { colors: owner.map((o) => PLAYER_COLORS[o] || PLAYER_COLORS[0]) });
+      // "1"/"2" wrist badges (shape + glyph, not just hue) + lockout countdown
+      handfx?.drawRaceBadges(result.landmarks, owner, {
+        locked: raceLockFrac, screenMirror: facingMode === "user", colors: PLAYER_FLASH,
+      });
     } else if (mode === "challenge" && versus?.active && versus.mode === "turns") {
       overlay.drawHands([hand], { colors: [PLAYER_COLORS[versusCurrent]] });
     } else if (mode === "spell" && result.landmarks?.length > 1) {
@@ -2535,6 +2550,32 @@ function loop() {
 
   // on-camera colour key (Stage 7c) + the tour's live legend
   const guideStats = hasHand && guiding ? overlay.guideStats() : null;
+
+  // on-hand feedback (presentation only): the hold arc + upward-only verdict
+  // ripple + tip beads in Practice (Challenge stays "no peeking"); animations
+  // already running (landed ring) finish in every mode
+  fxHand = hasHand ? hand : null;
+  if (handfx) {
+    const practiceShape = mode === "practice" && !!targetLetter && !motionTarget && hasHand;
+    const hf0 = DEBUG ? performance.now() : 0;
+    handfx.draw(practiceShape ? hand : null, {
+      hold: practiceShape ? Number(lastHold) || 0 : 0,
+      bucket: practiceShape ? m?.bucket : null,
+      tipStates: guideStats?.tips || null,
+      now,
+    });
+    if (DEBUG) fxq.cost("handfx", performance.now() - hf0);
+  }
+  // framing: too near / too far is the #1 cause of bad landmarks
+  {
+    const f = hasHand ? framing.update(handSpanH(hand, aspectOf(video)), now) : framing.state;
+    const show = hasHand && f !== "good" ? f : "";
+    if (framingCue.dataset.state !== show) {
+      framingCue.dataset.state = show;
+      framingCue.hidden = !show;
+      framingCue.textContent = show === "near" ? "↙ Move back a little" : show === "far" ? "↗ Come a little closer" : "";
+    }
+  }
   updateColorKey(guiding, guideStats, now);
 
   // recognition -> corner badge (hidden during the challenge — no peeking)
@@ -2857,7 +2898,7 @@ function loop() {
     if (stroke === targetLetter && !rewarded) {
       rewarded = true;
       motionRewardAt = now;
-      reward(hand?.[targetLetter === "J" ? 20 : 8]);
+      reward(hand?.[targetLetter === "J" ? 20 : 8], hand);
     }
     // re-arm after the celebration so the next swoosh counts too
     if (rewarded && motionRewardAt && now - motionRewardAt > 1500 && !rewardLatched()) {
@@ -2930,7 +2971,7 @@ function loop() {
       else if (!rewarded) sound.charge(0);
       if (holdStart && heldMs >= HOLD_MS && !rewarded) {
         rewarded = true;
-        reward(hand[0]);
+        reward(hand[0], hand);
       }
 
       if (now - lastHintAt >= HINT_INTERVAL) {

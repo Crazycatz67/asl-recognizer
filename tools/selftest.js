@@ -1672,6 +1672,26 @@ function mkHand() {
       au.stop();
       return (has ? kind === "aurora" : kind === "canvas2d") && amberOk;
     })());
+    const hfx = await import("../js/handfx.js");
+    ok("handfx: ripple limiter fires upward only, <= 1 per 400 ms", (() => {
+      const r = hfx.createRippleLimiter(400);
+      const f = [["off", 0], ["close", 100], ["correct", 300], ["close", 350], ["correct", 600]].map(([b, t]) => r.fire(b, t));
+      return f.join() === "false,true,false,false,true";
+    })());
+    ok("handfx: framing judge needs 700 ms steady + a margin to leave", (() => {
+      const j = hfx.createFramingJudge();
+      return j.update(0.5, 0) === "good" && j.update(0.5, 800) === "near" && j.update(0.41, 900) === "near" && j.update(0.41, 2000) === "near";
+    })());
+    ok("handfx: draws hold arc / landed ring / race badges without throwing", (() => {
+      const c = document.createElement("canvas"); c.width = 640; c.height = 480;
+      const hf = hfx.createHandFx({ ctx: c.getContext("2d") });
+      const hand = Array.from({ length: 21 }, (_, i) => ({ x: 0.4 + 0.01 * i, y: 0.7 - 0.02 * i }));
+      hf.draw(hand, { hold: 0.6, bucket: "close", tipStates: ["good", "close", "fix", "good", "good"], now: 0 });
+      hf.draw(hand, { hold: 0.8, bucket: "correct", tipStates: ["good", "good", "fix", "good", "good"], now: 40 });
+      hf.landed(hand, 50); hf.draw(hand, { hold: 1, now: 200 });
+      hf.drawRaceBadges([hand, hand], [0, 1], { locked: [0.5, 0] });
+      return true;
+    })());
     ok("fxmath: coverMap centres + crops like object-fit: cover (4:3 video on 16:9 and portrait)", (() => {
       const a = fxm.coverMap(0.5, 0.5, 640, 480, 1600, 900); // centre stays centre
       const b = fxm.coverMap(0, 0, 640, 480, 1600, 900);     // wide screen: top is cropped

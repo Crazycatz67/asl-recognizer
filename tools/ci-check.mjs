@@ -1060,6 +1060,28 @@ await check("aurora.js: warmth ignores the match score, amber clamped to <= 0.15
   return `WARM_CEIL ${a.WARM_CEIL}; presence ${w({ present: true }).toFixed(2)}, full streak ${w({ present: true, streak: 1 }).toFixed(2)}; score-free`;
 });
 
+// ---- 21. handfx.js: ripple rate-limit + framing hysteresis ----------------
+await check("handfx.js: verdict ripples only go UP and at most 1 per 400 ms; framing judge has hysteresis", async () => {
+  const h = await import(pathToFileURL(path.join(ROOT, "js", "handfx.js")));
+  const r = h.createRippleLimiter(400);
+  const seq = [["off", 0], ["close", 100], ["off", 150], ["close", 300], ["correct", 600], ["close", 700], ["correct", 800], ["correct", 1300]];
+  const fired = seq.filter(([b, t]) => r.fire(b, t)).map(([b, t]) => `${b}@${t}`);
+  if (fired.join() !== "close@100,correct@600") throw new Error(`ripples fired: ${fired.join()} (want close@100,correct@600)`);
+  const f = h.createFramingJudge({ near: 0.42, far: 0.09, margin: 0.02, holdMs: 700 });
+  let st = f.update(0.5, 0); if (st !== "good") throw new Error("must not flip instantly");
+  st = f.update(0.5, 400); if (st !== "good") throw new Error("must not flip before holdMs");
+  st = f.update(0.5, 800); if (st !== "near") throw new Error("should be near after holdMs");
+  st = f.update(0.41, 900); st = f.update(0.41, 2000); if (st !== "near") throw new Error("hysteresis: 0.41 is inside the leave-margin, should stay near");
+  st = f.update(0.3, 2100); st = f.update(0.3, 2900); if (st !== "good") throw new Error("should recover to good");
+  st = f.update(0.05, 3000); st = f.update(0.2, 3300); st = f.update(0.05, 3400); st = f.update(0.05, 3800);
+  if (st !== "good") throw new Error("a flicker must restart the timer");
+  st = f.update(0.05, 4200); if (st !== "far") throw new Error("should be far after a steady 0.8 s");
+  if (f.update(NaN, 5000) !== "far") throw new Error("NaN span must not change state");
+  const span = h.handSpanH([{ x: 0.5, y: 0.8 }, ...Array(8).fill({ x: 0, y: 0 }), { x: 0.5, y: 0.6 }], 4 / 3);
+  if (Math.abs(span - 0.2) > 1e-9) throw new Error(`handSpanH ${span}`);
+  return `ripples ${fired.join(" ")}; framing near/good/far with 700 ms hold + 0.02 margin`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
