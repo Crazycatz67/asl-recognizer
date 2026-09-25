@@ -33,9 +33,9 @@
 // Deterministic (seeded) — same inputs, same report.
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { loadLab, rng, gauss, ROOT } from "./lab-data.mjs";
+import { loadLab, ROOT } from "./lab-data.mjs";
 import { upsertIssue, resolveMissing } from "./issues.mjs";
+import { createProbeAxes, thresholdOf, FINGER_LEVELS, CLEAR, TOGETHER, APART, THUMB_OUT_LETTERS } from "./probe-axes.mjs";
 
 const args = process.argv.slice(2);
 const PER = Number(args[args.indexOf("--per") + 1]) || 30;
@@ -43,49 +43,18 @@ const FILE_ISSUES = !args.includes("--no-issues");
 const ONLY = args.includes("--letters") ? args[args.indexOf("--letters") + 1].split("") : null;
 
 const lab = await loadLab();
-const { test, judge, predict, countsWith, rotateVector } = lab;
+const { test, judge, predict, countsWith } = lab;
 const letters = ONLY ? lab.letters.filter((L) => ONLY.includes(L)) : lab.letters;
-const { fanFingers, curlAtMiddle, bendFinger, swingThumb } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
-
-// re-normalize a perturbed vector the way a live frame is: hand radius 1,
-// derived features recomputed (rotateVector by 0 rebuilds them)
-const refresh = (v) => {
-  let r = 1e-6;
-  for (let j = 0; j < 21; j++) r = Math.max(r, Math.hypot(v[j * 3], v[j * 3 + 1], v[j * 3 + 2]));
-  return rotateVector(v.slice(0, 63).map((x) => x / r).concat(v.length > 63 ? [0] : []), 0).slice(0, v.length);
-};
+// refresh / sweep / the room-for-error axes live in probe-axes.mjs (shared
+// with tools/lab/letter-report.mjs)
+const { sweep, passRate, refresh, AX, synth } = await createProbeAxes(lab);
+const { fanFingers, bendFinger, swingThumb } = synth;
 
 const sample = (L) => {
   const arr = test[L] || [];
   const step = Math.max(1, Math.floor(arr.length / PER));
   return arr.filter((_, i) => i % step === 0).slice(0, PER).map((s) => s.v);
 };
-const passRate = (vs, L) => vs.length ? vs.filter((v) => countsWith(v, L, predict(v))).length / vs.length : 0;
-const sweep = (vs, L, levels, apply) => {
-  const r = rng(7);
-  return levels.map((x) => passRate(vs.map((v) => refresh(apply(v, x, r))), L));
-};
-
-// the level at which the pass rate falls below half of the unperturbed rate
-function thresholdOf(levels, rates, base) {
-  for (let i = 0; i < levels.length; i++) if (rates[i] < base * 0.5) return levels[i];
-  return null; // never dropped: tolerated across the whole range
-}
-
-// ROOM FOR ERROR axes
-const AX = {
-  tilt: { levels: [0, 10, 20, 30, 45, 60], apply: (v, x) => rotateVector(v, x) },
-  jitter: { levels: [0, 0.01, 0.02, 0.04, 0.06], apply: (v, x, r) => v.map((val, i) => (i < 63 ? val + gauss(r) * x : val)) },
-  fan: { levels: [0, 10, 20, 30], apply: (v, x) => fanFingers(v, x) },
-  curl: { levels: [0, 20, 40, 60, 90], apply: (v, x) => curlAtMiddle(v, x) },
-};
-// WRONG SHAPE axes
-const FINGER_LEVELS = [0, 15, 30, 45, 60, 90];
-const CLEAR = { finger: 60, thumbOut: 45, thumbIn: 30, spread: 20 };
-// ASL: which letters hold index + middle together vs apart (the probe's own
-// knowledge of the WRONG direction, not a threshold)
-const TOGETHER = new Set(["B", "U", "H", "R"]), APART = new Set(["V", "K"]);
-const THUMB_OUT_LETTERS = new Set(["L", "Y", "C", "Q"]);
 const at = (levels, rates, x) => rates[levels.indexOf(x)];
 
 const report = { generated: new Date().toISOString().slice(0, 16), per: PER, clear: CLEAR, letters: {} };
