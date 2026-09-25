@@ -24,6 +24,7 @@ import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference
 import { createSheet } from "./sheet.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
+import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createBackground } from "./bg.js";
 import { createChallenge, START_LIVES } from "./challenge.js";
 import { createMotionMatcher } from "./motion.js";
@@ -213,6 +214,38 @@ const spDecodeError = $("spDecodeError");
 const sound = createSound();
 const fx = createFx();
 const bg = createBackground();
+
+// ---- reward juice (2026-09-25) --------------------------------------------
+// Combo glow on the camera frame — the visual twin of a climbing streak
+// sound (Challenge combo, Practice runs). Created here rather than in
+// index.html: purely decorative, aria-hidden, pointer-events:none (CSS).
+const comboGlow = document.createElement("div");
+comboGlow.className = "combo-glow";
+comboGlow.setAttribute("aria-hidden", "true");
+viewport.appendChild(comboGlow);
+let glowTimer = 0;
+// level 0..3; ttlMs > 0 fades it back out on its own (Practice runs lapse)
+function setGlow(level, ttlMs = 0) {
+  comboGlow.dataset.level = String(level | 0);
+  clearTimeout(glowTimer);
+  if (level && ttlMs > 0) glowTimer = setTimeout(() => { comboGlow.dataset.level = "0"; }, ttlMs);
+}
+// Practice "in a row" run: another rep within RUN_WINDOW_MS extends it
+const RUN_WINDOW_MS = 30000;
+let practiceRun = 0;
+let practiceRunAt = null;
+// a landmark (normalized video coords) -> page coords, un-mirroring selfie view
+function pagePoint(lm) {
+  const r = viewport.getBoundingClientRect();
+  if (!lm) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const mx = facingMode === "user" ? 1 - lm.x : lm.x;
+  return { x: r.left + mx * r.width, y: r.top + lm.y * r.height };
+}
+// centre of an element, for rewards that aren't on the hand (Read, drill)
+function elCenter(el) {
+  const r = el?.getBoundingClientRect?.();
+  return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : pagePoint(null);
+}
 
 // S4b: the reference panel is a non-modal bottom sheet on mobile (a full
 // side column on landscape/desktop, where "sheet-open" is forced by CSS
@@ -951,6 +984,8 @@ function advanceAz() {
 function skipLetter() {
   if (!azRun || !reference || azAdvancing || !targetLetter) return;
   azAdvancing = true;
+  practiceRun = 0; // a skip breaks the in-a-row run
+  setGlow(0);
   const skipped = targetLetter;
   azDone.add(skipped);
   azSkipped.add(skipped);
@@ -992,6 +1027,15 @@ function showRunCard() {
   fx.flash("#22c55e");
   sound.runComplete();
   buzz([0, 40, 30, 60, 30, 90]);
+  // finale: confetti rain + the letter chips light up in a wave + a big label
+  // (reduced motion: no rain/wave movement — a still highlight + label, CSS)
+  fx.rain();
+  fx.moment(isReview ? "Review done! 🎉" : "A → Z! 🎉", { ...elCenter(viewport), tone: "finale", ms: 1800 });
+  [...letterPicker.children].forEach((b, i) => b.style.setProperty("--i", String(i)));
+  letterPicker.classList.remove("finale");
+  void letterPicker.offsetWidth;
+  letterPicker.classList.add("finale");
+  setTimeout(() => letterPicker.classList.remove("finale"), 2400);
 }
 runCardClose.addEventListener("click", () => {
   runCard.hidden = true;
@@ -1404,7 +1448,12 @@ function judgeRead(revealed) {
       : "✓ correct";
     rdFeedback.className = "rd-feedback good";
     buzz(promo && promo.unlocked ? 40 : 20);
-    sound.correct?.();
+    sound.correct?.(reader.streak);
+    // visual twin: a ring on the answer that grows with the streak, and a
+    // label every 5 in a row
+    const at = elCenter(rdFeedback);
+    fx.ring(at.x, at.y, { color: "#4ade80", rings: Math.min(3, 1 + Math.floor(reader.streak / 3)), radius: 44 });
+    if (reader.streak >= 5 && reader.streak % 5 === 0) fx.moment(`🔥 ${reader.streak} in a row`, { ...at, tone: "mastery" });
     setTimeout(nextReadWord, promo && promo.unlocked ? 1400 : 850);
   } else {
     rdFeedback.className = "rd-feedback bad";
@@ -1437,6 +1486,8 @@ function setMode(next) {
   // Only Practice feeds the hold tone, so leaving it mid-hold froze the
   // voice at its last pitch forever.
   sound.chargeStop();
+  setGlow(0); // a combo/run glow belongs to the mode that earned it
+  practiceRun = 0;
   stabilizer?.reset(); // a letter confirmed in one mode must not carry into the next
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
   for (const b of modeToggle.children) {
@@ -1496,6 +1547,7 @@ function clearChallengeHud() {
   chSkip.hidden = true;
   chBanner.hidden = true;
   chCombo.hidden = true;
+  setGlow(0);
   chCard.hidden = true;
   refPanel.hidden = !targetLetter;
   if (targetLetter) openRefSheet();
@@ -1519,6 +1571,7 @@ function startChallenge() {
   chSummary.hidden = true;
   chCombo.hidden = true;
   chCombo.textContent = "";
+  setGlow(0);
   challenge.start(performance.now(), chDifficulty);
 }
 
@@ -1630,6 +1683,7 @@ function renderChallenge(snap, near) {
       sound.comboUp(snap.mult);
     }
     fx.flash(snap.mult >= 3 ? "#fde047" : "#22c55e");
+    setGlow(glowLevel(snap.mult)); // the combo's visual twin, on the frame
     sound.hit(snap.mult);
     buzz([0, 30, 25, 55]);
   } else if (snap.event === "miss") {
@@ -1646,6 +1700,7 @@ function renderChallenge(snap, near) {
     chStreak.hidden = true;
     chCombo.hidden = true;
     fx.flash("#f87171");
+    setGlow(0);
     sound.lifeLost();
     buzz(90);
   } else if (snap.event === "over") {
@@ -1660,9 +1715,11 @@ function renderChallenge(snap, near) {
     chStart.textContent = "Play again";
     chCard.hidden = false;
     sound.charge(0);
+    setGlow(0);
     if (snap.newBest) {
       sound.newBest();
       fx.flash("#fde047");
+      fx.rain({ count: 90, colors: ["#fde047", "#facc15", "#f8fafc", "#22c55e"] });
       buzz([0, 40, 30, 60, 30, 120]);
     } else {
       sound.gameOver();
@@ -1728,9 +1785,12 @@ chSummary.addEventListener("click", (e) => {
 
 function reward(originLandmark) {
   // per-letter stats: completions + best time from first-sighting to lock
+  let tier = "letter";
   if (targetLetter) {
     const s = (statsMap[targetLetter] ||= { done: 0, bestMs: Infinity });
+    const prevDone = s.done || 0;
     s.done++;
+    tier = rewardTier(prevDone, s.done, MASTERY_DONE);
     s.last = Date.now(); // feeds the Review queue's "longest since practiced" ranking
     const ms = firstHandAt ? performance.now() - firstHandAt : Infinity;
     if (ms < s.bestMs) s.bestMs = ms;
@@ -1739,20 +1799,36 @@ function reward(originLandmark) {
     renderProgressCount();
     touchStreak();
   }
-  buzz([0, 35, 25, 55]);
-  const r = viewport.getBoundingClientRect();
-  const mx = facingMode === "user" ? 1 - originLandmark?.x : originLandmark?.x; // selfie-mirrored
-  const x = originLandmark ? r.left + mx * r.width : r.left + r.width / 2;
-  const y = originLandmark ? r.top + originLandmark.y * r.height : r.top + r.height / 2;
-  fx.burst(x, y);
-  fx.flash("#22c55e");
-  sound.success();
+  // reps in a row climb the scale + grow the celebration (bounded)
+  const now = performance.now();
+  practiceRun = nextRun(practiceRun, practiceRunAt, now, RUN_WINDOW_MS);
+  practiceRunAt = now;
+  const plan = celebrationPlan(tier, practiceRun);
+  buzz(tier === "letter" ? [0, 35, 25, 55] : [0, 35, 25, 55, 25, 80]);
+  const { x, y } = pagePoint(originLandmark);
+  const colors = tier === "mastery"
+    ? ["#fde047", "#facc15", "#fef9c3", "#f8fafc", "#22c55e"]
+    : tier === "first" ? ["#38bdf8", "#7dd3fc", "#22c55e", "#f8fafc", "#fde047"] : undefined;
+  fx.burst(x, y, { count: plan.particles, stars: plan.stars, ...(colors ? { colors } : {}) });
+  fx.ring(x, y, { color: plan.color, rings: plan.rings }); // "locked in" on the hand
+  fx.flash(plan.color);
+  sound.success({ step: practiceRun - 1, tier });
+  setGlow(glowLevel(practiceRun - 1), RUN_WINDOW_MS); // runs of 3+ light the frame
+  if (plan.moment && targetLetter) {
+    fx.moment(tier === "mastery" ? `${targetLetter} mastered ★` : `First ${targetLetter}!`,
+      { x, y: Math.max(40, y - 70), tone: plan.moment });
+  }
   viewport.classList.add("celebrate");
   setTimeout(() => viewport.classList.remove("celebrate"), 650);
   letterBadge.classList.remove("pop");
   void letterBadge.offsetWidth; // restart the animation
   letterBadge.classList.add("pop");
-  showToast(`Nailed ${targetLetter}!  ✓`);
+  const runTag = practiceRun >= 3 ? `  · ${practiceRun} in a row` : "";
+  showToast(
+    tier === "mastery" ? `${targetLetter} mastered! ★ (${MASTERY_DONE}×)`
+    : tier === "first" ? `First ${targetLetter}! ✨${runTag}`
+    : `Nailed ${targetLetter}!  ✓${runTag}`
+  );
   if (azRun) {
     // let the reward land, then move on — only if we're still on that letter
     azAdvancePending = true;
@@ -1813,6 +1889,7 @@ function setState(next, detail) {
     motionChargeAmt = 0;
     setHold("0");
     sound.charge(0);
+    setGlow(0);
     bg.setMatch(null);
     if (challenge?.active) {
       challenge.stop();
@@ -2225,7 +2302,8 @@ function loop() {
         } else {
           fluidLastLetterAt = now; // for auto-speak-on-pause
           fluidSpoke = false;
-          sound.lock?.();
+          sound.lock?.(Math.max(0, (speller.pending?.length || 1) - 1)); // climbs through the word
+          if (hand) { const p = pagePoint(hand[9]); fx.ring(p.x, p.y, { color: "#38bdf8", radius: 46 }); }
           buzz(8);
         }
       }
@@ -2295,7 +2373,8 @@ function loop() {
       spellLastCommitAt = now;
       spellMaxAway = 0;
       spellAnchor = hasHand && hand ? { x: hand[0].x, y: hand[0].y } : null;
-      sound.lock?.();
+      sound.lock?.(Math.max(0, (speller.pending?.length || 1) - 1)); // climbs through the word
+      if (hasHand && hand) { const p = pagePoint(hand[9]); fx.ring(p.x, p.y, { color: "#38bdf8", radius: 46 }); }
       buzz(10);
     } else if (res.event === "word") {
       sound.word?.(); // its own quiet cue — success() is the big reward sound
@@ -2327,9 +2406,11 @@ function loop() {
         spDrillWord.classList.add("solved");
         spDrillWord.querySelectorAll(".ltr").forEach((s) => s.classList.remove("miss"));
         renderDrillScoreOnly();
-        sound.success?.();
+        sound.success?.({ mode: "drill", step: Math.max(0, (drill.streak || 1) - 1) });
         buzz([0, 20, 40, 20]);
         fx.flash("rgba(74, 222, 128, 0.38)");
+        const dw = elCenter(spDrillWord);
+        fx.burst(dw.x, dw.y, { count: 22 + 4 * Math.min(5, drill.streak || 0), colors: ["#38bdf8", "#4ade80", "#f8fafc", "#fde047"] });
         setTimeout(() => {
           speller.clearPending();
           syncSpellText();
