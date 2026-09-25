@@ -21,7 +21,7 @@ and no video ever leaves the browser.
 |---|---|---|
 | **Practice** | Pick a letter, or run A→Z or a 10-letter **Review** (spaced repetition) and form the shape | A live correction guide drawn on your own hand, with every joint and bone colored by its error, a "move this way" arrow at off fingertips, and a plain-language hint ("Curl your ring finger"). There's an animated demo hand (with depth cues) plus a reference photo. You hold the shape to lock it in. Includes a mastery badge and daily streak, and an optional **Test blind** mode with no hints. |
 | **Challenge** | A random letter appears; form it before the timer runs out | Recognizer-gated scoring (you advance only when the classifier reads your hand as that letter), speed points, a streak, and 3 lives |
-| **Spell** | Fingerspell continuously | A running transcript with a forgiving pending-word buffer, a swipe to erase, and two-hand copy/paste gestures. An optional **Fluid + speak (beta)** mode segments letters by movement rhythm, decodes them into dictionary words, and reads the sentence aloud. There's also a "practice a word" drill. |
+| **Spell** | Fingerspell a word, one letter per ring | Each letter enters only after a confirm ring fills around your hand (no accidental letters); a thin word-window ring then counts down: the next letter inside it joins the word, letting it run out adds a space. A running transcript with a forgiving pending-word buffer, a swipe to erase, and two-hand copy/paste gestures. An optional **Fluid + speak (beta)** mode segments letters by movement rhythm, decodes them into dictionary words, and reads the sentence aloud. There's also a "practice a word" drill. |
 | **Read** | No camera: watch the animated hand spell a word, then type what you saw | Receptive practice with pause/step/scrub playback, letter-by-letter near-miss feedback ("N and M are easy to mix up"), and a 5-tier **Course** that unlocks letters in teaching order |
 
 The app also has:
@@ -148,6 +148,7 @@ Other tools in `tools/`:
 | `decode-lab.html` | Decoder bench |
 | `replay-lab.html` | Full pipeline vs. recorded sequences |
 | `sweep-transition.mjs` | Segmentation threshold sweep |
+| `lab/spell-letters.mjs` | Spell input, per letter A–Z + word tests, on held-out real hands (Node) |
 | `train-heads.html` | Retrain the refinement heads |
 | `testHarness.js` | Drive the live app with synthetic hands (`?dev`) |
 
@@ -188,6 +189,7 @@ docs/     changelog, research notes, archived plan, code-reorg proposal
 | `transition.js` | Rhythm-based segmentation for continuous signing (settle → move → settle) |
 | `swipe.js` | Spell-mode open-hand sideways "wipe" = delete |
 | `twohand.js` | Spell-mode two-hand copy (hands together) / paste (apart) |
+| `spellgate.js` | Spell-mode circle lock: confirm ring per letter, word window -> space, no repeat without a release, J/Z on the stroke |
 | `speller.js` | Spell-mode transcript with a forgiving pending-word buffer |
 | `decode.js` | Letter stream → words (trie + CTC collapse + beam search + confusion costs) |
 | `challenge.js` | Timed "Simon says" game state (score, streak, lives) |

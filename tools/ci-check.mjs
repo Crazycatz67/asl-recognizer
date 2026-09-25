@@ -1152,6 +1152,39 @@ await check("challengefx.js: intensity monotonic in combo/streak/word/difficulty
   return `x1 ${I(base)} .. x4 ${I({ ...base, mult: 4 }).toFixed(2)} .. max ${top}; drain ${hz[0]}-${hz[2]} Hz; Race capped for all overrides`;
 });
 
+// ---- 24. spellgate.js: Spell's circle lock (ring per letter + word window) --
+// Timing invariants the owner asked for (2026-09-25): no letter without a
+// full ring, a held letter never repeats, a doubled letter needs a release,
+// a letter inside the word window joins the word, the window running out is
+// one space. Per-letter numbers against real held-out hands:
+// tools/lab/spell-letters.mjs.
+await check("spellgate.js: full ring to confirm, no repeat on a long hold, release for doubles, window -> one space", async () => {
+  const m = await import(pathToFileURL(path.join(ROOT, "js", "spellgate.js")));
+  const g = m.createSpellGate();
+  const C = m.SPELL_GATE.confirmMs, W = m.SPELL_GATE.windowMs;
+  let t = 0, out = "";
+  const run = (L, ms, { conf = 0.9, x = 0.5, gone = false } = {}) => {
+    const end = t + ms;
+    while (t < end) {
+      t += 33;
+      const o = g.feed({ now: t, letter: L, conf, pos: gone ? null : { x, y: 0.5, span: 0.1 } });
+      if (o.confirm) out += o.confirm;
+      if (o.space) out += " ";
+    }
+  };
+  run("H", C - 100);
+  if (out) throw new Error(`a letter entered before a full ring (${C - 100} ms): "${out}"`);
+  run("H", 4000); // + a long hold
+  if (out.replace(/ /g, "") !== "H") throw new Error(`a 4 s hold should enter H once, got "${out}"`);
+  if (out !== "H ") throw new Error(`the word window running out should add exactly one space, got "${out}"`);
+  run("I", C + 100); run(null, 300); run("I", C + 100);
+  if (out !== "H II") throw new Error(`I, release, I inside the window should be "II", got "${out}"`);
+  run("I", W + 200);
+  run("C", C + 100);
+  if (out !== "H II C") throw new Error(`expected "H II C", got "${out}"`);
+  return `confirm ${C} ms, window ${W} ms: "${out}"`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

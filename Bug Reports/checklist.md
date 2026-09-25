@@ -458,6 +458,13 @@ references are as of commit `41c43f0` and will drift.
     `FIXED (needs live confirm)` — perf pass v103 (ink bloom retired, CSS
     flash, capped loops, deduped DOM writes, stall-aware governor).
 
+54. **Spell "doesn't work": wrong / doubled letters, J/Z double or misread,
+    no space while holding, HELLO's second L lost.** `FIXED (needs live
+    confirm)` — circle lock (`js/spellgate.js`): ring per letter, word window
+    -> space, release needed for a repeat. `tools/lab/spell-letters.mjs`
+    before/after in docs/CHANGELOG.md (2026-09-25). Owner to check on a real
+    camera: does 650 ms feel right, is 2.2 s enough to find the next letter.
+
 ---
 
 ## Working the list

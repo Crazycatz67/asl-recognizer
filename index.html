@@ -300,7 +300,7 @@
       <div class="sp-top">
         <div class="sp-live">
           <span class="sp-ring" id="spRing" style="--p:0"><b id="spPending">–</b></span>
-          <span class="sp-hint" id="spHint">Spell a word (shown dashed) — pause a second and it's saved. Swipe to scrap it.</span>
+          <span class="sp-hint" id="spHint">Hold a letter until the ring fills</span>
         </div>
         <output class="sp-text" id="spText" aria-live="polite"></output>
         <div class="sp-decoded" id="spDecodedRow" hidden>
@@ -344,11 +344,11 @@
         <div class="g-list">
           <div class="g-row">
             <span class="g-anim g-hold" aria-hidden="true"><span class="g-ring"></span><span class="h">✋</span></span>
-            <span id="gHoldText"><b>Add a letter</b> — form the handshape and <b>hold it still</b> until the ring fills (about half a second).</span>
+            <span id="gHoldText"><b>Add a letter</b> — form the handshape and <b>hold it</b> until the ring around your hand fills (about ⅔ of a second). Nothing enters without a full ring.</span>
           </div>
           <div class="g-row">
             <span class="g-anim g-space" aria-hidden="true"><span class="h">🖐️</span><span class="g-gap">_</span></span>
-            <span><b>Finish a word</b> — <b>pause</b> about a second and the dashed word drops into the line. Or tap <b>Space</b>.</span>
+            <span><b>Finish a word</b> — after each letter a <b>thin outer ring</b> runs down (about 2 seconds). Sign the next letter before it's gone and it joins the word; let it run out and the word is saved with a space. Or tap <b>Space</b>.</span>
           </div>
           <div class="g-row">
             <span class="g-anim g-delete" aria-hidden="true"><span class="g-track"></span><span class="h">🖐️</span></span>
@@ -369,12 +369,12 @@
       <details class="sp-fold" id="spHelp">
         <summary>How to spell</summary>
         <ul class="sp-steps">
-          <li id="spStep1"><b>Spell a word</b> — form each letter and hold it briefly. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet.</li>
-          <li id="spStep2"><b>Next letter</b> — just change handshape; no pause needed. Hold each one still for a beat so it's read cleanly.</li>
-          <li><b>Same letter twice</b> (the L's in HELLO) — lower the hand or bounce it, then make it again.</li>
-          <li><b>Save the word</b> — pause about a second and the dashed word drops into the line. Or tap <b>Space</b>.</li>
+          <li id="spStep1"><b>Spell a word</b> — hold each letter until its ring fills. Letters build up as a <b>dashed word</b> — that's a draft, not saved yet.</li>
+          <li id="spStep2"><b>Next letter</b> — change handshape while the thin outer ring is still running and it joins the word (H, then I = HI). Let the thin ring run out and the word is saved with a space.</li>
+          <li><b>Same letter twice</b> (the L's in HELLO) — holding a letter never repeats it. Bounce it sideways, open your hand, or lower it, then hold it again for a new ring.</li>
+          <li><b>Save the word</b> — pause until the thin outer ring runs out (about 2 seconds) and the dashed word drops into the line with a space. Or tap <b>Space</b>.</li>
           <li><b>Got a junk letter?</b> — no need to be precise: <b>swipe</b> to scrap the whole dashed word and respell it, or tap <b>⌫</b> for one letter.</li>
-          <li><b>J and Z</b> — draw the stroke in the air, the same as in Practice.</li>
+          <li><b>J and Z</b> — draw the stroke in the air, the same as in Practice. They enter when the stroke is done (no ring); a J started from a held I replaces that I.</li>
           <li><b>Clear</b> — button only; wipes everything.</li>
         </ul>
       </details>

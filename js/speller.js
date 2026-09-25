@@ -18,6 +18,7 @@
 //                   "full" means the 240-char cap blocked a letter, no mutation happened)
 //   sp.text · sp.pending · sp.display · sp.space() · sp.backspace()
 //   sp.clearPending() · sp.clear() · sp.insert(str)
+//   sp.addLetter(L, conf, now) · sp.replaceLast(L, conf, now)   (pre-segmented input)
 
 // the handshape each motion letter starts from, and how recently that letter
 // must have landed for a finished stroke to replace it (see feed())
@@ -107,6 +108,18 @@ export function createSpeller({
     // letter, same as the hold path — without it fluid mode spelled "IJ"
     // (lab issue LAB-040).
     addLetter(letter, conf, now = 0) {
+      return add(letter, conf, now);
+    },
+
+    // swap the last letter of the word being spelled for another (a J/Z
+    // stroke that finished right after its own start letter — see
+    // js/spellgate.js). With no pending word it just adds the letter.
+    replaceLast(letter, conf, now = 0) {
+      if (!isLetter(letter)) return null;
+      if (pending) {
+        pending = pending.slice(0, -1);
+        if (raw.length > rawWordStart) raw.pop();
+      }
       return add(letter, conf, now);
     },
 

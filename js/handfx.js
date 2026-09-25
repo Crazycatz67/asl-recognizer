@@ -7,6 +7,8 @@
 //     landmark 9, just outside the farthest landmark) that fills clockwise
 //     with the hold (0..1). Makes the invisible dwell timer
 //     visible and teaches "hold still".
+//   - SPELL RINGS: the same arc for Spell's circle lock (js/spellgate.js),
+//     plus a thin white word-window arc just outside it that runs down.
 //   - LANDED RING: when the letter lands, the arc hands off to a 400 ms amber
 //     ring expanding outward (shape twin of the success sound: a ring).
 //   - VERDICT RIPPLE: one soft white ring when the verdict moves UP
@@ -31,6 +33,7 @@
 //   const hf = createHandFx({ ctx, governor });
 //   hf.draw(hand, { hold, bucket, tipStates, now })   // after the skeleton
 //   hf.landed(hand, now)                                // reward moment
+//   hf.drawSpell(hand, { progress, windowFrac })        // Spell circle lock + word window
 //   hf.drawRaceBadges(hands, owners, { locked:[f0,f1], screenMirror })
 //   createRippleLimiter(minGapMs) -> { fire(bucket, now) -> bool, reset() }
 //   createFramingJudge({ near, far, holdMs }) -> { update(span, now) -> state, reset() }
@@ -120,6 +123,46 @@ export function createHandFx({ ctx, governor = null } = {}) {
   }
   const scale = () => Math.max(1, ctx.canvas.height / 480);
 
+  // hold-charge arc: faint track + calm fill from 12 o'clock, clockwise
+  function holdArc(P, hold, k) {
+    if (!(hold > 0.001)) return;
+    ctx.lineCap = "round";
+    ctx.lineWidth = 2.5 * k;
+    ctx.strokeStyle = `rgba(${CALM}, 0.18)`;
+    ctx.beginPath();
+    ctx.arc(P.x, P.y, P.R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${CALM}, 0.9)`;
+    ctx.lineWidth = 3 * k;
+    ctx.beginPath();
+    ctx.arc(P.x, P.y, P.R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold));
+    ctx.stroke();
+  }
+
+  // Spell's circle lock (js/spellgate.js): the SAME hold-charge arc as
+  // Practice for the letter being confirmed, plus a thinner, fainter
+  // word-window arc just outside it that runs down clockwise from full
+  // (windowFrac 1 -> 0) — "the next letter joins this word until it's
+  // gone". Both are plain arcs (no motion of their own), so they stay on
+  // for reduced motion / "off": they carry information, not decoration.
+  function drawSpell(hand, { progress = 0, windowFrac = 0 } = {}) {
+    if (!hand) return;
+    const k = scale();
+    const P = palm(hand);
+    ctx.save();
+    holdArc(P, progress, k);
+    if (windowFrac > 0.001) {
+      const r = P.R + 7 * k;
+      ctx.lineCap = "round";
+      ctx.lineWidth = 1.5 * k;
+      ctx.strokeStyle = "rgba(248, 250, 252, 0.4)";
+      ctx.beginPath();
+      ctx.arc(P.x, P.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, windowFrac));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function draw(hand, { hold = 0, bucket = null, tipStates = null, now = performance.now() } = {}) {
     const L = level();
     if (!hand) { ripple.reset(); prevTips = null; }
@@ -128,20 +171,7 @@ export function createHandFx({ ctx, governor = null } = {}) {
     if (hand) {
       const P = palm(hand);
       const R = P.R;
-      // hold-charge arc: faint track + calm fill from 12 o'clock, clockwise
-      if (hold > 0.001) {
-        ctx.lineCap = "round";
-        ctx.lineWidth = 2.5 * k;
-        ctx.strokeStyle = `rgba(${CALM}, 0.18)`;
-        ctx.beginPath();
-        ctx.arc(P.x, P.y, R, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.strokeStyle = `rgba(${CALM}, 0.9)`;
-        ctx.lineWidth = 3 * k;
-        ctx.beginPath();
-        ctx.arc(P.x, P.y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold));
-        ctx.stroke();
-      }
+      holdArc(P, hold, k);
       if (L !== "off" && L !== "lite") {
         if (ripple.fire(bucket, now)) ripples.push({ x: P.x, y: P.y, r0: R, t0: now });
         // tip beads: a fingertip that just turned "good"
@@ -238,5 +268,5 @@ export function createHandFx({ ctx, governor = null } = {}) {
     ctx.restore();
   }
 
-  return { draw, landed, drawRaceBadges };
+  return { draw, drawSpell, landed, drawRaceBadges };
 }
