@@ -744,7 +744,7 @@ await check("handshape.js: real held-out hands pass their own letter's traits; c
   // differ ONLY by the thumb (often seen edge-on), so traits alone are
   // looser there and main.js's recogniser tie-break settles it (measured:
   // I->Y doesn't appear among the gate's false passes) — bound it anyway.
-  const mustFail = [["B", "A"], ["B", "S"], ["V", "U"], ["L", "B"], ["Y", "L"], ["W", "V"], ["A", "B"], ["I", "Y", 0.35]];
+  const mustFail = [["B", "A"], ["B", "S"], ["V", "U"], ["L", "B"], ["Y", "L"], ["W", "V"], ["A", "B"], ["I", "Y", 0.35], ["Q", "P"]]; // Q vs P: thumb out vs tucked (2026-09-25)
   const leaks = mustFail.filter(([a, b, lim = 0.15]) => passRate(a, b) > lim).map(([a, b]) => `${a} as ${b} ${(100 * passRate(a, b)).toFixed(0)}%`);
   if (leaks.length) throw new Error(`clearly different shapes pass: ${leaks.join(", ")}`);
   // owner 2026-09-24: "I spread my fingers wide but they were curled and it

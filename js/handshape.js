@@ -138,7 +138,11 @@ const TRAITS = {
   M: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, knuckleFold: FOLD }, // no fingerSplay: fingers folded forward at the knuckle make it noise (held-out N 38-90°); knuckleFold rejects claws
   N: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, knuckleFold: FOLD }, // no fingerSplay: fingers folded forward at the knuckle make it noise (held-out N 38-90°); knuckleFold rejects claws
   O: { index: true, middle: true, ring: true, pinky: true, thumbTip: true },
-  P: { index: true, middle: true, dir: true },
+  // P is K pointing down: the thumb touches the middle finger (thumbNear
+  // tucked). Without it Q (thumb OUT, pointing down) passed P's traits, so
+  // 20% of real Q hands counted as P and 5/30 Q hands the recogniser read
+  // as P were rejected as Q (probe 2026-09-25).
+  P: { index: true, middle: true, thumbNear: IN, dir: true },
   Q: { index: true, thumbOut: OUT, thumbNear: OUT, dir: true },
   R: { index: UP, middle: UP, ring: DOWN, pinky: DOWN, spread: true },
   S: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN },
