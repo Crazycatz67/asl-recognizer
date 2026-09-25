@@ -44,6 +44,10 @@ import { drawHandShape, vectorToPixels } from "./skeleton.js";
 
 const TITLE = "Fingerspell with your hands";
 const TIPS = [4, 8, 12, 16, 20];
+// ~2 signs up at once, each big and lifted above its letter so it reads
+// like someone spelling the title (~6.5 s for the whole line)
+const TITLE_STAGGER_MS = 260; // was 55
+const TITLE_SHOW_MS = 650; // how long each handshape holds (was 420)
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 const DYE = {
   amber: hex("#fbbf24"),
@@ -51,6 +55,16 @@ const DYE = {
   gold: hex("#ffc861"),
   ember: hex("#b45309"),
   calm: hex("#38bdf8"),
+};
+// Owner 2026-09-25: the hero was "really laggy and overbearing, especially
+// with the hand — more toned down and fluid rather than vibrant". So: slow,
+// smooth, low-contrast ink (little curl, motion and ink fade out steadily),
+// faint dye, gentle forces, and a much lighter GPU budget. One place to tune.
+const FEEL = {
+  curl: 4, // was 22: fewer tight eddies -> smooth, flowing ink
+  velDiss: 1.1, // was 0.25: motion settles instead of churning
+  dyeDiss: 1.3, // was 0.9: ink fades rather than piling up into bright blobs
+  dpr: 0.5, // draw at half resolution (soft anyway; ~4x fewer pixels)
 };
 const BG_DEEP = hex("#0b0f19");
 const dim = (c, k) => c.map((v) => v * k);
@@ -94,6 +108,7 @@ export function createHero({
   let titleDone = true;
   let pointer = null; // last pointer position (0..1) for velocity
   let prevTips = null;
+  let smoothTips = null; // EMA-smoothed fingertip positions (hand mode)
   let lastHandAt = 0;
   let camMode = false;
 
@@ -115,6 +130,11 @@ export function createHero({
       g.textContent = ch;
       l.append(shape, g);
       w.append(l);
+      // peek at this letter's handshape again after the intro wave
+      const peek = (on) => l.classList.toggle("hk-peek", on && titleDone && !!letters.find((x) => x.el === l)?.drawn);
+      l.addEventListener("pointerenter", () => peek(true));
+      l.addEventListener("pointerleave", () => peek(false));
+      l.addEventListener("click", () => { peek(true); setTimeout(() => peek(false), 1400); });
       letters.push({ ch: ch.toUpperCase(), el: l, shape, g, i: idx++, s: { x: 0, v: 0 }, gs: { x: 0, v: 0 }, drawn: false });
     }
     titleEl.append(w, document.createTextNode(" "));
@@ -126,8 +146,8 @@ export function createHero({
       const vec = shapeFor(L.ch);
       if (!vec) { L.drawn = false; continue; }
       const box = L.el.getBoundingClientRect();
-      // about one glyph wide (a bit more), so neighbouring hands barely overlap
-      const size = Math.max(24, Math.round(Math.min(box.height * 0.95, box.width * 1.3)));
+      // big enough to read the handshape (drawn above the letter, see CSS)
+      const size = Math.max(40, Math.round(box.height * 1.7));
       L.shape.width = L.shape.height = size * dpr;
       L.shape.style.width = L.shape.style.height = `${size}px`;
       const ctx = L.shape.getContext("2d");
@@ -150,15 +170,18 @@ export function createHero({
     if (titleDone) return;
     let settled = true;
     for (const L of letters) {
-      const t = now - titleT0 - L.i * 55;
-      // shape: pops in (0-380 ms), then springs away while the glyph springs in
-      const shapeTarget = L.drawn && t > 0 && t < 420 ? 1 : 0;
-      const glyphTarget = t > (L.drawn ? 340 : 0) ? 1 : 0;
-      L.s = springStep(L.s, shapeTarget, { k: 260, c: 20 }, dt);
-      L.gs = springStep(L.gs, glyphTarget, { k: 190, c: 13 }, dt);
+      // a slow wave (owner 2026-09-25: the handshapes are the cool part but
+      // flashed by too fast to read): each letter's sign holds ~1.1 s, the
+      // next one starts 170 ms later, then the sign eases into its glyph.
+      // Hover / tap a letter afterwards to see its sign again (.hk-peek).
+      const t = now - titleT0 - L.i * TITLE_STAGGER_MS;
+      const shapeTarget = L.drawn && t > 0 && t < TITLE_SHOW_MS ? 1 : 0;
+      const glyphTarget = t > (L.drawn ? TITLE_SHOW_MS - 150 : 0) ? 1 : 0;
+      L.s = springStep(L.s, shapeTarget, { k: 140, c: 17 }, dt);
+      L.gs = springStep(L.gs, glyphTarget, { k: 110, c: 13 }, dt);
       const s = Math.max(0, L.s.x), g = L.gs.x;
       L.shape.style.opacity = String(Math.min(1, s));
-      L.shape.style.transform = `translate(-50%, -50%) scale(${(0.4 + 0.6 * s).toFixed(3)})`;
+      L.shape.style.transform = `translate(-50%, -105%) scale(${(0.4 + 0.6 * s).toFixed(3)})`;
       L.g.style.opacity = String(Math.max(0, Math.min(1, g * 1.4)));
       L.g.style.transform = `translateY(${((1 - g) * 0.45).toFixed(3)}em) scale(${(0.5 + 0.5 * g).toFixed(3)}) rotate(${((1 - g) * -14).toFixed(2)}deg)`;
       if (glyphTarget !== 1 || Math.abs(g - 1) > 0.002 || Math.abs(L.gs.v) > 0.01 || s > 0.002) settled = false;
@@ -178,7 +201,7 @@ export function createHero({
   // with the camera on, detection shares the GPU: coarser sim, fewer Jacobi
   // passes and <= 24 fps (review: keep detection >= 28/s in the hero)
   function wantRes() {
-    return camMode ? [96, 256] : level() === "lite" ? [128, 256] : [128, 512];
+    return camMode ? [48, 160] : level() === "lite" ? [64, 192] : [80, 256];
   }
   let fluidFailed = false;
   function startFluid() {
@@ -194,15 +217,15 @@ export function createHero({
       canvas.setAttribute("aria-hidden", "true");
       stage.prepend(canvas);
       const [s, d] = wantRes();
-      fluid = createFluid(canvas, { simRes: s, dyeRes: d, background: BG_DEEP });
+      fluid = createFluid(canvas, { simRes: s, dyeRes: d, background: BG_DEEP, ...FEEL });
       if (!fluid) { canvas.remove(); canvas = null; fluidFailed = true; root.classList.add("hero-static"); return; }
       canvas.addEventListener("webglcontextlost", () => { fluid = null; canvas?.remove(); canvas = null; fluidFailed = true; root.classList.add("hero-static"); });
     }
     root.classList.remove("hero-static");
     // opening swirl: a few amber splats from the bottom edge
-    for (let i = 0; i < 5; i++) {
-      const x = 0.15 + 0.7 * (i / 4);
-      fluid.splat(x, 0.95, (Math.random() - 0.5) * 300, -900 - Math.random() * 500, dim(i % 2 ? DYE.honey : DYE.amber, 0.42), 0.004);
+    for (let i = 0; i < 3; i++) {
+      const x = 0.25 + 0.25 * i;
+      fluid.splat(x, 0.95, (Math.random() - 0.5) * 120, -320 - Math.random() * 160, dim(i % 2 ? DYE.honey : DYE.ember, 0.16), 0.008);
     }
   }
   // free the textures, keep the context for the next open (no churn of
@@ -216,7 +239,7 @@ export function createHero({
   function frame(now) {
     raf = 0;
     if (!open || document.visibilityState === "hidden") return;
-    const cap = camMode ? 41 : level() === "lite" ? 33 : 15; // ~24 / ~30 / ~60 fps
+    const cap = camMode ? 50 : level() === "lite" ? 40 : 33; // ~20 / ~25 / ~30 fps (slow ink doesn't need more)
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
@@ -227,14 +250,14 @@ export function createHero({
     if (camMode && now - lastHandAt > 1500) camMode = false; // hand gone: back to pointer mode
     if (!pointer && !camMode && now > nextAuto) {
       // ambient life when nobody's stirring: one soft amber curl
-      nextAuto = now + 1400 + Math.random() * 1200;
-      const x = 0.1 + Math.random() * 0.8, y = 0.55 + Math.random() * 0.4;
-      fluid.splat(x, y, (Math.random() - 0.5) * 500, -300 - Math.random() * 400, dim(Math.random() < 0.8 ? DYE.honey : DYE.calm, 0.35), 0.003);
+      nextAuto = now + 2600 + Math.random() * 1800;
+      const x = 0.1 + Math.random() * 0.8, y = 0.6 + Math.random() * 0.35;
+      fluid.splat(x, y, (Math.random() - 0.5) * 160, -120 - Math.random() * 120, dim(Math.random() < 0.8 ? DYE.honey : DYE.calm, 0.1), 0.008);
     }
     const t0 = performance.now();
     const [s, d] = wantRes();
     fluid.setResolution(s, d);
-    fluid.setIterations(camMode ? 12 : 20);
+    fluid.setIterations(camMode ? 8 : 12);
     fluid.step(sdt);
     fluid.render();
     governor?.cost("fluid", performance.now() - t0);
@@ -249,7 +272,7 @@ export function createHero({
       const dx = x - pointer.x, dy = y - pointer.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.0005) {
         const c = pointer.flip ? DYE.gold : DYE.amber;
-        fluid.splat(x, y, dx * 6000, dy * 6000, dim(c, 0.28), 0.0025);
+        fluid.splat(x, y, dx * 2200, dy * 2200, dim(c, 0.1), 0.005);
         pointer.flip = !pointer.flip;
       }
     }
@@ -324,6 +347,7 @@ export function createHero({
     syncThumb(video, mirrored);
     if (!hand) {
       prevTips = null;
+      smoothTips = null;
       for (const d of tipDots) d.style.opacity = "0";
       if (cameraLive() && statusEl && now - lastHandAt > 1500) statusEl.textContent = "Camera on. Hold a hand up to the camera to stir the ink.";
       return;
@@ -334,10 +358,13 @@ export function createHero({
     const vw = video?.videoWidth || 0, vh = video?.videoHeight || 0;
     // map through object-fit: cover (as if the camera filled the screen), so
     // the dots don't drift when the video's aspect differs from the screen's
-    const tips = TIPS.map((i) => {
+    const raw = TIPS.map((i) => {
       const q = coverMap(mirrored ? 1 - hand[i].x : hand[i].x, hand[i].y, vw, vh, w, h);
       return { x: q.x / w, y: q.y / h };
     });
+    // smooth the tips so tracking jitter doesn't stir the ink every frame
+    const tips = smoothTips ? raw.map((p, i) => ({ x: smoothTips[i].x + (p.x - smoothTips[i].x) * 0.35, y: smoothTips[i].y + (p.y - smoothTips[i].y) * 0.35 })) : raw;
+    smoothTips = tips;
     tips.forEach((p, i) => {
       tipDots[i].style.opacity = "1";
       tipDots[i].style.transform = `translate(${(p.x * w).toFixed(1)}px, ${(p.y * h).toFixed(1)}px)`;
@@ -346,13 +373,13 @@ export function createHero({
       const moves = tips
         .map((p, i) => ({ i, p, dx: p.x - prevTips[i].x, dy: p.y - prevTips[i].y }))
         .map((m) => ({ ...m, sp: Math.hypot(m.dx, m.dy) }))
-        .filter((m) => m.sp > 0.002)
+        .filter((m) => m.sp > 0.004)
         .sort((a, b) => b.sp - a.sp)
-        .slice(0, 3); // <= 3 splats per detection frame
+        .slice(0, 2); // <= 2 gentle splats per detection frame
       for (const m of moves) {
-        const c = m.i === 0 ? DYE.calm : m.i % 2 ? DYE.amber : DYE.honey;
-        const force = 4500;
-        fluid.splat(m.p.x, m.p.y, m.dx * force, m.dy * force, dim(c, Math.min(0.5, 0.18 + m.sp * 6)), 0.0015 + Math.min(0.004, m.sp * 0.05));
+        const c = m.i === 0 ? DYE.calm : m.i % 2 ? DYE.honey : DYE.ember;
+        const force = 1600;
+        fluid.splat(m.p.x, m.p.y, m.dx * force, m.dy * force, dim(c, Math.min(0.14, 0.06 + m.sp * 2)), 0.004 + Math.min(0.003, m.sp * 0.04));
       }
     }
     prevTips = tips;

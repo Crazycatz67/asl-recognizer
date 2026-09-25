@@ -2386,10 +2386,14 @@ summary:focus-visible,
   left: 50%;
   top: 50%;
   opacity: 0;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -105%);
   pointer-events: none;
-  filter: drop-shadow(0 0 10px var(--amber-glow));
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
 }
+/* hover / tap a title letter to see its fingerspelled handshape again */
+.hk-l.hk-peek .hk-shape { opacity: 1 !important; transform: translate(-50%, -105%) scale(1) !important; transition: opacity 0.25s, transform 0.25s; z-index: 1; }
+.hk-l.hk-peek .hk-g { color: var(--amber-300); transition: color 0.25s; }
+.hk-l { cursor: default; }
 .hero-sub {
   margin: 1rem auto 0;
   max-width: 34rem;

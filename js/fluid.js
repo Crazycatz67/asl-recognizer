@@ -140,7 +140,7 @@ void main() {
 }`,
 };
 
-export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [0.043, 0.059, 0.098], transparent = false, iters = 20, dpr = 1 } = {}) {
+export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [0.043, 0.059, 0.098], transparent = false, iters = 20, dpr = 1, curl = 22, velDiss = 0.25, dyeDiss = 0.9 } = {}) {
   let gl;
   try {
     gl = canvas.getContext("webgl2", { alpha: transparent, premultipliedAlpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false, powerPreference: "low-power" });
@@ -169,7 +169,8 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
   gl.bindVertexArray(gl.createVertexArray());
   gl.disable(gl.BLEND);
 
-  const cfg = { velDiss: 0.25, dyeDiss: 0.9, pressure: 0.8, curl: 22, iters: Math.max(1, iters | 0) };
+  // curl = how swirly; velDiss / dyeDiss = how fast motion / ink fade
+  const cfg = { velDiss, dyeDiss, pressure: 0.8, curl, iters: Math.max(1, iters | 0) };
   let vel, dye, divergence, curlT, pressure;
   let simW, simH, dyeW, dyeH;
 
