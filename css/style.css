@@ -2502,7 +2502,7 @@ summary:focus-visible,
   opacity: 0;
   transition: opacity 0.25s ease-out;
 }
-.fx-inkbloom.on { opacity: 0.9; transition-duration: 0.08s; }
+.fx-inkbloom.on { opacity: 0.75; transition-duration: 0.08s; } /* toned down (was 0.9) */
 
 /* ---- visual layer v2 (B4): adaptive Challenge (js/challengefx.js) ------- */
 /* frame aura: 1-4 px on the cool -> electric -> gold ramp (one intensity

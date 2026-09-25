@@ -28,6 +28,7 @@ import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createHero } from "./hero.js";
 import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
 import { createHandFx, createFramingJudge, handSpanH } from "./handfx.js";
+import { createInkBloom } from "./inkbloom.js";
 import { createGlyphFx } from "./glyphfx.js";
 import { createChallengeFx, burstCount } from "./challengefx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
@@ -240,6 +241,7 @@ const fx = createFx();
 // drawn into the overlay canvas, so it's created once the overlay exists
 let handfx = null;
 let fxHand = null; // the latest smoothed hand, for rewards fired outside loop()
+let inkbloom = null; // fingertip ink bloom on a landed letter ("full" only; pre-warmed)
 let glyphfx = null; // B3: particles assemble into the letter (first / mastery)
 const framing = createFramingJudge();
 
@@ -1943,7 +1945,7 @@ function renderChallenge(snap, near) {
     if (snap.newBest) {
       sound.newBest();
       fx.flash("#fde047");
-      // (gold ink bloom retired for performance)
+      if (fxHand) inkbloom?.bloom(fxHand, "mastery"); // gold bloom (full quality only)
       fx.rain({ count: 90, colors: ["#fde047", "#facc15", "#f8fafc", "#22c55e"] });
       buzz([0, 40, 30, 60, 30, 120]);
     } else {
@@ -2138,12 +2140,12 @@ function reward(originLandmark, handLm = null) {
     ? ["#fde047", "#facc15", "#fef9c3", "#f8fafc", "#22c55e"]
     : tier === "first" ? ["#38bdf8", "#7dd3fc", "#22c55e", "#f8fafc", "#fde047"] : undefined;
   fx.burst(x, y, { count: plan.particles, stars: plan.stars, ...(colors ? { colors } : {}) });
-  // the big tiers show the letter tile beside the hand. (The fingertip ink
-  // bloom was retired for performance: it needed its own WebGL context and
-  // compiled/allocated GPU resources on the reward frame — owner: lag spikes.)
+  // ink blooms from the fingertips (toned down; pre-warmed so the reward
+  // frame does no GPU setup), and the big tiers show the letter tile
   const rh = handLm || fxHand;
   let tileShown = false;
   if (rh) {
+    inkbloom?.bloom(rh, tier);
     if ((tier === "first" || tier === "mastery") && targetLetter) {
       const pts = rh.map((lm) => pagePoint(lm, vr));
       const box = {
@@ -2154,7 +2156,7 @@ function reward(originLandmark, handLm = null) {
     }
   }
   fx.ring(x, y, { color: plan.color, rings: plan.rings }); // "locked in" on the hand
-  fx.flash(plan.color);
+  fx.flash(plan.color, { strength: tier === "letter" ? 0.18 : 0.3 }); // softer for ordinary reps
   bg.pulse(tier === "mastery" ? 1 : tier === "first" ? 0.75 : 0.45);
   sound.success({ step: practiceRun - 1, tier });
   setGlow(glowLevel(practiceRun - 1), RUN_WINDOW_MS); // runs of 3+ light the frame
@@ -2274,8 +2276,16 @@ async function start() {
     setState("loading");
     [tracker, overlay] = await Promise.all([createHandTracker(), createOverlay(canvas)]);
     handfx = createHandFx({ ctx: overlay.ctx, governor: fxq });
+    if (!inkbloom) {
+      inkbloom = createInkBloom({ stage: $("stage"), before: canvas, governor: fxq, debug: DEBUG });
+      // compile + allocate now, off the reward frame
+      const warm = () => { if (fxq.level === "full") inkbloom.warm(); };
+      const idle = window.requestIdleCallback || ((f) => setTimeout(f, 300));
+      idle(warm, { timeout: 2000 });
+      fxq.subscribe((l) => { if (l === "full") idle(warm, { timeout: 2000 }); }); // Lite -> Full later
+    }
     glyphfx ||= createGlyphFx({ governor: fxq });
-    if (DEBUG) Object.assign(window.__fx, { glyphfx });
+    if (DEBUG) Object.assign(window.__fx, { inkbloom, glyphfx });
     tracker.setNumHands(mode === "spell" ? 2 : 1);
     await acquireWakeLock();
     await datasetPromise;

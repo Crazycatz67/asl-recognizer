@@ -239,10 +239,12 @@ export function createFx() {
       momentTimer = setTimeout(() => momentEl && momentEl.classList.remove("show"), ms);
     },
 
-    flash(color = "#22c55e") {
-      flashEl.style.background = `radial-gradient(ellipse at 50% 50%, transparent 38%, ${color} 100%)`;
+    // strength 0..1 peak opacity; default toned down from 0.55 (owner:
+    // "the reward flash can be too much")
+    flash(color = "#22c55e", { strength = 0.3 } = {}) {
+      flashEl.style.background = `radial-gradient(ellipse at 50% 50%, transparent 45%, ${color} 100%)`;
       flashAnim?.cancel();
-      flashAnim = flashEl.animate([{ opacity: 0.55 }, { opacity: 0 }], { duration: reduce ? 160 : FLASH_MS, easing: "ease-out", fill: "forwards" });
+      flashAnim = flashEl.animate([{ opacity: strength }, { opacity: 0 }], { duration: reduce ? 160 : FLASH_MS, easing: "ease-out", fill: "none" });
     },
   };
 }

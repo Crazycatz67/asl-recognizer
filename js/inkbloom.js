@@ -28,7 +28,9 @@ const TIPS = [4, 8, 12, 16, 20];
 const PIPS = [3, 6, 10, 14, 18];
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 const AMBER = hex("#fbbf24"), HONEY = hex("#e8a33a"), GOLD = hex("#ffc861");
-export const BLOOM_MS = 1200;
+// toned down (owner 2026-09-25: keep the wow, less intense): shorter, fainter,
+// slower ink than the first version
+export const BLOOM_MS = 1000;
 const COUNT = { letter: 3, first: 5, mastery: 5 };
 
 /**
@@ -49,12 +51,12 @@ export function bloomSplats(hand, tier = "letter") {
   const pick = fingers.slice().sort((a, b) => b.len - a.len).slice(0, n);
   const out = pick.map((f, k) => ({
     x: f.tip.x, y: f.tip.y,
-    dx: f.ux * 900, dy: f.uy * 900,
-    color: (k % 2 ? HONEY : AMBER).map((v) => v * (tier === "letter" ? 0.32 : 0.4)),
-    radius: 0.0022,
+    dx: f.ux * 650, dy: f.uy * 650,
+    color: (k % 2 ? HONEY : AMBER).map((v) => v * (tier === "letter" ? 0.2 : 0.27)),
+    radius: 0.002,
   }));
   if (tier === "mastery") {
-    for (const f of pick) out.push({ x: f.tip.x, y: f.tip.y, dx: -f.uy * 500, dy: f.ux * 500, color: GOLD.map((v) => v * 0.3), radius: 0.003 });
+    for (const f of pick) out.push({ x: f.tip.x, y: f.tip.y, dx: -f.uy * 380, dy: f.ux * 380, color: GOLD.map((v) => v * 0.2), radius: 0.0026 });
   }
   return out;
 }
@@ -69,7 +71,8 @@ export function createInkBloom({ stage, before = null, governor = null, debug = 
     cv.className = "fx-inkbloom";
     cv.setAttribute("aria-hidden", "true");
     stage.insertBefore(cv, before && before.parentNode === stage ? before : null);
-    fluid = createFluid(cv, { simRes: 32, dyeRes: 128, transparent: true, iters: 8, dpr: 0.25 });
+    // smoother, calmer ink than the hero defaults' swirl (curl), fading steadily
+    fluid = createFluid(cv, { simRes: 32, dyeRes: 128, transparent: true, iters: 8, dpr: 0.25, curl: 10, velDiss: 0.6, dyeDiss: 1.2 });
     if (!fluid) { cv.remove(); cv = null; failed = true; return false; }
     cv.addEventListener("webglcontextlost", () => { fluid = null; cv?.remove(); cv = null; failed = true; });
     return true;
@@ -94,11 +97,24 @@ export function createInkBloom({ stage, before = null, governor = null, debug = 
     if (!cv) return;
     cv.classList.remove("on");
     clearTimeout(fadeTimer);
-    // let the CSS fade finish, then free the textures (keep the context)
-    fadeTimer = setTimeout(() => { if (!raf && fluid && !fluid.asleep) { fluid.clearDye(); fluid.sleep(); } governor?.clearCost("inkbloom"); }, 260);
+    // let the CSS fade finish, then clear the ink. The (tiny: 32x43 sim,
+    // 128x170 dye) textures are KEPT: freeing + re-allocating them on every
+    // reward was a frame spike (perf audit, 2026-09-25)
+    fadeTimer = setTimeout(() => { if (!raf && fluid && !fluid.asleep) fluid.clearDye(); governor?.clearCost("inkbloom"); }, 260);
   }
 
   const api = {
+    // compile the shaders + allocate the textures ahead of time (call from
+    // idle time): the first bloom used to do all of it on the reward frame
+    warm() {
+      if (!ensure()) return false;
+      if (fluid.asleep) fluid.wake();
+      fluid.resize();
+      fluid.step(1 / 30);
+      fluid.render();
+      fluid.clearDye();
+      return true;
+    },
     bloom(hand, tier = "letter") {
       if ((governor?.level ?? "full") !== "full") return false;
       const splats = bloomSplats(hand, tier);
