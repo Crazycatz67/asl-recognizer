@@ -191,12 +191,8 @@ export function createHandshapeJudge(samples) {
   }
   upVals.sort((a, b) => a - b);
   downVals.sort((a, b) => a - b);
-  // how straight a raised finger is (p5, ~0.87) vs a typical folded one
-  // (p50, ~0.47): a finger curled past the halfway point is folded however
-  // its tip points. E curls its fingers at the middle joints with the tips on
-  // the thumb, so the knuckle->tip direction alone reads 30-60° (half
-  // raised) on real held-out E hands; this keeps them counting (E own pass
-  // 73% either way) while a raised-then-straight finger still fails.
+  // straightness of the raised fingers (UP) and the folded ones (DOWN) —
+  // used below to tell a CURLED folded finger from a raised one
   const upExt = [], downExt = [];
   for (const [L, ts] of byL) {
     for (const f of Object.keys(FINGER)) {
@@ -206,7 +202,6 @@ export function createHandshapeJudge(samples) {
   }
   upExt.sort((a, b) => a - b);
   downExt.sort((a, b) => a - b);
-  const CURLED = (q(upExt, 0.05) + q(downExt, 0.5)) / 2;
   // the raised / folded split again, measured without the fan component
   const upFold = [], downFold = [];
   for (const [L, ts] of byL) {
@@ -261,11 +256,21 @@ export function createHandshapeJudge(samples) {
         // raised 60° at knuckle + middle joint (flex ~55-65°) still counted:
         // A ring 87%, G ring 100%, L middle 97%, S ring 97%, X ring 100%
         // (tools/lab/probe-thresholds.mjs, 2026-09-25). Room for error is
-        // unchanged above the line (still DOWN floor - slack), and a finger
-        // curled tightly at its middle joints (Ext below CURLED) is folded
-        // whatever its tip direction.
+        // unchanged above the line (still DOWN floor - slack).
+        // Escape (curled): a finger curled at its middle joints past the
+        // halfway point between a raised finger (straightness p5, ~0.87)
+        // and this letter's own typical curl (p50) is folded however its
+        // tip points — E curls onto the thumb, so its tip direction reads
+        // 30-60° on real held-out E hands. Per letter, not shared: E's own
+        // curl is so tight (p50 ~0.2) that a shared line (~0.67) let an E
+        // finger raised 60° (still ~0.62 straight) through.
+        // Override (curledTight): curled as tightly as the tightest quarter
+        // of all folded fingers (p25) = folded, whatever the flex says —
+        // real E pinkies at 0.16 read flex 25-28° and failed outright.
         const own = q(ts.map((t) => t[key]).sort((a, b) => a - b), 0.1);
-        r[key] = { range: DOWN_RANGE, kind: "down", finger: name, fixBelow: (Math.max(DOWN_RANGE[0], own) + UP_RANGE[1]) / 2, curled: CURLED };
+        r[key] = { range: DOWN_RANGE, kind: "down", finger: name, fixBelow: (Math.max(DOWN_RANGE[0], own) + UP_RANGE[1]) / 2,
+          curled: (q(upExt, 0.05) + q(ts.map((t) => t[name + "Ext"]).sort((a, b) => a - b), 0.5)) / 2,
+          curledTight: q(downExt, 0.25) };
       }
       else {
         const vals = ts.map((t) => t[key]).sort((a, b) => a - b);
@@ -305,8 +310,11 @@ export function createHandshapeJudge(samples) {
       for (const [key, spec] of Object.entries(r)) {
         const value = t[key];
         const slack = slackFor(key);
-        const state = (spec.fixBelow !== undefined && value < spec.fixBelow && t[spec.finger + "Ext"] > spec.curled) ||
-          (spec.foldAbove !== undefined && t[spec.finger + "Fold"] > spec.foldAbove) ? "fix" : stateOf(value, spec.range, slack);
+        // (curl escape / override: see the DOWN calibration above)
+        const curled = spec.kind === "down" && t[spec.finger + "Ext"] <= spec.curledTight;
+        const state = curled ? "good"
+          : (spec.fixBelow !== undefined && value < spec.fixBelow && t[spec.finger + "Ext"] > spec.curled) ||
+            (spec.foldAbove !== undefined && t[spec.finger + "Fold"] > spec.foldAbove) ? "fix" : stateOf(value, spec.range, slack);
         let hint = null;
         if (state !== "good") {
           if (spec.kind === "up") hint = HINTS.up(spec.finger);

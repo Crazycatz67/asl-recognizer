@@ -737,9 +737,11 @@ await check("handshape.js: a folded finger raised 60° no longer passes (clean l
   const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
   const { bendFinger } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
   const lab = await loadLab();
-  // letters whose folded fingers are folded tight on every real signer; E M N
-  // (curled / knuckle-folded, noisy) and S's pinky are held to the looser cap
-  const CLEAN = new Set(["A", "G", "H", "I", "K", "L", "R", "T", "U", "V", "W", "X", "Y"]);
+  // letters whose folded fingers are folded tight on every real signer; M N
+  // (knuckle-folded, noisy) and S's pinky are held to the looser cap. E and
+  // D joined when the curl escape became per-letter (E ring/pinky raised
+  // 60° counted 47/50% of held-out E under a shared line, 7/13% after).
+  const CLEAN = new Set(["A", "D", "E", "G", "H", "I", "K", "L", "R", "T", "U", "V", "W", "X", "Y"]);
   const bad = [];
   let n = 0;
   for (const L of lab.letters) {
@@ -752,8 +754,13 @@ await check("handshape.js: a folded finger raised 60° no longer passes (clean l
       if (rate > (CLEAN.has(L) ? 0.25 : 0.75)) bad.push(`${L} ${f} ${Math.round(100 * rate)}%`);
     }
   }
+  // ...without failing E's real curled fingers (tips on the thumb read as
+  // half raised by direction alone): E own traits pass was 73% before the
+  // curl override + per-letter escape
+  const eOwn = lab.test.E.filter((s) => lab.judge.check(s.v, "E")?.ok).length / lab.test.E.length;
+  if (eOwn < 0.78) bad.push(`E's own held-out hands pass only ${Math.round(100 * eOwn)}%`);
   if (bad.length) throw new Error(`still counts with that finger raised 60°: ${bad.join(", ")}`);
-  return `${n} letter-fingers checked`;
+  return `${n} letter-fingers checked; E own ${Math.round(100 * eOwn)}%`;
 });
 
 // ---- 13h. handshape.js — a raised finger FOLDED doesn't still count; fanning does -

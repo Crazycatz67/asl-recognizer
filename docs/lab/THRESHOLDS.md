@@ -9,33 +9,31 @@ Wrong-shape columns: % of the letter's own hands that STILL count at a clearly w
 | A | 87% | — | 0.04 | 30 | — | index raised 0%, middle raised 0%, ring raised 0%, pinky raised 7% | out 0% | n/a | M 17%, N 7%, O 7%, G 3% |
 | B | 73% | — | 0.04 | 20 | 60 | index folded 0%, middle folded 0%, ring folded 0%, pinky folded 0% | out 0% | fanned 0% | C 7%, A 3%, E 3%, I 3% |
 | C | 87% | — | — | — | — | n/a | in 0% | n/a | Q 13%, F 3%, K 3%, T 3% |
-| D | 70% | — | — | — | 90 | index folded 3%, middle raised 7%, ring raised 7% | (out 70%) | n/a | E 13%, B 7%, I 7%, C 3% |
-| E | 73% | — | 0.06 | 20 | 90 | index raised 0%, middle raised 10%, ring raised 47%, pinky raised 50% | out 0% | n/a | M 17%, O 10%, I 7%, S 7% |
+| D | 77% | — | — | — | 90 | index folded 3%, middle raised 13%, ring raised 10% | (out 77%) | n/a | E 13%, B 7%, I 7%, C 3% |
+| E | 80% | — | 0.06 | 20 | 90 | index raised 0%, middle raised 0%, ring raised 7%, pinky raised 13% | out 0% | n/a | M 17%, O 10%, I 7%, S 7% |
 | F | 93% | — | — | — | 60 | middle folded 0%, ring folded 0%, pinky folded 0% | out 0% | n/a | P 7%, A 3%, E 3%, N 3% |
-| G | 93% | — | — | — | 90 | index folded 0%, middle raised 0%, ring raised 0%, pinky raised 13% | (out 83%) | n/a | E 10%, H 10%, B 7%, K 3% |
-| H | 87% | 60 | — | 20 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 73%) | fanned 33% | D 3%, G 3%, K 3%, P 3% |
-| I | 77% | — | — | — | 60 | index raised 0%, middle raised 0%, ring raised 3%, pinky folded 0% | (out 77%) | n/a | E 7%, Q 3% |
-| K | 90% | — | — | 20 | 60 | index folded 0%, middle folded 0%, ring raised 3%, pinky raised 0% | (out 3%) | squeezed 33% | V 7%, D 3%, G 3%, P 3% |
+| G | 93% | — | — | — | 90 | index folded 0%, middle raised 0%, ring raised 0%, pinky raised 13% | (out 83%) | n/a | E 13%, H 10%, B 7%, K 3% |
+| H | 87% | 60 | — | 20 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 3% | (out 73%) | fanned 33% | D 3%, E 3%, G 3%, K 3% |
+| I | 77% | — | — | — | 60 | index raised 0%, middle raised 0%, ring raised 0%, pinky folded 0% | (out 77%) | n/a | Q 3% |
+| K | 90% | — | — | 20 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 3%) | squeezed 33% | V 7%, D 3%, E 3%, G 3% |
 | L | 97% | — | — | — | 60 | index folded 0%, middle raised 0%, ring raised 0%, pinky raised 20% | in 23% | n/a | C 3% |
 | M | 90% | — | — | — | — | index raised 10%, middle raised 27%, ring raised 33%, pinky raised 50% | out 30% | n/a | N 23%, I 7%, O 7%, W 7% |
 | N | 70% | — | — | — | — | index raised 7%, middle raised 7%, ring raised 10%, pinky raised 20% | out 10% | n/a | M 20%, O 7%, E 3%, I 3% |
-| O | 93% | — | — | — | 60 | n/a | out 0% | n/a | D 13%, I 10%, E 7%, P 7% |
-| P | 83% | 45 | — | — | 40 | n/a | (out 80%) | n/a | Q 20%, E 10%, A 7%, B 7% |
+| O | 93% | — | — | — | 60 | n/a | out 0% | n/a | D 13%, I 10%, P 7%, R 7% |
+| P | 83% | 45 | — | — | 40 | n/a | (out 80%) | n/a | Q 20%, A 7%, B 7%, E 7% |
 | Q | 70% | 60 | — | — | — | n/a | in 7% | n/a | C 7%, P 7%, F 3%, N 3% |
-| R | 80% | — | — | 10 | 60 | index folded 0%, middle folded 0%, ring raised 3%, pinky raised 3% | (out 50%) | fanned 3% | D 3%, E 3%, G 3%, H 3% |
-| S | 97% | — | 0.06 | 30 | 90 | index raised 7%, middle raised 3%, ring raised 23%, pinky raised 50% | out 20% | n/a | M 13%, N 7%, O 7%, A 3% |
+| R | 80% | — | — | 10 | 60 | index folded 0%, middle folded 0%, ring raised 3%, pinky raised 3% | (out 50%) | fanned 3% | E 7%, D 3%, G 3%, H 3% |
+| S | 97% | — | 0.06 | 30 | 90 | index raised 7%, middle raised 3%, ring raised 7%, pinky raised 23% | out 20% | n/a | M 13%, N 7%, O 7%, A 3% |
 | T | 87% | — | 0.04 | 20 | — | middle raised 0%, ring raised 0%, pinky raised 0% | (out 83%) | n/a | E 3%, L 3%, O 3%, R 3% |
-| U | 90% | 60 | 0.06 | 10 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 3%) | fanned 0% | R 7%, K 3% |
-| V | 93% | — | — | 30 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 3% | (out 100%) | squeezed 0% | W 7%, D 3%, G 3%, K 3% |
-| W | 80% | — | — | — | 60 | index folded 0%, middle folded 0%, ring folded 0%, pinky raised 3% | (out 80%) | n/a | R 10%, U 3% |
-| X | 97% | — | — | — | 90 | middle raised 0%, ring raised 0%, pinky raised 7% | (out 97%) | n/a | E 10%, B 3%, C 3%, L 3% |
+| U | 90% | 60 | 0.06 | 10 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 0% | (out 3%) | fanned 0% | R 7%, E 3%, K 3% |
+| V | 93% | — | — | 30 | 60 | index folded 0%, middle folded 0%, ring raised 0%, pinky raised 3% | (out 100%) | squeezed 0% | W 7%, D 3%, E 3%, G 3% |
+| W | 80% | — | — | — | 60 | index folded 0%, middle folded 0%, ring folded 0%, pinky raised 3% | (out 80%) | n/a | R 10%, E 3%, U 3% |
+| X | 97% | — | — | — | 90 | middle raised 0%, ring raised 0%, pinky raised 0% | (out 97%) | n/a | E 13%, B 3%, C 3%, L 3% |
 | Y | 80% | — | — | 30 | 90 | index raised 0%, middle raised 0%, ring raised 0%, pinky folded 3% | in 0% | n/a | none |
 
 ## Findings
 
 - P1 B: only 73% of real held-out B hands count — own pass 73%
-- P1 D: only 70% of real held-out D hands count — own pass 70%
-- P1 E: only 73% of real held-out E hands count — own pass 73%
 - P1 N: only 70% of real held-out N hands count — own pass 70%
 - P1 Q: only 70% of real held-out Q hands count — own pass 70%
 - P0 17% of real M hands count as A — M->A 17%
