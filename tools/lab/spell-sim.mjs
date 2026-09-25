@@ -57,16 +57,19 @@ export async function createSpellSim({ lab = null, gateSet = {}, debug = false }
     return Math.hypot(mx / 4 - v[0], my / 4 - v[1]) || 1e-6;
   };
   // normalized vector -> image-space landmarks, wrist at (wx, wy), span = SPAN
-  function handAt(v, wx, wy) {
-    const k = SPAN / vecSpan(v);
+  // (span: hand size in frame units — smaller = farther from the camera)
+  function handAt(v, wx, wy, span = SPAN) {
+    const k = span / vecSpan(v);
     return Array.from({ length: 21 }, (_, i) => ({ x: wx + v[i * 3] * k, y: wy + v[i * 3 + 1] * k, z: v[i * 3 + 2] * k }));
   }
   const lerpHand = (a, b, t) => a.map((p, i) => ({ x: p.x + (b[i].x - p.x) * t, y: p.y + (b[i].y - p.y) * t, z: p.z + (b[i].z - p.z) * t }));
   // J: the I hand drops, hooks and twists (tools/synth-hand.js "true J", in spans)
-  function jFrame(base, k) {
-    const w = base[0];
-    const drop = 0.65 * SPAN * Math.min(1, k / 0.55), dx = -0.2 * SPAN * k;
-    const theta = -1.7 * Math.max(0, (k - 0.35) / 0.65), sup = 1 - 0.5 * k;
+  // opts (letter-report's stroke variations; defaults = the stroke above):
+  //   size  path scale · twist  hook rotation + supination scale · mirror  hook the other way
+  function jFrame(base, k, { size = 1, twist = 1, mirror = false } = {}) {
+    const w = base[0], sg = mirror ? -1 : 1;
+    const drop = 0.65 * SPAN * size * Math.min(1, k / 0.55), dx = sg * -0.2 * SPAN * size * k;
+    const theta = sg * -1.7 * twist * Math.max(0, (k - 0.35) / 0.65), sup = 1 - 0.5 * twist * k;
     // hand-local lateral axis = perpendicular to wrist -> middle knuckle
     const ax = [base[9].x - w.x, base[9].y - w.y], L = Math.hypot(...ax) || 1e-9;
     const u = [ax[0] / L, ax[1] / L], n = [-u[1], u[0]];
@@ -79,11 +82,12 @@ export async function createSpellSim({ lab = null, gateSet = {}, debug = false }
     });
   }
   // Z: the pointing hand draws a Z with the arm (synth "true Z", 1.9 spans wide)
-  function zFrame(base, k) {
+  // opts: size  path scale · mirror  drawn right-to-left · upward  drawn bottom-to-top
+  function zFrame(base, k, { size = 1, mirror = false, upward = false } = {}) {
     const segs = [[[0, 0], [1.9, 0]], [[1.9, 0], [0, 1.3]], [[0, 1.3], [1.9, 1.3]]];
     const u = Math.min(2.999, k * 3), i = Math.floor(u), f = u - i;
     const [a, b] = segs[i];
-    const dx = (a[0] + (b[0] - a[0]) * f) * SPAN, dy = (a[1] + (b[1] - a[1]) * f) * SPAN;
+    const dx = (mirror ? -1 : 1) * (a[0] + (b[0] - a[0]) * f) * SPAN * size, dy = (upward ? -1 : 1) * (a[1] + (b[1] - a[1]) * f) * SPAN * size;
     return base.map((p) => ({ x: p.x + dx, y: p.y + dy, z: p.z }));
   }
 
