@@ -32,6 +32,7 @@ import { createInkBloom } from "./inkbloom.js";
 import { createGlyphFx } from "./glyphfx.js";
 import { createChallengeFx, burstCount } from "./challengefx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
+import { createPerfReport, mountPerfPanel } from "./perfreport.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS, multFor } from "./challenge.js";
 import { createAchievements } from "./achievements.js";
 import { createVersus } from "./versus.js";
@@ -383,6 +384,19 @@ const fxq = createGovernor({
 });
 reduceMotionQuery?.addEventListener?.("change", (e) => fxq.set({ reducedMotion: e.matches }));
 const fxDebug = DEBUG ? mountFxDebug(fxq) : null;
+// ?perf: on-device performance report for phone testing (js/perfreport.js) —
+// use the app, tap "Copy report", paste the line back
+const perf = new URLSearchParams(location.search).has("perf") ? createPerfReport() : null;
+if (perf) {
+  perf.level(fxq.level);
+  fxq.subscribe((l) => perf.level(l));
+  mountPerfPanel(perf, () => ({
+    camera: video?.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : "off",
+    gpu: tracker?.delegate || "—",
+    fx: `${fxq.level}${fxq.state().override !== "auto" ? " (" + fxq.state().override + ")" : ""}`,
+    mode,
+  }));
+}
 const fxBtn = $("fxBtn");
 function syncFxBtn() {
   const o = fxq.state().override;
@@ -2525,7 +2539,7 @@ function loop() {
   const now = performance.now();
   // a long gap between animation frames = a visible stall: let the effects
   // governor drop to lite if they keep happening (fxquality.reportJank)
-  if (lastRafAt && !document.hidden) fxq.reportJank(now - lastRafAt, now);
+  if (lastRafAt && !document.hidden) { fxq.reportJank(now - lastRafAt, now); perf?.stall(now - lastRafAt, now); }
   lastRafAt = now;
   // throttle to TARGET_FPS. A strict `now - last < interval` misfires on a
   // 60 Hz display: two frames are ~33.3 ms +/- jitter, so about half the time
@@ -3288,6 +3302,7 @@ function tickDetStats(now) {
     fxq.set({ mode: mode === "challenge" && versus?.active && versus.mode === "race" ? "race" : mode });
     fxq.reportFps(fps, true, now);
     fxDebug?.setFps(fps);
+    perf?.sample(fps, now);
     statsEl.hidden = false;
     let line = `${video.videoWidth}×${video.videoHeight} · ${fps} fps · ${tracker.delegate}`;
     if (classifier) line += lastPred ? ` · ${lastPred.label} ${(lastPred.confidence * 100) | 0}%` : " · —";

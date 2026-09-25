@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mobile layout audit</title>
+<style>
+  body { font: 14px system-ui, sans-serif; background: #0b1220; color: #e2e8f0; margin: 16px; }
+  h1 { font-size: 18px; }
+  table { border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid #334155; padding: 4px 8px; text-align: left; vertical-align: top; }
+  td.ok { color: #86efac; } td.bad { color: #fca5a5; }
+  .frames { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .frames figure { margin: 0; }
+  .frames iframe { border: 2px solid #334155; border-radius: 12px; background: #000; }
+  details { margin: 4px 0; } code { color: #fde68a; }
+</style>
+</head>
+<body>
+<h1>Mobile layout audit</h1>
+<p>Loads the app at phone sizes, clicks through each screen with the app's own buttons, and flags:
+horizontal overflow · controls cut off or unreachable · tap targets &lt; 44 px · readable text &lt; 13 px ·
+controls covered by something else. Camera is off (layouts are checked, not tracking).
+Open on the dev server: <code>http://localhost:8000/tools/mobile-audit.html</code>. Results also in <code>window.__audit</code>.</p>
+<p><button id="run" type="button">Run audit</button> <span id="status"></span></p>
+<div id="out"></div>
+<div class="frames" id="frames"></div>
+<script type="module" src="mobile-audit.js"></script>
+</body>
+</html>

@@ -2692,3 +2692,15 @@ summary:focus-visible,
   color: var(--amber-300, #fcd34d); font-weight: 800; font-size: 0.9rem;
 }
 @media (max-width: 420px) { .hw-t { width: 1.75rem; height: 1.75rem; font-size: 0.8rem; } }
+
+/* ?perf on-device report (js/perfreport.js) — phone testing only */
+.perf-panel {
+  position: fixed; z-index: 9998;
+  left: calc(0.5rem + env(safe-area-inset-left, 0px)); bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 0.35rem; max-width: calc(100vw - 1rem);
+  padding: 0.5rem 0.6rem; border-radius: 0.7rem; background: rgba(2, 6, 23, 0.9); border: 1px solid #334155;
+  font: 600 0.8rem ui-monospace, monospace; color: #fde68a;
+}
+.perf-btns { display: flex; gap: 0.4rem; }
+.perf-btns button { min-height: 44px; padding: 0 0.9rem; border-radius: 0.5rem; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font: 700 0.85rem system-ui, sans-serif; }
+.perf-copy { width: min(26rem, calc(100vw - 2rem)); height: 5rem; font-size: 16px; }

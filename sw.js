@@ -27,7 +27,7 @@ const CORE = [
   "./js/fluid.js", "./js/hero.js", "./js/handfx.js", "./js/inkbloom.js", "./js/glyphfx.js", "./js/challengefx.js",
   "./js/handTracker.js", "./js/handshape.js", "./js/heads.js", "./js/jointstate.js", "./js/heads.json", "./js/juice.js", "./js/leaderboard.js", "./js/knn.js",
   "./js/main.js", "./js/mediapipe.js", "./js/motion.js", "./js/normalize.js",
-  "./js/onefilter.js", "./js/overlay.js", "./js/posekin.js", "./js/reader.js", "./js/reference.js", "./js/refine.js",
+  "./js/onefilter.js", "./js/overlay.js", "./js/perfreport.js", "./js/posekin.js", "./js/reader.js", "./js/reference.js", "./js/refine.js",
   "./js/sheet.js", "./js/skeleton.js", "./js/sound.js", "./js/spelldrill.js", "./js/spellgate.js", "./js/speller.js",
   "./js/stabilizer.js", "./js/strokekin.js", "./js/swipe.js", "./js/tour.js", "./js/transition.js", "./js/twohand.js", "./js/verdict.js", "./js/versus.js",
   "./icons/icon-192.png", "./icons/icon-512.png",

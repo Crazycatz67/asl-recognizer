@@ -1016,6 +1016,27 @@ await check("achievements.js: events unlock the right ids once; records only imp
   return `${A.ACHIEVEMENTS.length} achievements, ${A.THEMES.length} themes; unlock/record/theme/persist rules hold; 10 events wired`;
 });
 
+// ---- 13n. perfreport.js — the ?perf phone report's numbers ----------------
+await check("perfreport.js: fps percentiles, stall rate/worst, seconds per effects level", async () => {
+  const P = await import(pathToFileURL(path.join(ROOT, "js", "perfreport.js")).href);
+  const samples = [30, 29, 31, 12, 30, 28, 30, 30, 29, 30].map((fps, i) => ({ t: i * 500, fps }));
+  const stalls = [{ t: 1000, gap: 80 }, { t: 2000, gap: 140 }];
+  const levels = [{ t: 0, level: "full" }, { t: 3000, level: "lite" }];
+  const s = P.summarize(samples, stalls, levels, 0, 6000);
+  const bad = [];
+  if (s.fps.p50 !== 30 || s.fps.min !== 12 || s.fps.p10 !== 28) bad.push(`fps ${JSON.stringify(s.fps)}`);
+  if (s.stalls.n !== 2 || s.stalls.worstMs !== 140 || s.stalls.perMin !== 20) bad.push(`stalls ${JSON.stringify(s.stalls)}`);
+  if (s.effects.full !== 3 || s.effects.lite !== 3 || s.seconds !== 6) bad.push(`effects ${JSON.stringify(s.effects)} / ${s.seconds}s`);
+  let t = 0;
+  const pr = P.createPerfReport({ now: () => t });
+  pr.stall(30, 1); pr.stall(2000, 2); pr.stall(90, 3); // 30 ms normal, 2 s = pause (ignored)
+  t = 1000;
+  if (pr.summary().stalls.n !== 1) bad.push("only 50-1000 ms gaps are stalls");
+  if (!/det fps p50/.test(pr.text({ device: "test" }))) bad.push("text line");
+  if (bad.length) throw new Error(bad.join("; "));
+  return "p50/p10/min, 20 stalls/min, 3 s full + 3 s lite; pauses excluded";
+});
+
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
 // Static check (main.js is DOM-bound): both bridge timers (advanceAz and
 // skipLetter) must be stored in azBridgeTimer, and setAzRun — which every

@@ -25,3 +25,6 @@ skills-lock.json
 
 # Claude Code agent worktrees (temporary, per-session)
 .claude/worktrees/
+
+# local HTTPS test certificate (tools/serve-https.py)
+.certs/
