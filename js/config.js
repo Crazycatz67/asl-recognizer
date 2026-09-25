@@ -82,6 +82,18 @@ export const USE_EXTENDED_FEATURES = true;
 // (vs. dropping to ~64% at 25° without it). Empty array = no augmentation.
 export const AUGMENT_ROTATIONS = [-30, -15, 15, 30];
 
+// Tilt augmentation (dataset load only, js/dataset.js augmentSamples): each
+// ORIGINAL hand also gets a copy tipped toward / away from the camera by
+// these angles (pitch, normalize.js tiltVector). The in-plane copies above
+// never cover this, and a 15° pitch halved R, U, K and V — the recogniser
+// read R as H and U as R (tools/lab/letter-report.mjs 2026-09-25: pitch 15°
+// pass R 80% -> 27%, U 90% -> 27%). ±15° = the in-plane set's own step.
+// Measured on the blocked 80/20 split: pitched R 28% -> 70%, U 33% -> 89%,
+// K 58% -> 84%, V 67% -> 94%; no letter's own pass down > 3 pts; +40%
+// samples (tilted copies are NOT also rotated in-plane — that tripled the set
+// for no further gain).
+export const AUGMENT_TILTS = [-15, 15];
+
 // k for k-nearest-neighbours. Odd avoids ties in the common 2-class case.
 export const KNN_K = 5;
 

@@ -27,17 +27,42 @@
 // WHY AUGMENT AT LOAD: only the ~6k original hands are stored. Rotation-
 //   augmented copies are generated in memory here, which keeps the file ~3 MB
 //   instead of ~18 MB. Each augmented row keeps its parent's `g` (group id)
-//   and gets `rot: <angle in degrees>` so evaluation can split by group
-//   without leaking a hand's rotated twin into the test set.
+//   and gets `rot: <angle in degrees>` (or "pitch±15" for a tilted copy,
+//   config.AUGMENT_TILTS) so evaluation can split by group without leaking a
+//   hand's rotated twin into the test set. See augmentSamples().
 //
 // GOTCHAS: uses fetch() with a relative URL, so a plain-Node script must shim
 //   global.fetch to read from disk first (see tools/sweep-transition.mjs).
 //   Throws (with err.status on an HTTP failure) rather than returning null —
 //   main.js catches that and runs "skeleton only" without recognition.
 
-import { rotateVector } from "./normalize.js";
+import { rotateVector, tiltVector } from "./normalize.js";
+import { AUGMENT_TILTS } from "./config.js";
 
 const MIN_LEN = 63; // 21 landmarks × (x, y, z) — anything shorter is malformed
+
+/**
+ * The one place the training set is widened (the live app via loadDataset,
+ * and the offline lab — tools/lab/lab-data.mjs — so both train on the same
+ * set). Each original is kept, then gets one in-plane rotated copy per
+ * `rotations` angle and one tilted (pitch) copy per `tilts` angle. Copies
+ * keep the parent's label + `g` and carry `rot`: the in-plane angle (number)
+ * or "pitch<±deg>" (string) — always truthy / non-null, so the existing
+ * "originals only" filters (`!s.rot`, `s.rot == null`) skip every copy.
+ * @param {{label: string, v: number[], g?: number}[]} originals
+ * @param {number[]} [rotations]  in-plane degrees (config.AUGMENT_ROTATIONS)
+ * @param {number[]} [tilts]      pitch degrees (config.AUGMENT_TILTS)
+ */
+export function augmentSamples(originals, rotations = [], tilts = []) {
+  if (!rotations.length && !tilts.length) return originals;
+  const out = [];
+  for (const s of originals) {
+    out.push(s);
+    for (const deg of rotations) out.push({ label: s.label, v: rotateVector(s.v, deg), g: s.g, rot: deg });
+    for (const deg of tilts) out.push({ label: s.label, v: tiltVector(s.v, deg), g: s.g, rot: `pitch${deg > 0 ? "+" : ""}${deg}` });
+  }
+  return out;
+}
 
 /**
  * Fetch, validate and rotation-augment the training dataset.
@@ -71,19 +96,9 @@ export async function loadDataset(url) {
   );
   if (bad) throw new Error(`dataset rows must all be { label, v:[${len}] }`);
 
-  // ---- augment: add an in-plane rotated copy per angle, per original ----
-  let samples = data.samples;
+  // ---- augment: in-plane rotated + tilted copies per original ----
   const angles = Array.isArray(data.augmentRotations) ? data.augmentRotations : [];
-  if (angles.length) {
-    const expanded = [];
-    for (const s of data.samples) {
-      expanded.push(s);
-      for (const deg of angles) {
-        expanded.push({ label: s.label, v: rotateVector(s.v, deg), g: s.g, rot: deg });
-      }
-    }
-    samples = expanded;
-  }
+  const samples = augmentSamples(data.samples, angles, AUGMENT_TILTS);
 
   const labels = [...new Set(samples.map((s) => s.label))].sort();
   return {
