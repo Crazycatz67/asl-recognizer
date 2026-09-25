@@ -1714,6 +1714,7 @@ let chDifficulty = loadPref("ch-diff") === "hard" ? "hard" : "normal";
 // js/versus.js; the board is js/leaderboard.js (kept on this device).
 let chPlay = ["turns", "race"].includes(loadPref("ch-play")) ? loadPref("ch-play") : "solo";
 let versus = null;
+let heroTwoHands = false; // the landing screen asked the tracker for 2 hands
 const vsStab = [0, 1].map(() => createStabilizer({ stableFrames: STABLE_FRAMES, minConfidence: MIN_CONFIDENCE }));
 const leaderboard = createLeaderboard();
 const PLAYER_COLORS = [{ stroke: "#38bdf8", joint: "#e0f2fe" }, { stroke: "#fb923c", joint: "#ffedd5" }];
@@ -2401,8 +2402,16 @@ function loop() {
   // have no visible twin (Deaf-first). Any half-done hold is dropped so the
   // first frame after Start can't cash it in; Challenge's clock pauses across
   // the gap on its own (pauseGapMs).
+  if (!hero?.isOpen() && heroTwoHands) {
+    // hero closed: back to the mode's own hand count
+    heroTwoHands = false;
+    tracker?.setNumHands(mode === "spell" || (mode === "challenge" && versus?.active && versus.mode === "race") ? 2 : 1);
+  }
   if (hero?.isOpen()) {
-    hero.feedHands(hasHand ? result.landmarks : null, facingMode === "user", video);
+    // two hands while the hero is open: one paints orange, the other blue
+    if (!heroTwoHands) { heroTwoHands = true; tracker?.setNumHands(2); }
+    const handsOk = (result.landmarks || []).filter((lm) => lm.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)));
+    hero.feedHands(handsOk.length ? handsOk : null, facingMode === "user", video, result.handedness);
     bg.setHand({ present: false });
     sound.charge(0);
     if (holdStart) { holdStart = 0; setHold("0"); }

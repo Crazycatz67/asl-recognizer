@@ -32,7 +32,8 @@
 //   hero.open({ onStart })   // onStart runs after the user taps Start
 //   hero.close()
 //   hero.isOpen()
-//   hero.feedHands(landmarksList, mirrored, video)  // from the detection loop;
+//   hero.feedHands(landmarksList, mirrored, video, handedness)  // from the
+//                            // detection loop (up to 2 hands: orange + blue ink);
 //                            // tips are mapped through the video's
 //                            // object-fit: cover so dots sit where the hand is
 //   hero.dispose()           // drop listeners + the GL context (tests)
@@ -44,10 +45,13 @@ import { drawHandShape, vectorToPixels } from "./skeleton.js";
 
 const TITLE = "Fingerspell with your hands";
 const TIPS = [4, 8, 12, 16, 20];
-// ~2 signs up at once, each big and lifted above its letter so it reads
-// like someone spelling the title (~6.5 s for the whole line)
-const TITLE_STAGGER_MS = 260; // was 55
-const TITLE_SHOW_MS = 650; // how long each handshape holds (was 420)
+// Owner 2026-09-25: only the word "hands" is fingerspelled, ONE letter at a
+// time and in place: its handshape appears where the letter goes, holds,
+// then turns into the letter, then the next. The other words just pop in.
+const SIGNED_WORD = "hands";
+const TITLE_STAGGER_MS = 40; // the plain words' letters pop in this far apart
+const SIGN_SHOW_MS = 900; // each sign holds this long, then becomes its letter
+const SIGN_GAP_MS = 250; // the letter settles before the next sign appears
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 const DYE = {
   amber: hex("#fbbf24"),
@@ -84,14 +88,6 @@ export function createHero({
   const handBtn = root.querySelector(".hero-hand");
   const statusEl = root.querySelector(".hero-handstatus");
   const tipLayer = root.querySelector(".hero-tips");
-  // a tiny low-alpha live preview so stirring feels caused by YOUR hand
-  const camThumb = document.createElement("video");
-  camThumb.className = "hero-cam";
-  camThumb.muted = true;
-  camThumb.playsInline = true;
-  camThumb.setAttribute("aria-hidden", "true");
-  camThumb.hidden = true;
-  stage.append(camThumb);
   let inerted = [];
 
   let open = false;
@@ -107,8 +103,8 @@ export function createHero({
   let titleT0 = 0;
   let titleDone = true;
   let pointer = null; // last pointer position (0..1) for velocity
-  let prevTips = null;
-  let smoothTips = null; // EMA-smoothed fingertip positions (hand mode)
+  // per ink hand (0 = orange, 1 = blue): EMA-smoothed tips + last frame's
+  let handTips = [null, null];
   let lastHandAt = 0;
   let camMode = false;
 
@@ -116,7 +112,11 @@ export function createHero({
   titleEl.setAttribute("aria-label", TITLE);
   titleEl.textContent = "";
   let idx = 0;
-  for (const word of TITLE.split(" ")) {
+  const words = TITLE.split(" ");
+  const plainCount = words.filter((wd) => wd.toLowerCase() !== SIGNED_WORD).join("").length;
+  let signIdx = 0;
+  for (const word of words) {
+    const signed = word.toLowerCase() === SIGNED_WORD;
     const w = document.createElement("span");
     w.className = "hk-w";
     w.setAttribute("aria-hidden", "true");
@@ -130,12 +130,19 @@ export function createHero({
       g.textContent = ch;
       l.append(shape, g);
       w.append(l);
-      // peek at this letter's handshape again after the intro wave
-      const peek = (on) => l.classList.toggle("hk-peek", on && titleDone && !!letters.find((x) => x.el === l)?.drawn);
-      l.addEventListener("pointerenter", () => peek(true));
-      l.addEventListener("pointerleave", () => peek(false));
-      l.addEventListener("click", () => { peek(true); setTimeout(() => peek(false), 1400); });
-      letters.push({ ch: ch.toUpperCase(), el: l, shape, g, i: idx++, s: { x: 0, v: 0 }, gs: { x: 0, v: 0 }, drawn: false });
+      if (signed) {
+        // hover / tap a letter of "hands" later to see its sign again
+        const peek = (on) => l.classList.toggle("hk-peek", on && titleDone && !!letters.find((x) => x.el === l)?.drawn);
+        l.addEventListener("pointerenter", () => peek(true));
+        l.addEventListener("pointerleave", () => peek(false));
+        l.addEventListener("click", () => { peek(true); setTimeout(() => peek(false), 1400); });
+      }
+      // start time: plain letters pop in quickly; the signed word's letters
+      // follow one after another once the plain words are in
+      const start = signed
+        ? plainCount * TITLE_STAGGER_MS + 200 + signIdx++ * (SIGN_SHOW_MS + SIGN_GAP_MS)
+        : idx * TITLE_STAGGER_MS;
+      letters.push({ ch: ch.toUpperCase(), el: l, shape, g, i: idx++, signed, start, s: { x: 0, v: 0 }, gs: { x: 0, v: 0 }, drawn: false });
     }
     titleEl.append(w, document.createTextNode(" "));
   }
@@ -143,11 +150,12 @@ export function createHero({
   function drawShapes() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     for (const L of letters) {
+      if (!L.signed) { L.drawn = false; continue; }
       const vec = shapeFor(L.ch);
       if (!vec) { L.drawn = false; continue; }
       const box = L.el.getBoundingClientRect();
-      // big enough to read the handshape (drawn above the letter, see CSS)
-      const size = Math.max(40, Math.round(box.height * 1.7));
+      // big enough to read the handshape; shown in place of its letter
+      const size = Math.max(40, Math.round(box.height * 1.5));
       L.shape.width = L.shape.height = size * dpr;
       L.shape.style.width = L.shape.style.height = `${size}px`;
       const ctx = L.shape.getContext("2d");
@@ -170,18 +178,15 @@ export function createHero({
     if (titleDone) return;
     let settled = true;
     for (const L of letters) {
-      // a slow wave (owner 2026-09-25: the handshapes are the cool part but
-      // flashed by too fast to read): each letter's sign holds ~1.1 s, the
-      // next one starts 170 ms later, then the sign eases into its glyph.
-      // Hover / tap a letter afterwards to see its sign again (.hk-peek).
-      const t = now - titleT0 - L.i * TITLE_STAGGER_MS;
-      const shapeTarget = L.drawn && t > 0 && t < TITLE_SHOW_MS ? 1 : 0;
-      const glyphTarget = t > (L.drawn ? TITLE_SHOW_MS - 150 : 0) ? 1 : 0;
+      // "hands": sign -> letter, one at a time (see SIGNED_WORD)
+      const t = now - titleT0 - L.start;
+      const shapeTarget = L.drawn && t > 0 && t < SIGN_SHOW_MS ? 1 : 0;
+      const glyphTarget = t > (L.drawn ? SIGN_SHOW_MS - 80 : 0) ? 1 : 0;
       L.s = springStep(L.s, shapeTarget, { k: 140, c: 17 }, dt);
       L.gs = springStep(L.gs, glyphTarget, { k: 110, c: 13 }, dt);
       const s = Math.max(0, L.s.x), g = L.gs.x;
       L.shape.style.opacity = String(Math.min(1, s));
-      L.shape.style.transform = `translate(-50%, -105%) scale(${(0.4 + 0.6 * s).toFixed(3)})`;
+      L.shape.style.transform = `translate(-50%, -50%) scale(${(0.4 + 0.6 * s).toFixed(3)})`;
       L.g.style.opacity = String(Math.max(0, Math.min(1, g * 1.4)));
       L.g.style.transform = `translateY(${((1 - g) * 0.45).toFixed(3)}em) scale(${(0.5 + 0.5 * g).toFixed(3)}) rotate(${((1 - g) * -14).toFixed(2)}deg)`;
       if (glyphTarget !== 1 || Math.abs(g - 1) > 0.002 || Math.abs(L.gs.v) > 0.01 || s > 0.002) settled = false;
@@ -295,7 +300,7 @@ export function createHero({
     try {
       await startCamera();
       statusEl.textContent = cameraLive()
-        ? "Camera on. Wave your fingers: amber trails for your fingers, blue for your thumb."
+        ? "Camera on. Hold up both hands: one paints orange, the other blue."
         : "Couldn't start the camera. You can still stir with your mouse or finger.";
     } catch {
       statusEl.textContent = "Couldn't start the camera. You can still stir with your mouse or finger.";
@@ -326,63 +331,83 @@ export function createHero({
   });
 
   // ---- hand tracking ------------------------------------------------------
-  const tipDots = [];
-  for (let i = 0; i < 5; i++) {
-    const d = document.createElement("span");
-    d.className = "hero-tip" + (i === 0 ? " thumb" : "");
-    tipLayer?.append(d);
-    tipDots.push(d);
+  // Two-hand ink (owner 2026-09-25): one hand paints orange, the other
+  // blue — use both to mix them. Tip dots are a shape twin too: round =
+  // orange hand, square = blue hand. (No camera preview: the dots show
+  // where your hands are.)
+  const INK = [
+    { main: hex("#fb923c"), alt: DYE.honey },
+    { main: DYE.calm, alt: hex("#60a5fa") },
+  ];
+  const tipDots = [[], []];
+  for (const k of [0, 1]) {
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement("span");
+      d.className = `hero-tip ink-${k ? "blue" : "orange"}`;
+      tipLayer?.append(d);
+      tipDots[k].push(d);
+    }
   }
-  function syncThumb(video, mirrored) {
-    const src = video?.srcObject || null;
-    if (!src) { camThumb.hidden = true; return; }
-    if (camThumb.srcObject !== src) { camThumb.srcObject = src; camThumb.play?.().catch(() => {}); }
-    camThumb.classList.toggle("mirrored", !!mirrored);
-    camThumb.hidden = false;
+  const hideDots = (k) => { for (const d of tipDots[k]) d.style.opacity = "0"; };
+  // which ink each detected hand paints: by MediaPipe's handedness when the
+  // two labels differ (stable even if hands cross), else by screen side
+  function inkSlots(list, handedness, mirrored) {
+    const labels = (handedness || []).map((h) => h?.[0]?.categoryName || null);
+    if (list.length === 1) return [labels[0] === "Left" ? 1 : 0];
+    if (labels[0] && labels[1] && labels[0] !== labels[1]) return labels.map((l) => (l === "Left" ? 1 : 0));
+    const sx = (hd) => (mirrored ? 1 - hd[0].x : hd[0].x);
+    return sx(list[0]) <= sx(list[1]) ? [0, 1] : [1, 0];
   }
-  function feedHands(list, mirrored, video = null) {
+  function feedHands(list, mirrored, video = null, handedness = null) {
     if (!open) return;
-    const hand = list?.[0];
     const now = performance.now();
-    syncThumb(video, mirrored);
-    if (!hand) {
-      prevTips = null;
-      smoothTips = null;
-      for (const d of tipDots) d.style.opacity = "0";
-      if (cameraLive() && statusEl && now - lastHandAt > 1500) statusEl.textContent = "Camera on. Hold a hand up to the camera to stir the ink.";
+    const hands = (list || []).slice(0, 2);
+    if (!hands.length) {
+      handTips = [null, null];
+      hideDots(0); hideDots(1);
+      if (cameraLive() && statusEl && now - lastHandAt > 1500) statusEl.textContent = "Camera on. Hold up both hands: one paints orange, the other blue.";
       return;
     }
     lastHandAt = now;
     camMode = true;
+    if (statusEl) statusEl.textContent = hands.length === 1
+      ? "Now bring in your other hand to add the other colour."
+      : "Mix them: move both hands through the ink.";
     const w = root.clientWidth || 1, h = root.clientHeight || 1;
     const vw = video?.videoWidth || 0, vh = video?.videoHeight || 0;
-    // map through object-fit: cover (as if the camera filled the screen), so
-    // the dots don't drift when the video's aspect differs from the screen's
-    const raw = TIPS.map((i) => {
-      const q = coverMap(mirrored ? 1 - hand[i].x : hand[i].x, hand[i].y, vw, vh, w, h);
-      return { x: q.x / w, y: q.y / h };
-    });
-    // smooth the tips so tracking jitter doesn't stir the ink every frame
-    const tips = smoothTips ? raw.map((p, i) => ({ x: smoothTips[i].x + (p.x - smoothTips[i].x) * 0.35, y: smoothTips[i].y + (p.y - smoothTips[i].y) * 0.35 })) : raw;
-    smoothTips = tips;
-    tips.forEach((p, i) => {
-      tipDots[i].style.opacity = "1";
-      tipDots[i].style.transform = `translate(${(p.x * w).toFixed(1)}px, ${(p.y * h).toFixed(1)}px)`;
-    });
-    if (fluid && prevTips) {
-      const moves = tips
-        .map((p, i) => ({ i, p, dx: p.x - prevTips[i].x, dy: p.y - prevTips[i].y }))
-        .map((m) => ({ ...m, sp: Math.hypot(m.dx, m.dy) }))
-        .filter((m) => m.sp > 0.004)
-        .sort((a, b) => b.sp - a.sp)
-        .slice(0, 2); // <= 2 gentle splats per detection frame
-      for (const m of moves) {
-        const c = m.i === 0 ? DYE.calm : m.i % 2 ? DYE.honey : DYE.ember;
-        const force = 1600;
-        fluid.splat(m.p.x, m.p.y, m.dx * force, m.dy * force, dim(c, Math.min(0.14, 0.06 + m.sp * 2)), 0.004 + Math.min(0.003, m.sp * 0.04));
+    const slots = inkSlots(hands, handedness, mirrored);
+    const seen = [false, false];
+    hands.forEach((hand, n) => {
+      const k = slots[n];
+      if (seen[k]) return; // two hands mapped to one ink: keep the first
+      seen[k] = true;
+      // map through object-fit: cover so the dots sit where the hand is
+      const raw = TIPS.map((i) => {
+        const q = coverMap(mirrored ? 1 - hand[i].x : hand[i].x, hand[i].y, vw, vh, w, h);
+        return { x: q.x / w, y: q.y / h };
+      });
+      // smooth the tips so tracking jitter doesn't stir the ink every frame
+      const prev = handTips[k];
+      const tips = prev ? raw.map((p, i) => ({ x: prev[i].x + (p.x - prev[i].x) * 0.35, y: prev[i].y + (p.y - prev[i].y) * 0.35 })) : raw;
+      tips.forEach((p, i) => {
+        tipDots[k][i].style.opacity = "1";
+        tipDots[k][i].style.transform = `translate(${(p.x * w).toFixed(1)}px, ${(p.y * h).toFixed(1)}px)`;
+      });
+      if (fluid && prev) {
+        const moves = tips
+          .map((p, i) => ({ i, p, dx: p.x - prev[i].x, dy: p.y - prev[i].y }))
+          .map((m) => ({ ...m, sp: Math.hypot(m.dx, m.dy) }))
+          .filter((m) => m.sp > 0.004)
+          .sort((a, b) => b.sp - a.sp)
+          .slice(0, 2); // <= 2 gentle splats per hand per detection frame
+        for (const m of moves) {
+          const c = m.i % 2 ? INK[k].main : INK[k].alt;
+          fluid.splat(m.p.x, m.p.y, m.dx * 1600, m.dy * 1600, dim(c, Math.min(0.16, 0.07 + m.sp * 2)), 0.004 + Math.min(0.003, m.sp * 0.04));
+        }
       }
-    }
-    prevTips = tips;
+      handTips[k] = tips;
+    });
+    for (const k of [0, 1]) if (!seen[k]) { handTips[k] = null; hideDots(k); }
   }
 
   // ---- open / close -------------------------------------------------------
@@ -425,11 +450,10 @@ export function createHero({
     raf = 0;
     stopFluid();
     finishTitle();
-    pointer = prevTips = null;
+    pointer = null;
+    handTips = [null, null];
     camMode = false;
-    for (const d of tipDots) d.style.opacity = "0";
-    camThumb.hidden = true;
-    camThumb.srcObject = null;
+    hideDots(0); hideDots(1);
     for (const c of inerted) c.inert = false;
     inerted = [];
     root.hidden = true;

@@ -2338,22 +2338,10 @@ summary:focus-visible,
   opacity: 0;
   transition: opacity 0.2s;
 }
-.hero-tip.thumb { border-color: var(--calm); border-radius: 2px; } /* shape twin: square = thumb */
-/* tiny live preview (bottom-right): which hand is tracked, so the stirring
-   reads as caused by you. Low alpha, never interactive. */
-.hero-cam {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  width: clamp(96px, 16vw, 168px);
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 10px;
-  opacity: 0.38;
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  pointer-events: none;
-}
-.hero-cam.mirrored { transform: scaleX(-1); }
+/* two-hand ink: round orange dots = the orange hand, square blue = the blue hand */
+.hero-tip.ink-orange { border-color: #fb923c; }
+.hero-tip.ink-blue { border-color: var(--calm); border-radius: 2px; }
+
 
 .hero-content {
   position: relative;
@@ -2386,13 +2374,13 @@ summary:focus-visible,
   left: 50%;
   top: 50%;
   opacity: 0;
-  transform: translate(-50%, -105%);
+  transform: translate(-50%, -50%);
   pointer-events: none;
   filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
 }
 /* hover / tap a title letter to see its fingerspelled handshape again */
-.hk-l.hk-peek .hk-shape { opacity: 1 !important; transform: translate(-50%, -105%) scale(1) !important; transition: opacity 0.25s, transform 0.25s; z-index: 1; }
-.hk-l.hk-peek .hk-g { color: var(--amber-300); transition: color 0.25s; }
+.hk-l.hk-peek .hk-shape { opacity: 1 !important; transform: translate(-50%, -50%) scale(1) !important; transition: opacity 0.25s, transform 0.25s; z-index: 1; }
+.hk-l.hk-peek .hk-g { opacity: 0 !important; transition: opacity 0.2s; }
 .hk-l { cursor: default; }
 .hero-sub {
   margin: 1rem auto 0;
