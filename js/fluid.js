@@ -10,18 +10,26 @@
 //   getError in the frame path.
 //
 // USED BY: js/hero.js (landing screen, stirred by the pointer and by tracked
-//   fingertips). Reward ink-bloom (B3) is meant to reuse it at 1/4 res.
+//   fingertips) and js/inkbloom.js (reward ink bloom from the fingertips, a
+//   transparent 1/4-res instance over the camera, B3).
 //
 // PUBLIC API:
-//   const fl = createFluid(canvas, { simRes = 128, dyeRes = 512, background });
+//   const fl = createFluid(canvas, { simRes = 128, dyeRes = 512, background,
+//                                    transparent = false, iters = 20, dpr = 1 });
 //     -> null when WebGL2 or float render targets are unavailable
+//     transparent: the dye is composited as premultiplied alpha over whatever
+//       is behind the canvas (ink bloom over the camera) instead of `background`
 //   fl.splat(x, y, dx, dy, [r,g,b], radius?)  // x,y in 0..1 (y down); dx,dy
 //                                           // velocity in sim units; rgb 0..1
 //   fl.step(dt)          // seconds (clamped to 1/30)
 //   fl.render()          // composite dye over `background` into the canvas
 //   fl.resize()          // after the canvas's CSS size changes
 //   fl.setResolution(simRes, dyeRes)
-//   fl.dispose()
+//   fl.setIterations(n)  // Jacobi pressure passes (fewer = cheaper, softer)
+//   fl.clearDye()        // wipe the ink (reuse an instance for a new bloom)
+//   fl.sleep() / fl.wake()  // free / re-allocate the textures but KEEP the
+//                           // context, so reopening doesn't create a new one
+//   fl.dispose()         // free everything and lose the context
 
 const VERT = `#version 300 es
 precision highp float;
@@ -119,17 +127,23 @@ void main() { o = value * texture(uTexture, vUv); }`,
   display: `${HEAD}
 uniform sampler2D uTexture;
 uniform vec3 bg;
+uniform float transparent;
 void main() {
   vec3 c = texture(uTexture, vUv).rgb;
   c = 1.0 - exp(-c * 1.35);          // soft tone map: dye never clips to white
-  o = vec4(bg + c * (1.0 - bg), 1.0);
+  if (transparent > 0.5) {
+    float a = max(c.r, max(c.g, c.b));
+    o = vec4(c, a);                   // premultiplied: ink over the page
+  } else {
+    o = vec4(bg + c * (1.0 - bg), 1.0);
+  }
 }`,
 };
 
-export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [0.043, 0.059, 0.098] } = {}) {
+export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [0.043, 0.059, 0.098], transparent = false, iters = 20, dpr = 1 } = {}) {
   let gl;
   try {
-    gl = canvas.getContext("webgl2", { alpha: false, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false, powerPreference: "low-power" });
+    gl = canvas.getContext("webgl2", { alpha: transparent, premultipliedAlpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false, powerPreference: "low-power" });
   } catch {}
   if (!gl || !gl.getExtension("EXT_color_buffer_float")) return null;
 
@@ -155,7 +169,7 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
   gl.bindVertexArray(gl.createVertexArray());
   gl.disable(gl.BLEND);
 
-  const cfg = { velDiss: 0.25, dyeDiss: 0.9, pressure: 0.8, curl: 22, iters: 20 };
+  const cfg = { velDiss: 0.25, dyeDiss: 0.9, pressure: 0.8, curl: 22, iters: Math.max(1, iters | 0) };
   let vel, dye, divergence, curlT, pressure;
   let simW, simH, dyeW, dyeH;
 
@@ -216,9 +230,12 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
+  let asleep = false;
   function resize() {
-    const w = Math.max(1, Math.round(canvas.clientWidth * Math.min(1, window.devicePixelRatio || 1)));
-    const h = Math.max(1, Math.round(canvas.clientHeight * Math.min(1, window.devicePixelRatio || 1)));
+    if (asleep) return;
+    const k = Math.min(1, window.devicePixelRatio || 1) * dpr;
+    const w = Math.max(1, Math.round(canvas.clientWidth * k));
+    const h = Math.max(1, Math.round(canvas.clientHeight * k));
     if (canvas.width !== w || canvas.height !== h || !vel) {
       canvas.width = w;
       canvas.height = h;
@@ -230,6 +247,7 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
   return {
     get gl() { return gl; },
     splat(x, y, dx, dy, rgb, radius = 0.0025) {
+      if (!vel) return;
       const ar = canvas.clientWidth / Math.max(1, canvas.clientHeight) || 1;
       const r = ar > 1 ? radius * ar : radius;
       let u = use("splat", simW, simH);
@@ -248,6 +266,7 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
       blit(dye.write); dye.swap();
     },
     step(dt) {
+      if (!vel) return;
       dt = Math.min(dt, 1 / 30);
       let u = use("curl", simW, simH);
       gl.uniform1i(u.uVelocity, bindTex(vel.read));
@@ -293,14 +312,29 @@ export function createFluid(canvas, { simRes = 128, dyeRes = 512, background = [
       blit(dye.write); dye.swap();
     },
     render() {
+      if (!vel) return;
       const u = use("display", gl.drawingBufferWidth, gl.drawingBufferHeight);
       gl.uniform1i(u.uTexture, bindTex(dye.read));
       gl.uniform3f(u.bg, background[0], background[1], background[2]);
+      gl.uniform1f(u.transparent, transparent ? 1 : 0);
       blit(null);
     },
+    clearDye() {
+      if (!vel) return;
+      for (const t of [...dye.all(), ...vel.all()]) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+    },
+    setIterations(n) { cfg.iters = Math.max(1, n | 0); },
+    sleep() { asleep = true; freeAll(); },
+    wake() { if (!asleep) return; asleep = false; allocate(); resize(); },
+    get asleep() { return asleep; },
     resize,
     setResolution(s, d) {
       if (s === simRes && d === dyeRes) return;
+      if (asleep) { simRes = s; dyeRes = d; return; }
       simRes = s;
       dyeRes = d;
       allocate();

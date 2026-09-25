@@ -12,6 +12,8 @@
 //   contrastRatio("#fbbf24", "#0f172a") -> 1..21
 //   springStep(s, target, { k, c }, dt) -> { x, v }   (semi-implicit Euler, sub-stepped)
 //   springSettled(s, target, eps)  -> true when at rest on the target
+//   coverMap(x, y, srcW, srcH, dstW, dstH) -> {x, y} px: a normalised video
+//                                  point through CSS object-fit: cover
 
 /** @param {string} hex */
 export function hexToRgb(hex) {
@@ -60,4 +62,16 @@ export function springStep(s, target, { k = 170, c = 18 } = {}, dt = 1 / 60) {
 /** True once a spring is at rest on its target (within eps). */
 export function springSettled(s, target, eps = 1e-3) {
   return Math.abs(s.x - target) < eps && Math.abs(s.v) < eps;
+}
+
+/**
+ * Where a normalised video point (0..1) lands on a box that shows the video
+ * with CSS `object-fit: cover` (scaled to fill, centred, overflow cropped).
+ * Used to put hero fingertip dots where the hand would appear full-screen
+ * instead of stretching the video's aspect over the screen's.
+ */
+export function coverMap(x, y, srcW, srcH, dstW, dstH) {
+  if (!(srcW > 0 && srcH > 0)) return { x: x * dstW, y: y * dstH };
+  const k = Math.max(dstW / srcW, dstH / srcH);
+  return { x: x * srcW * k - (srcW * k - dstW) / 2, y: y * srcH * k - (srcH * k - dstH) / 2 };
 }

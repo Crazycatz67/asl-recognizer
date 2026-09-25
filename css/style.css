@@ -2316,6 +2316,21 @@ summary:focus-visible,
   transition: opacity 0.2s;
 }
 .hero-tip.thumb { border-color: var(--calm); border-radius: 2px; } /* shape twin: square = thumb */
+/* tiny live preview (bottom-right): which hand is tracked, so the stirring
+   reads as caused by you. Low alpha, never interactive. */
+.hero-cam {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: clamp(96px, 16vw, 168px);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  opacity: 0.38;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  pointer-events: none;
+}
+.hero-cam.mirrored { transform: scaleX(-1); }
 
 .hero-content {
   position: relative;

@@ -2313,6 +2313,21 @@ function loop() {
     result.landmarks?.length > 0 &&
     result.landmarks[0].every((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
   const hasHand = hasHandRaw;
+  // Landing screen open (e.g. "Try it with your hand"): the camera only
+  // stirs the hero's ink. Nothing behind it is graded, rewarded, voiced or
+  // saved — the fx canvas sits under the hero, so a reward sound there would
+  // have no visible twin (Deaf-first). Any half-done hold is dropped so the
+  // first frame after Start can't cash it in; Challenge's clock pauses across
+  // the gap on its own (pauseGapMs).
+  if (hero?.isOpen()) {
+    hero.feedHands(hasHand ? result.landmarks : null, facingMode === "user", video);
+    bg.setHand({ present: false });
+    sound.charge(0);
+    if (holdStart) { holdStart = 0; setHold("0"); }
+    handSeenSince = 0;
+    tickDetStats(now);
+    return;
+  }
   // Spell: the first ~0.4s after a hand appears is the hand arriving, not a
   // letter — raising a hand used to commit whatever shape it came up in.
   // After ~0.3s with no hand, forget the latched letter so the same shape
@@ -2973,8 +2988,6 @@ function loop() {
   }
 
   // first-run tour: scenes that react to your hand (Stage 7a)
-  // landing screen: fingertips stir the fluid (presentation only)
-  if (hero.isOpen()) hero.feedHands(hasHand ? result.landmarks : null, facingMode === "user");
   if (tour.isOpen()) {
     tour.feed({ hasHand, guideStats, hold: Number(lastHold) || 0, rewarded, target: targetLetter });
   }
@@ -2982,7 +2995,12 @@ function loop() {
   // "pick a letter" nudge — only in practice, camera live, nothing chosen yet
   pickHint.hidden = !(mode === "practice" && !targetLetter);
 
-  // stats badge (~2x/sec)
+  tickDetStats(now);
+}
+
+// stats badge + effects governor feed (~2x/sec) — detections per second, the
+// load that matters for recognition (also counted while the hero is open)
+function tickDetStats(now) {
   detCount++;
   if (now - detStamp >= 500) {
     fps = Math.round((detCount * 1000) / (now - detStamp));

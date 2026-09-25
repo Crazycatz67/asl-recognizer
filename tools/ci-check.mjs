@@ -1026,6 +1026,22 @@ await check("fxmath.js: springStep converges, underdamped overshoots, critical d
   return `bouncy peak ${bouncy.peak.toFixed(3)}, critical peak ${crit.peak.toFixed(4)}, dt=0.25 stable`;
 });
 
+// ---- 19. fxmath.js coverMap: hero fingertips follow object-fit: cover -----
+await check("fxmath.js: coverMap matches object-fit: cover (centre fixed, overflow cropped evenly)", async () => {
+  const f = await import(pathToFileURL(path.join(ROOT, "js", "fxmath.js")));
+  const near = (a, b) => Math.abs(a - b) < 1e-6;
+  const c = f.coverMap(0.5, 0.5, 640, 480, 1600, 900);
+  if (!near(c.x, 800) || !near(c.y, 450)) throw new Error(`centre moved: ${JSON.stringify(c)}`);
+  const tl = f.coverMap(0, 0, 640, 480, 1600, 900), br = f.coverMap(1, 1, 640, 480, 1600, 900);
+  if (!near(tl.x, 0) || !near(br.x, 1600)) throw new Error("wide screen: x should span exactly the width");
+  if (!near(tl.y, -(br.y - 900))) throw new Error("wide screen: crop must be split evenly top/bottom");
+  const p = f.coverMap(0, 0, 640, 480, 400, 900);
+  if (!(p.x < 0) || !near(p.y, 0)) throw new Error("portrait: sides must be cropped, not the top");
+  const z = f.coverMap(0.25, 0.75, 0, 0, 200, 100);
+  if (!near(z.x, 50) || !near(z.y, 75)) throw new Error("unknown video size should fall back to a stretch");
+  return "centre fixed; wide crops top/bottom evenly; portrait crops sides; no-size falls back";
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

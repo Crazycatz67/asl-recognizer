@@ -1640,6 +1640,28 @@ function mkHand() {
       fl.dispose(); c.remove();
       return r.simH === 32 && r.dyeH === 64 && r.simW >= 32;
     })());
+    ok("fluid: sleep() frees + wake() reuses the SAME context; transparent mode renders", (() => {
+      const c = document.createElement("canvas");
+      c.style.cssText = "position:fixed;left:-9999px;width:64px;height:48px";
+      document.body.appendChild(c);
+      const fl = fluidMod.createFluid(c, { simRes: 16, dyeRes: 32, transparent: true, iters: 6 });
+      if (!fl) { c.remove(); return true; }
+      const gl0 = fl.gl;
+      fl.splat(0.5, 0.5, 50, 0, [1, 0.7, 0.1]); fl.step(1 / 60); fl.render();
+      fl.sleep();
+      fl.splat(0.5, 0.5, 50, 0, [1, 0.7, 0.1]); fl.step(1 / 60); fl.render(); // no-ops while asleep
+      const slept = fl.asleep && !gl0.isContextLost();
+      fl.wake(); fl.clearDye(); fl.step(1 / 60); fl.render();
+      const ok2 = slept && !fl.asleep && fl.gl === gl0 && fl.resolution.simH === 16;
+      fl.dispose(); c.remove();
+      return ok2;
+    })());
+    ok("fxmath: coverMap centres + crops like object-fit: cover (4:3 video on 16:9 and portrait)", (() => {
+      const a = fxm.coverMap(0.5, 0.5, 640, 480, 1600, 900); // centre stays centre
+      const b = fxm.coverMap(0, 0, 640, 480, 1600, 900);     // wide screen: top is cropped
+      const c = fxm.coverMap(0, 0.5, 640, 480, 400, 900);    // portrait: sides are cropped
+      return Math.abs(a.x - 800) < 1e-6 && Math.abs(a.y - 450) < 1e-6 && b.x === 0 && b.y < 0 && c.x < 0 && Math.abs(c.y - 450) < 1e-6;
+    })());
 
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");

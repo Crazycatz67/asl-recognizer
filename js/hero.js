@@ -14,7 +14,12 @@
 //   - an amber "Start" CTA (--amber-ink text, --amber-glow halo) with an SVG
 //     goo hover, plus "Try it with your hand".
 //
-// BUDGET: the sim only runs while the hero is open (disposed on close). Full:
+// A11Y: a real modal while open — every other child of <body> is `inert`
+//   (no Tab, no screen-reader reach into the app underneath), Tab cycles
+//   inside the hero, Escape = Start, focus returns where it was on close.
+//
+// BUDGET: the sim only runs while the hero is open (its textures are freed on
+//   close; the ONE WebGL context is kept and reused on the next open). Full:
 //   sim 128 / dye 512 at up to 60 fps; with the camera on (detection shares
 //   the GPU) or on "lite": dye 256 at <= 30 fps; "off" / reduced motion: a
 //   static amber-on-deep gradient and the finished title — no sim, no
@@ -26,11 +31,14 @@
 //   hero.open({ onStart })   // onStart runs after the user taps Start
 //   hero.close()
 //   hero.isOpen()
-//   hero.feedHands(landmarksList, mirrored)  // from the detection loop
+//   hero.feedHands(landmarksList, mirrored, video)  // from the detection loop;
+//                            // tips are mapped through the video's
+//                            // object-fit: cover so dots sit where the hand is
+//   hero.dispose()           // drop listeners + the GL context (tests)
 //   hero.bench(frames)       // ?debug: ms per sim+render frame (sync)
 
 import { createFluid } from "./fluid.js";
-import { springStep } from "./fxmath.js";
+import { springStep, coverMap } from "./fxmath.js";
 import { drawHandShape, vectorToPixels } from "./skeleton.js";
 
 const TITLE = "Fingerspell with your hands";
@@ -61,6 +69,15 @@ export function createHero({
   const handBtn = root.querySelector(".hero-hand");
   const statusEl = root.querySelector(".hero-handstatus");
   const tipLayer = root.querySelector(".hero-tips");
+  // a tiny low-alpha live preview so stirring feels caused by YOUR hand
+  const camThumb = document.createElement("video");
+  camThumb.className = "hero-cam";
+  camThumb.muted = true;
+  camThumb.playsInline = true;
+  camThumb.setAttribute("aria-hidden", "true");
+  camThumb.hidden = true;
+  stage.append(camThumb);
+  let inerted = [];
 
   let open = false;
   let fluid = null;
@@ -160,15 +177,24 @@ export function createHero({
   function wantRes() {
     return camMode || level() === "lite" ? [128, 256] : [128, 512];
   }
+  let fluidFailed = false;
   function startFluid() {
-    if (fluid || !animated()) return;
-    canvas = document.createElement("canvas");
-    canvas.className = "hero-fluid";
-    canvas.setAttribute("aria-hidden", "true");
-    stage.prepend(canvas);
-    const [s, d] = wantRes();
-    fluid = createFluid(canvas, { simRes: s, dyeRes: d, background: BG_DEEP });
-    if (!fluid) { canvas.remove(); canvas = null; root.classList.add("hero-static"); return; }
+    if (!animated() || fluidFailed) return;
+    if (fluid && !fluid.asleep) return;
+    if (fluid) {
+      // reuse the one context: only the textures were freed on close
+      canvas.hidden = false;
+      fluid.wake();
+    } else {
+      canvas = document.createElement("canvas");
+      canvas.className = "hero-fluid";
+      canvas.setAttribute("aria-hidden", "true");
+      stage.prepend(canvas);
+      const [s, d] = wantRes();
+      fluid = createFluid(canvas, { simRes: s, dyeRes: d, background: BG_DEEP });
+      if (!fluid) { canvas.remove(); canvas = null; fluidFailed = true; root.classList.add("hero-static"); return; }
+      canvas.addEventListener("webglcontextlost", () => { fluid = null; canvas?.remove(); canvas = null; fluidFailed = true; root.classList.add("hero-static"); });
+    }
     root.classList.remove("hero-static");
     // opening swirl: a few amber splats from the bottom edge
     for (let i = 0; i < 5; i++) {
@@ -176,11 +202,11 @@ export function createHero({
       fluid.splat(x, 0.95, (Math.random() - 0.5) * 300, -900 - Math.random() * 500, dim(i % 2 ? DYE.honey : DYE.amber, 0.42), 0.004);
     }
   }
+  // free the textures, keep the context for the next open (no churn of
+  // lost contexts when the logo is tapped repeatedly)
   function stopFluid() {
-    fluid?.dispose();
-    fluid = null;
-    canvas?.remove();
-    canvas = null;
+    if (fluid && !fluid.asleep) fluid.sleep();
+    if (canvas) canvas.hidden = true;
     governor?.clearCost("fluid");
   }
 
@@ -192,7 +218,7 @@ export function createHero({
     const dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
     paintTitle(now, dt);
-    if (!fluid || now - lastStep < cap) return;
+    if (!fluid || fluid.asleep || now - lastStep < cap) return;
     const sdt = Math.min(1 / 30, (now - lastStep) / 1000);
     lastStep = now;
     if (camMode && now - lastHandAt > 1500) camMode = false; // hand gone: back to pointer mode
@@ -250,17 +276,26 @@ export function createHero({
   });
   const onKey = (e) => {
     if (!open) return;
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); startBtn.click(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); startBtn.click(); return; }
+    if (e.key === "Tab") {
+      // focus trap: cycle through the hero's own visible buttons
+      const f = [...root.querySelectorAll("button:not([disabled])")].filter((b) => !b.hidden && b.getClientRects().length);
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i === -1 || i === f.length - 1 ? 0 : i + 1);
+      e.preventDefault();
+      f[next].focus();
+    }
   };
   document.addEventListener("keydown", onKey, true);
   const onVis = () => { if (open && document.visibilityState === "visible" && !raf) { last = performance.now(); raf = requestAnimationFrame(frame); } };
   document.addEventListener("visibilitychange", onVis);
   const onResize = () => { fluid?.resize(); };
   window.addEventListener("resize", onResize);
-  governor?.subscribe((l) => {
+  const unsubGov = governor?.subscribe((l) => {
     if (!open) return;
     if (l === "off") { stopFluid(); root.classList.add("hero-static"); finishTitle(); }
-    else if (!fluid) startFluid();
+    else if (!fluid || fluid.asleep) startFluid();
   });
 
   // ---- hand tracking ------------------------------------------------------
@@ -271,10 +306,18 @@ export function createHero({
     tipLayer?.append(d);
     tipDots.push(d);
   }
-  function feedHands(list, mirrored) {
+  function syncThumb(video, mirrored) {
+    const src = video?.srcObject || null;
+    if (!src) { camThumb.hidden = true; return; }
+    if (camThumb.srcObject !== src) { camThumb.srcObject = src; camThumb.play?.().catch(() => {}); }
+    camThumb.classList.toggle("mirrored", !!mirrored);
+    camThumb.hidden = false;
+  }
+  function feedHands(list, mirrored, video = null) {
     if (!open) return;
     const hand = list?.[0];
     const now = performance.now();
+    syncThumb(video, mirrored);
     if (!hand) {
       prevTips = null;
       for (const d of tipDots) d.style.opacity = "0";
@@ -283,8 +326,14 @@ export function createHero({
     }
     lastHandAt = now;
     camMode = true;
-    const w = root.clientWidth, h = root.clientHeight;
-    const tips = TIPS.map((i) => ({ x: mirrored ? 1 - hand[i].x : hand[i].x, y: hand[i].y }));
+    const w = root.clientWidth || 1, h = root.clientHeight || 1;
+    const vw = video?.videoWidth || 0, vh = video?.videoHeight || 0;
+    // map through object-fit: cover (as if the camera filled the screen), so
+    // the dots don't drift when the video's aspect differs from the screen's
+    const tips = TIPS.map((i) => {
+      const q = coverMap(mirrored ? 1 - hand[i].x : hand[i].x, hand[i].y, vw, vh, w, h);
+      return { x: q.x / w, y: q.y / h };
+    });
     tips.forEach((p, i) => {
       tipDots[i].style.opacity = "1";
       tipDots[i].style.transform = `translate(${(p.x * w).toFixed(1)}px, ${(p.y * h).toFixed(1)}px)`;
@@ -313,6 +362,10 @@ export function createHero({
     returnFocus = document.activeElement;
     root.hidden = false;
     document.documentElement.classList.add("hero-open");
+    // modal: the app underneath is unreachable (Tab / screen readers)
+    const host = [...document.body.children].find((c) => c === root || c.contains(root));
+    inerted = [...document.body.children].filter((c) => c !== host && !c.inert);
+    for (const c of inerted) c.inert = true;
     statusEl.textContent = cameraLive() ? "Camera on. Hold a hand up to the camera to stir the ink." : "";
     if (handBtn) handBtn.hidden = !startCamera || cameraLive();
     if (animated()) {
@@ -344,6 +397,10 @@ export function createHero({
     pointer = prevTips = null;
     camMode = false;
     for (const d of tipDots) d.style.opacity = "0";
+    camThumb.hidden = true;
+    camThumb.srcObject = null;
+    for (const c of inerted) c.inert = false;
+    inerted = [];
     root.hidden = true;
     document.documentElement.classList.remove("hero-open");
     if (returnFocus && document.contains(returnFocus) && returnFocus !== document.body) returnFocus.focus?.();
@@ -354,8 +411,19 @@ export function createHero({
     close,
     isOpen: () => open,
     feedHands,
+    dispose() {
+      close();
+      unsubGov?.();
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("resize", onResize);
+      fluid?.dispose();
+      fluid = null;
+      canvas?.remove();
+      canvas = null;
+    },
     bench(frames = 60) {
-      if (!fluid) return null;
+      if (!fluid || fluid.asleep) return null;
       const gl = fluid.gl;
       const px = new Uint8Array(4);
       gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
