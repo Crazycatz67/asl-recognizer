@@ -15,7 +15,9 @@ import { drawHandShape, vectorToPixels, makeFit } from "./skeleton.js";
 import { rotateVector, mirrorVector } from "./normalize.js";
 import { STROKE } from "./motion.js";
 import { jointState, fullError, countStates, isReadable } from "./jointstate.js";
-import { makeInterpolator, angleDistance } from "./posekin.js";
+import { makeHandInterpolator as makeInterpolator, angleDistance } from "./posekin.js";
+// (Stage 4b, 2026-09-25: every demo-hand animation now uses the anatomical
+// interpolator — rigid palm, fingers bend toward the palm — see posekin.js)
 import {
   catmullRom2D, rigidPoseAt, delayedEase, bump, arcFractions, rotate2D,
   translatePose, easeOutBack,

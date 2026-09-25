@@ -574,7 +574,8 @@ await check("onefilter.js: first-sample passthrough, converges on a held signal,
 // never shrinks below half of the smaller endpoint's area.
 await check("reference.js: demo-hand palm never collapses or turns inside-out (NEUTRAL_HAND -> every centroid)", async () => {
   const { NEUTRAL_HAND } = await import(pathToFileURL(path.join(ROOT, "js", "reference.js")));
-  const { makeInterpolator } = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
+  // the interpolator the demo hand actually uses (Stage 4b)
+  const { makeHandInterpolator: makeInterpolator } = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
   const data = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "dataset.json"), "utf8"));
   const PALM = [0, 5, 9, 13, 17];
   const area = (p) => {
@@ -610,6 +611,60 @@ await check("reference.js: demo-hand palm never collapses or turns inside-out (N
   }
   if (worst < 0.5) throw new Error(`palm collapses to ${(worst * 100).toFixed(0)}% on ${worstL}`);
   return `${sums.size} letters, smallest mid-animation palm ${(worst * 100).toFixed(0)}% of endpoints (${worstL})`;
+});
+
+// ---- 13b2. posekin.js makeHandInterpolator — anatomy invariants (Stage 4b) ----
+// For every letter, NEUTRAL_HAND -> centroid: endpoints exact; the palm stays
+// RIGID (wrist + 4 knuckle distances constant within the lerp of their end
+// values); every finger bone's forward bend moves monotonically between its
+// start and end values (no swinging through the palm or doubling back) —
+// the "impossible movements" the owner reported.
+await check("posekin.js: demo hand keeps a rigid palm and fingers bend monotonically (all static letters)", async () => {
+  const { NEUTRAL_HAND } = await import(pathToFileURL(path.join(ROOT, "js", "reference.js")));
+  const { makeHandInterpolator, fingerBends } = await import(pathToFileURL(path.join(ROOT, "js", "posekin.js")));
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "dataset.json"), "utf8"));
+  const sums = new Map();
+  for (const s of data.samples) {
+    if (s.label === "J" || s.label === "Z" || !/^[A-Z]$/.test(s.label)) continue;
+    const e = sums.get(s.label) || { acc: new Array(63).fill(0), n: 0 };
+    for (let i = 0; i < 63; i++) e.acc[i] += s.v[i];
+    e.n++;
+    sums.set(s.label, e);
+  }
+  const d3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], (a[2] || 0) - (b[2] || 0));
+  const PALM = [[0, 5], [0, 17], [5, 17], [0, 9]];
+  let worstBend = 0, worstPalm = 0;
+  for (const [L, e] of sums) {
+    const c = e.acc.map((x) => x / e.n);
+    const tgt = Array.from({ length: 21 }, (_, i) => [c[i * 3], c[i * 3 + 1], c[i * 3 + 2]]);
+    const f = makeHandInterpolator(NEUTRAL_HAND, tgt);
+    const end = f.at3d(1);
+    for (let j = 0; j < 21; j++) if (d3(end[j], tgt[j]) > 1e-9) throw new Error(`${L}: t=1 not exact at joint ${j}`);
+    const b0 = fingerBends(f.at3d(0)), b1 = fingerBends(end);
+    let prev = b0;
+    for (let k = 1; k <= 20; k++) {
+      const p = f.at3d(k / 20);
+      // rigid = no collapse / stretch: each palm distance stays inside its
+      // start..end range (the shape blends linearly in the palm's own frame,
+      // so a blended distance can dip a little below the linear blend of the
+      // two lengths — that's not deformation)
+      for (const [a, b] of PALM) {
+        const s0 = d3(NEUTRAL_HAND[a], NEUTRAL_HAND[b]), s1 = d3(tgt[a], tgt[b]);
+        const lo = Math.min(s0, s1), hi = Math.max(s0, s1), v = d3(p[a], p[b]);
+        worstPalm = Math.max(worstPalm, Math.max(0, lo - v, v - hi) / (lo || 1));
+      }
+      const bends = fingerBends(p);
+      bends.forEach((fb, fi) => fb.forEach((v, bi) => {
+        const lo = Math.min(b0[fi][bi], b1[fi][bi]) - 1e-6, hi = Math.max(b0[fi][bi], b1[fi][bi]) + 1e-6;
+        const out = Math.max(0, lo - v, v - hi);
+        if (out > worstBend) worstBend = out;
+      }));
+      prev = bends;
+    }
+  }
+  if (worstPalm > 0.1) throw new Error(`palm deforms: a palm distance leaves its start..end range by ${(100 * worstPalm).toFixed(1)}%`);
+  if (worstBend > 0.05) throw new Error(`a finger bend leaves its start..end range by ${(worstBend * 180 / Math.PI).toFixed(1)}°`);
+  return `${sums.size} letters: endpoints exact, palm distances within start..end (max excursion ${(100 * worstPalm).toFixed(2)}%), bends stay within start..end (max excursion ${(worstBend * 180 / Math.PI).toFixed(2)}°)`;
 });
 
 // ---- 13c. js/motion.js — J/Z strokes vs. the live-QA false positives -------

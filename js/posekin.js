@@ -190,3 +190,148 @@ export function angleDistance(poseA, poseB) {
   }
   return Math.sqrt(sumSq / n) / Math.PI; // ~0 (no change) .. ~1 (avg bone flips pi)
 }
+
+// =============================================================================
+// makeHandInterpolator — anatomically constrained hand motion (Stage 4b,
+// 2026-09-25). makeInterpolator above rotates every bone independently in
+// world space, the five palm bones included, so the palm isn't rigid and a
+// finger's bend direction is only as reliable as the 3D direction of travel —
+// M/N/P/Q still squeezed flat mid-animation and folding fingers could take
+// sideways paths (owner's first QA note: "impossible and unrecreatable
+// movements"). This version moves a hand the way a hand moves:
+//   * the PALM is one rigid body: its orientation (a frame from wrist ->
+//     middle knuckle and across the knuckles) is SLERPed as a single
+//     rotation; its shape is interpolated in its own frame;
+//   * each FINGER bone is expressed relative to that palm frame and moves by
+//     two angles — forward bend (flexion) and sideways spread (abduction) —
+//     interpolated linearly, with bend unwrapped so a curl ALWAYS travels
+//     toward the palm (measured on the dataset: folding is -z in this frame
+//     for every letter); no bone can swing through the palm or flip sideways;
+//   * the thumb (which moves in its own cone) SLERPs in the palm frame.
+// Endpoints are exact (t=0 -> poseA, t=1 -> poseB). Returns 2D points like
+// makeInterpolator; pure, DOM-free (tools/ci-check.mjs tests it in Node).
+// =============================================================================
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+
+function palmFrame(p) {
+  const y = norm3(sub3(p[9], p[0]));
+  const xp = sub3(p[17], p[5]);
+  const x = norm3(sub3(xp, scale3(y, dot3(xp, y))));
+  const z = cross3(x, y);
+  return { x, y, z };
+}
+const toLocal = (v, f) => [dot3(v, f.x), dot3(v, f.y), dot3(v, f.z)];
+const fromLocal = (l, f) => add3(add3(scale3(f.x, l[0]), scale3(f.y, l[1])), scale3(f.z, l[2]));
+
+// rotation matrix <-> quaternion for the palm frame
+function frameToQuat(f) {
+  const m00 = f.x[0], m01 = f.y[0], m02 = f.z[0];
+  const m10 = f.x[1], m11 = f.y[1], m12 = f.z[1];
+  const m20 = f.x[2], m21 = f.y[2], m22 = f.z[2];
+  const tr = m00 + m11 + m22;
+  let w, x, y, z;
+  if (tr > 0) { const s = Math.sqrt(tr + 1) * 2; w = s / 4; x = (m21 - m12) / s; y = (m02 - m20) / s; z = (m10 - m01) / s; }
+  else if (m00 > m11 && m00 > m22) { const s = Math.sqrt(1 + m00 - m11 - m22) * 2; w = (m21 - m12) / s; x = s / 4; y = (m01 + m10) / s; z = (m02 + m20) / s; }
+  else if (m11 > m22) { const s = Math.sqrt(1 + m11 - m00 - m22) * 2; w = (m02 - m20) / s; x = (m01 + m10) / s; y = s / 4; z = (m12 + m21) / s; }
+  else { const s = Math.sqrt(1 + m22 - m00 - m11) * 2; w = (m10 - m01) / s; x = (m02 + m20) / s; y = (m12 + m21) / s; z = s / 4; }
+  return [w, x, y, z];
+}
+function quatToFrame([w, x, y, z]) {
+  return {
+    x: [1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y)],
+    y: [2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x)],
+    z: [2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)],
+  };
+}
+function slerpQuat(a, b, t) {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  if (d < 0) { b = b.map((v) => -v); d = -d; } // shortest way round
+  if (d > 0.9995) {
+    const r = a.map((v, i) => v + (b[i] - v) * t);
+    const l = Math.hypot(...r);
+    return r.map((v) => v / l);
+  }
+  const om = Math.acos(d), s = Math.sin(om);
+  const wa = Math.sin((1 - t) * om) / s, wb = Math.sin(t * om) / s;
+  return a.map((v, i) => v * wa + b[i] * wb);
+}
+
+// finger bone local direction <-> (bend, spread). Folding toward the palm is
+// -z in palmFrame (checked on A S E M N O C X centroids), so bend = atan2(-lz,
+// ly): 0 = straight along the palm, +90° = pointing into the palm, ~150°+ =
+// curled back. Unwrapped to [-90°, 270°) so a curl near 180° never snaps to
+// -180° and swings the wrong way.
+function toBend(l) {
+  let bend = Math.atan2(-l[2], l[1]);
+  if (bend < -Math.PI / 2) bend += 2 * Math.PI;
+  const spread = Math.asin(Math.max(-1, Math.min(1, l[0])));
+  return { bend, spread };
+}
+function fromBend({ bend, spread }) {
+  const c = Math.cos(spread);
+  return [Math.sin(spread), c * Math.cos(bend), -c * Math.sin(bend)];
+}
+
+export function makeHandInterpolator(poseA, poseB) {
+  const pa = poseA.map(toV3), pb = poseB.map(toV3);
+  const fa = palmFrame(pa), fb = palmFrame(pb);
+  const qa = frameToQuat(fa), qb = frameToQuat(fb);
+  const PALM_PTS = [1, 5, 9, 13, 17];
+  const palmLocal = (p, f) => PALM_PTS.map((j) => toLocal(sub3(p[j], p[0]), f));
+  const la = palmLocal(pa, fa), lb = palmLocal(pb, fb);
+  const bonesOf = (p, f) =>
+    CHAINS.map((chain) => {
+      const out = [];
+      for (let i = 0; i < chain.length - 1; i++) {
+        const d = sub3(p[chain[i + 1]], p[chain[i]]);
+        const len = len3(d);
+        out.push({ len, local: toLocal(scale3(d, 1 / (len || 1e-9)), f) });
+      }
+      return out;
+    });
+  const ba = bonesOf(pa, fa), bb = bonesOf(pb, fb);
+  const angA = ba.map((ch) => ch.map((b) => toBend(b.local)));
+  const angB = bb.map((ch) => ch.map((b) => toBend(b.local)));
+
+  function at3d(t) {
+    const e = t;
+    const lerp = (x, y) => x + (y - x) * e;
+    const f = quatToFrame(slerpQuat(qa, qb, e));
+    const root = [lerp(pa[0][0], pb[0][0]), lerp(pa[0][1], pb[0][1]), lerp(pa[0][2], pb[0][2])];
+    const out = new Array(21);
+    out[0] = root;
+    PALM_PTS.forEach((j, i) => {
+      const l = [lerp(la[i][0], lb[i][0]), lerp(la[i][1], lb[i][1]), lerp(la[i][2], lb[i][2])];
+      out[j] = add3(root, fromLocal(l, f));
+    });
+    CHAINS.forEach((chain, fi) => {
+      let parent = out[chain[0]];
+      for (let i = 0; i < chain.length - 1; i++) {
+        const len = lerp(ba[fi][i].len, bb[fi][i].len);
+        let local;
+        if (fi === 0) {
+          local = slerp3(ba[fi][i].local, bb[fi][i].local, e); // thumb: its own cone
+        } else {
+          const A = angA[fi][i], B = angB[fi][i];
+          local = fromBend({ bend: lerp(A.bend, B.bend), spread: lerp(A.spread, B.spread) });
+        }
+        const pt = add3(parent, scale3(fromLocal(local, f), len));
+        out[chain[i + 1]] = pt;
+        parent = pt;
+      }
+    });
+    return out;
+  }
+  // poseAt(t) -> 21 [x, y] (what the canvas draws); poseAt.at3d(t) -> 21
+  // [x, y, z] (tests check rigidity / bend monotonicity on it)
+  const poseAt = (t) => at3d(t).map(([x, y]) => [x, y]);
+  poseAt.at3d = at3d;
+  return poseAt;
+}
+// exported for tests: a finger bone's forward bend (radians) in its pose's palm frame
+export function fingerBends(pose3) {
+  const p = pose3.map(toV3);
+  const f = palmFrame(p);
+  return CHAINS.slice(1).map((chain) =>
+    chain.slice(0, -1).map((j, i) => toBend(toLocal(norm3(sub3(p[chain[i + 1]], p[j])), f)).bend));
+}
