@@ -1301,6 +1301,88 @@ await check("letter-report.mjs --quick --letters AB runs", () => {
   return `${((Date.now() - t0) / 1000).toFixed(1)} s`;
 });
 
+// ---- 26. letter-tester stage 2: faster exact kNN, rejected-hand verdict, D, tilt ----
+// tools/lab/letter-report.mjs (2026-09-25) measured kNN at ~95% of the
+// per-frame recognition cost, relaxed non-letter hands counting as Q 60% /
+// C 35% / B 15% / P 15% (a rejected hand got the benefit of the doubt with
+// no questions asked), D failing 22% on "middle folded", and a 15° pitch
+// halving R/U/K/V. Guards for each fix (docs/CHANGELOG.md 2026-09-25).
+await check("knn.js: projection-sorted search + hasWithin give EXACTLY the brute-force answer", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { createClassifier, classifyEitherHand } = await import(pathToFileURL(path.join(ROOT, "js", "knn.js")).href);
+  const { mirrorVector, rotateVector } = await import(pathToFileURL(path.join(ROOT, "js", "normalize.js")).href);
+  const lab = await loadLab();
+  const rows = lab.trainAug.filter((_, i) => i % 3 === 0); // ~11k: the brute force stays cheap
+  const clf = createClassifier(rows, { k: 5 });
+  const brute = (v) => {
+    const d = rows.map((s, i) => { let x = 0; for (let j = 0; j < v.length; j++) x += (v[j] - s.v[j]) ** 2; return [x, i]; }).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 5);
+    const tally = new Map();
+    for (const [, i] of d) tally.set(rows[i].label, (tally.get(rows[i].label) || 0) + 1);
+    let best = null, bv = -1;
+    for (const [L, c] of tally) if (c > bv) { best = L; bv = c; }
+    return { label: best, votes: bv, distance: Math.sqrt(d[0][0]) };
+  };
+  const qs = [];
+  for (const L of lab.letters) for (const s of lab.test[L].filter((_, i) => i % 6 === 0)) qs.push(s.v, mirrorVector(s.v), rotateVector(s.v, 40));
+  let bad = 0, within = 0, either = 0;
+  for (const v of qs) {
+    const a = clf.classify(v), b = brute(v);
+    if (a.label !== b.label || a.votes !== b.votes || Math.abs(a.distance - b.distance) > 1e-6) bad++;
+    for (const r of [b.distance * 0.99, b.distance * 1.01]) if (clf.hasWithin(v, r) !== b.distance < r) within++;
+    // classifyEitherHand's fast path must make the same mirror call as two full passes
+    const m = clf.classify(mirrorVector(v));
+    if (classifyEitherHand(clf, v, mirrorVector).mirrored !== m.distance < a.distance * 0.9) either++;
+  }
+  if (bad || within || either) throw new Error(`${bad} classify / ${within} hasWithin / ${either} mirror-decision mismatches of ${qs.length} queries`);
+  return `${qs.length} held-out, mirrored and rotated queries vs brute force over ${rows.length} rows: identical`;
+});
+
+await check("verdict.js: a hand the recogniser rejects only counts if the target is in its neighbourhood (relaxed hands <= 30% as any letter)", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { judgeLetter } = await import(pathToFileURL(path.join(ROOT, "js", "verdict.js")).href);
+  const lab = await loadLab();
+  // the rule itself, on a real B hand whose traits pass
+  const v = lab.test.B.find((s) => lab.judge.check(s.v, "B")?.ok).v;
+  const j = (near, target = "B") => judgeLetter(lab.judge, v, target, null, 0.3, { near }).strict;
+  if (!j(["C", "B"]) || j(["C", "Q"]) || !judgeLetter(lab.judge, v, "B", null, 0.3).strict)
+    throw new Error("rejected hand: target in the neighbourhood must count, target absent must not, no reading keeps the old benefit of the doubt");
+  // real held-out relaxed "space" hands (the P0: Q 60%, C 35%, B 15%, P 15%)
+  let worst = { r: 0 };
+  for (const L of lab.letters) {
+    const r = lab.test.space.filter((s) => lab.countsWith(s.v, L, lab.predict(s.v))).length / lab.test.space.length;
+    if (r > worst.r) worst = { r, L };
+  }
+  if (worst.r > 0.3) throw new Error(`${Math.round(100 * worst.r)}% of relaxed non-letter hands count as ${worst.L}`);
+  return `rule holds; worst relaxed-hand acceptance ${Math.round(100 * worst.r)}% (${worst.L ?? "none"})`;
+});
+
+await check("handshape.js D: the middle meets the thumb (TOUCH) — real D passes, thumb swung out 45° doesn't", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { swingThumb } = await import(pathToFileURL(path.join(ROOT, "tools", "synth-hand.js")).href);
+  const lab = await loadLab();
+  const own = lab.test.D.filter((s) => lab.counts(s.v, "D")).length / lab.test.D.length;
+  const out = lab.test.D.filter((s) => lab.judge.check(swingThumb(s.v, 45), "D")?.ok).length / lab.test.D.length;
+  if (own < 0.75) throw new Error(`only ${Math.round(100 * own)}% of held-out D count (was 72% with "middle folded")`);
+  if (out >= own / 2) throw new Error(`D with the thumb swung out 45° still passes ${Math.round(100 * out)}%`);
+  return `D own ${Math.round(100 * own)}%, thumb out 45° ${Math.round(100 * out)}%`;
+});
+
+await check("dataset.js tilt copies: pitched 15° R/U/K/V still count; copies stay out of 'originals only' filters", async () => {
+  const { loadLab } = await import(pathToFileURL(path.join(ROOT, "tools", "lab", "lab-data.mjs")).href);
+  const { tiltVector } = await import(pathToFileURL(path.join(ROOT, "js", "normalize.js")).href);
+  const { augmentSamples } = await import(pathToFileURL(path.join(ROOT, "js", "dataset.js")).href);
+  const lab = await loadLab();
+  const copies = augmentSamples(lab.train.slice(0, 5), [15], [15]).filter((s) => !lab.train.includes(s));
+  if (copies.some((s) => !s.rot || s.rot == null)) throw new Error("an augmented copy has no truthy `rot` (main.js / reference.js would calibrate on it)");
+  const res = ["R", "U", "K", "V"].map((L) => {
+    const vs = lab.test[L].map((s) => tiltVector(s.v, 15));
+    return [L, vs.filter((v) => lab.counts(v, L)).length / vs.length];
+  });
+  const weak = res.filter(([, r]) => r < 0.6);
+  if (weak.length) throw new Error(`tilted 15° toward the camera: ${weak.map(([L, r]) => `${L} ${Math.round(100 * r)}%`).join(", ")} (was R 27%, U 27%)`);
+  return res.map(([L, r]) => `${L} ${Math.round(100 * r)}%`).join(", ") + " at 15° pitch";
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

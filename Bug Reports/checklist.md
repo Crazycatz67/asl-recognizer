@@ -490,6 +490,12 @@ references are as of commit `41c43f0` and will drift.
     - [ ] 10 minutes of use: warmth, battery, `?perf` Copy report pasted back
     - [ ] One-handed reach: every control you need is tappable without re-gripping
 
+57. **Letter-tester cycle 1 (2026-09-25): per-letter report -> recognition optimiser.**
+    `FIXED (needs live confirm)` — v110. Relaxed hands counted as Q 60% -> 20%,
+    C 35 -> 25%, B 15 -> 5%, P 15 -> 10%; D 72 -> 78%; R/U at 15° tilt
+    27 -> 73/90%; per-frame recognition 0.86 -> 0.16 ms (identical kNN
+    answers, ci-check #26). Still open (data-limited): N 67% (38% read as
+    non-letter), M<->N 21-33%, J start gate, C 25% — docs/lab/letters/REPORT.md.
 
 ---
 

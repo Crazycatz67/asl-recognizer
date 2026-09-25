@@ -39,23 +39,23 @@ Status: open · fixing · fixed-offline · needs-live (needs a real camera) · w
 | LAB-036 | P0 | fixed-offline | 97% of real X hands count as T | X->T 97% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-061 | P0 | open | 17% of real Q hands count as C | Q->C 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-062 | P0 | fixed-offline | T still counts with the thumb swung out 45° | 67% pass at 45° (base 87%) | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
-| LAB-065 | P0 | open | 15% of real relaxed non-letter hands count as B | space->B 15% | letter-tester | `node tools/lab/letter-report.mjs --letters B` |
-| LAB-066 | P0 | open | 35% of real relaxed non-letter hands count as C | space->C 35% | letter-tester | `node tools/lab/letter-report.mjs --letters C` |
+| LAB-065 | P0 | fixed-offline | 15% of real relaxed non-letter hands count as B | space->B 15% | letter-tester | `node tools/lab/letter-report.mjs --letters B` |
+| LAB-066 | P0 | open | 25% of real relaxed non-letter hands count as C | space->C 25% | letter-tester | `node tools/lab/letter-report.mjs --letters C` |
 | LAB-069 | P0 | open | 33% of real N hands count as M | N->M 33% | letter-tester | `node tools/lab/letter-report.mjs --letters M` |
 | LAB-072 | P0 | open | 21% of real M hands count as N | M->N 21% | letter-tester | `node tools/lab/letter-report.mjs --letters N` |
-| LAB-073 | P0 | open | 15% of real relaxed non-letter hands count as P | space->P 15% | letter-tester | `node tools/lab/letter-report.mjs --letters P` |
-| LAB-074 | P0 | open | 60% of real relaxed non-letter hands count as Q | space->Q 60% | letter-tester | `node tools/lab/letter-report.mjs --letters Q` |
+| LAB-073 | P0 | fixed-offline | 15% of real relaxed non-letter hands count as P | space->P 15% | letter-tester | `node tools/lab/letter-report.mjs --letters P` |
+| LAB-074 | P0 | open | 20% of real relaxed non-letter hands count as Q | space->Q 20% | letter-tester | `node tools/lab/letter-report.mjs --letters Q` |
 | LAB-001 | P1 | fixed-offline | B: only 73% of real held-out B hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-003 | P1 | fixed-offline | E: only 73% of real held-out E hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-013 | P1 | open | N: only 73% of real held-out N hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-014 | P1 | fixed-offline | Q: only 70% of real held-out Q hands count | own pass 70% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-040 | P1 | fixed-offline | fluid mode: a J stroke after its I start shape spells "IJ" (addLetter records no time, so the stroke can't replace the I) | pending "IJ" (hold-to-type path gives "J") | break-it | `node tools/lab/break-it.mjs --only speller-fluid-j-after-i` |
 | LAB-054 | P1 | fixed-offline | A->Z 'Next' bridge timer isn't cancelled: leaving the run (Free, Review, another mode) within 1.3 s still calls setTarget(next) | js/main.js:935 (advanceAz) and :968 (skipLetter) setTimeout -> setTarget(next) unconditionally | break-it/static | `static: js/main.js:935-939 — land a letter in A->Z, then tap Spell (or Free / Review) within 1.3 s: the old run's next letter becomes the target in the new mode (ref panel opens over Spell; a new Review run jumps to the A->Z letter)` |
-| LAB-067 | P1 | open | D: only 72% of held-out D register — mostly middleFlex low: middle finger not folded enough | own 72%; trait 22% | letter-tester | `node tools/lab/letter-report.mjs --letters D` |
+| LAB-067 | P1 | fixed-offline | D: only 72% of held-out D register — mostly middleFlex low: middle finger not folded enough | own 72%; trait 22% | letter-tester | `node tools/lab/letter-report.mjs --letters D` |
 | LAB-068 | P1 | open | I: only 74% of held-out I register — mostly pinkyFlex high: pinky finger not raised (tipped forward) | own 74%; trait 18% | letter-tester | `node tools/lab/letter-report.mjs --letters I` |
-| LAB-070 | P1 | open | N: only 67% of held-out N register — mostly recogniser rejects the hand as not-a-letter | own 67%; non-letter rejection 40% | letter-tester | `node tools/lab/letter-report.mjs --letters N` |
+| LAB-070 | P1 | open | N: only 67% of held-out N register — mostly recogniser rejects the hand as not-a-letter | own 67%; non-letter rejection 38% | letter-tester | `node tools/lab/letter-report.mjs --letters N` |
 | LAB-071 | P1 | open | N in Spell (ring): 50% entered correctly | missed 50% (unreadable 50%), wrong 0% | letter-tester | `node tools/lab/letter-report.mjs --letters N` |
-| LAB-075 | P1 | open | R: only 74% of held-out R register — mostly tilted toward/away (pitch) 15° (pass 80% -> 27%) | own 74%; envelope: recogniser reads H 53% | letter-tester | `node tools/lab/letter-report.mjs --letters R` |
+| LAB-075 | P1 | open | R: only 72% of held-out R register — mostly ringFlex low: ring finger not folded enough | own 72%; trait 18% | letter-tester | `node tools/lab/letter-report.mjs --letters R` |
 | LAB-039 | P2 | needs-live | a ~250 ms tracking dropout mid-hold re-commits the same letter (LL) | got "LL" from one held L | break-it | `node tools/lab/break-it.mjs --only transition-dropout-double` |
 | LAB-041 | P2 | fixed-offline | backspace into committed text leaves the letter in speller.raw, so fluid mode's decoded/spoken sentence keeps it | text "CA" vs raw "CAT" | break-it | `node tools/lab/break-it.mjs --only speller-backspace-raw` |
 | LAB-045 | P2 | open | a NaN wrist on the SECOND hand fires a phantom copy/paste (hand 1 isn't finite-checked in main.js; span falls back to 1e-6 so it reads as open) | fired [paste] with both hands still | break-it | `node tools/lab/break-it.mjs --only twohand-nan-second-hand` |

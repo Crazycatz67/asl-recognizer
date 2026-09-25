@@ -68,6 +68,7 @@ export function handTraits(v) {
   }
   t.thumbOut = len(sub(P(v, 4), P(v, 5))) / palm; // thumb tip away from the index knuckle
   t.thumbTip = len(sub(P(v, 4), P(v, 8))) / palm; // thumb tip to index tip (O, F: touching)
+  t.thumbMid = len(sub(P(v, 4), P(v, 12))) / palm; // thumb tip to middle tip (D: they meet under the raised index)
   // how close the thumb tip is to ANY part of the fingers: small = tucked in
   // against/under them (A B E M N S), large = sticking out (L Y C Q).
   // thumbOut (distance from the index knuckle alone) can't say this: in M and
@@ -136,6 +137,12 @@ const FOLD = "fold";
 // T's thumb pokes up between index and middle (thumbOut p95 0.84 vs the
 // shared IN limit 0.68, which failed a quarter of real T hands).
 const IN_OWN = "in-own";
+// "touching" (D's thumb on the middle fingertip): one-sided, no further apart
+// than halfway between the letter's own typical gap (p50) and its loosest
+// signers (p95) — the mirror of the OUT floor (between p5 and p50). A plain
+// p5..p95 range reached 1.10 palm-lengths (a few training D hold the thumb
+// well away), so a D with the thumb swung out 45° still counted 70%.
+const TOUCH = "touch";
 const TRAITS = {
   A: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
   // B's thumb folds across the palm; how far across varies (some signers
@@ -144,7 +151,16 @@ const TRAITS = {
   // ANY finger) is what says "folded in, not out like an L" — no thumbOut.
   B: { index: UP, middle: UP, ring: UP, pinky: UP, thumbNear: IN, fingerSplay: IN },
   C: { index: true, middle: true, ring: true, pinky: true, thumbTip: true, thumbOut: OUT, thumbNear: OUT },
-  D: { index: UP, middle: DOWN, ring: DOWN },
+  // D: the index points up and the middle finger curves round to MEET THE
+  // THUMB TIP (the "o" under the index) — that contact is what defines it,
+  // not how far the middle folds: real held-out D hands curve it only ~34°
+  // (flex) on their way to the thumb, and "middle: DOWN" failed 22% of them
+  // (letter-report 2026-09-25). thumbMid is one-sided "touching" (see
+  // TOUCH below) and, like every tucked thumb (A B E M N S), thumbNear IN —
+  // with the touch alone a D with the thumb swung 45° out still passed ~50%
+  // (the contact range is wide: a few training D hold the thumb well away);
+  // with thumbNear it's 0%, own pass unchanged. The ring still has to fold.
+  D: { index: UP, ring: DOWN, thumbMid: TOUCH, thumbNear: IN },
   E: { index: DOWN, middle: DOWN, ring: DOWN, pinky: DOWN, thumbNear: IN, fingerSplay: IN, thumbAlong: true },
   F: { middle: UP, ring: UP, pinky: UP, thumbTip: true },
   G: { index: UP, middle: DOWN, ring: DOWN, pinky: DOWN, dir: true },
@@ -175,7 +191,7 @@ export const THUMB_GROUP = new Set(["A", "E", "M", "N", "S", "T"]);
 
 // slack beyond the calibrated range: inside SLACK = still "good" (room for
 // user error); inside 2x SLACK = "close"; beyond = "fix"
-const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbNear: 0.08, fingerSplay: 5, knuckleFold: 15, thumbAlong: 0.12, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
+const SLACK = { flex: 18, thumbOut: 0.07, thumbTip: 0.1, thumbMid: 0.1, thumbNear: 0.08, fingerSplay: 5, knuckleFold: 15, thumbAlong: 0.12, spread: 6, dir: 15 }; // thumb slack kept tight: I vs Y, B vs L differ ONLY by the thumb
 const slackFor = (name) => (name.endsWith("Flex") ? SLACK.flex : SLACK[name]);
 
 const HINTS = {
@@ -183,6 +199,7 @@ const HINTS = {
   down: (f) => `Fold your ${f} finger down`,
   thumbOut: { low: "Tuck your thumb in", high: "Bring your thumb out to the side" },
   thumbTip: { low: "Open the gap between thumb and index", high: "Touch your thumb to your index fingertip" },
+  thumbMid: { low: "Open the gap between thumb and middle finger", high: "Touch your thumb to your middle fingertip" },
   thumbNear: { low: "Move your thumb out, away from your fingers", high: "Tuck your thumb in against your fingers" },
   fingerSplay: { low: "Spread your fingers a little", high: "Keep your fingers together — don't fan them apart" },
   thumbAlong: { low: "Slide your thumb across, toward your little finger", high: "Move your thumb back toward your index finger" },
@@ -308,11 +325,12 @@ export function createHandshapeJudge(samples) {
         // "thumb out" is what separates Y from I and L from D/G/X, so its floor
         // sits between the signers' low end (p5) and their typical (p50)
         const lo = want === FOLD ? Math.max(q(vals, 0.1), straightKnuckle + 2 * SLACK.knuckleFold)
-          : want === IN || want === IN_OWN ? -Infinity
+          : want === IN || want === IN_OWN || want === TOUCH ? -Infinity
           : want === OUT ? (q(vals, 0.05) + q(vals, 0.5)) / 2
           : q(vals, 0.05);
         const hi = want === OUT || want === FOLD ? Infinity
           : want === IN_OWN ? q(vals, 0.95)
+          : want === TOUCH ? (q(vals, 0.5) + q(vals, 0.95)) / 2
           : want === IN
             ? (Number.isFinite(outStart(key))
                 ? (q(vals, 0.95) + outStart(key)) / 2 // halfway to the letters that need it OUT

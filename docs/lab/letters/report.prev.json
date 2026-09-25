@@ -1,9 +1,9 @@
 {
- "generated": "2026-09-25T19:49",
- "commit": "bc235f4",
+ "generated": "2026-09-25T17:54",
+ "commit": "ae8b804",
  "mode": "full",
  "scope": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
- "runtimeSec": 22.8,
+ "runtimeSec": 89,
  "split": {
   "trainFrac": 0.8,
   "kind": "blocked per letter (last 20% of each letter's recordings held out)",
@@ -42,16 +42,16 @@
  },
  "speed": {
   "normalizeMs": 0.001,
-  "knnHeadsMs": 0.15,
-  "classifyMs": 0.151,
+  "knnHeadsMs": 0.868,
+  "classifyMs": 0.863,
   "judgeLetterMs": 0.003,
   "referenceScoreMs": 0.006,
   "motionPushMatchMs": 0.001,
-  "practiceFrameMs": 0.243,
-  "spellFrameMs": 0.234,
+  "practiceFrameMs": 0.926,
+  "spellFrameMs": 0.919,
   "frameBudgetMs": 33.3,
   "calls": 192,
-  "note": "measured, mean ms per call on this machine (Electron's Node/V8), held-out hands as noisy image landmarks. classify = normalize + either-hand kNN (knn.js recognise: full pass + a mirrored hasWithin check, a 2nd full pass only when the mirror wins) + REJECT_DIST + heads (main.js per-frame path). practiceFrame = one-euro + motion push/match + normalize + kNN/heads + reference.score + judgeLetter; spellFrame = one-euro + motion + normalize + kNN/heads + spellgate.feed. Excludes MediaPipe inference, swipe/twohand, drawing."
+  "note": "measured, mean ms per call on this machine (Electron's Node/V8), held-out hands as noisy image landmarks. classify = normalize + either-hand kNN (2 passes) + REJECT_DIST + heads (main.js per-frame path). practiceFrame = one-euro + motion push/match + normalize + kNN/heads + reference.score + judgeLetter; spellFrame = one-euro + motion + normalize + kNN/heads + spellgate.feed. Excludes MediaPipe inference, swipe/twohand, drawing."
  },
  "worst": [
   {
@@ -61,10 +61,10 @@
    "top": "Spell: missed — held-out hand not read as N at >= 80% votes (read as none/N)"
   },
   {
-   "L": "R",
-   "own": 0.722,
-   "spell": 0.88,
-   "top": "ringFlex low: ring finger not folded enough"
+   "L": "D",
+   "own": 0.719,
+   "spell": 0.75,
+   "top": "Spell: missed — held-out hand not read as D at >= 80% votes (read as none/D)"
   },
   {
    "L": "I",
@@ -73,16 +73,16 @@
    "top": "Spell: missed — held-out hand not read as I at >= 80% votes (read as none)"
   },
   {
+   "L": "R",
+   "own": 0.741,
+   "spell": 0.88,
+   "top": "tilted toward/away (pitch) 15° (pass 80% -> 27%)"
+  },
+  {
    "L": "J",
    "own": 0.75,
    "spell": 0.88,
    "top": "size 1.5x: only 50% register"
-  },
-  {
-   "L": "D",
-   "own": 0.781,
-   "spell": 0.75,
-   "top": "Spell: missed — held-out hand not read as D at >= 80% votes (read as none/D)"
   },
   {
    "L": "E",
@@ -109,16 +109,16 @@
    "top": "relaxed non-letter hands count as Q"
   },
   {
-   "L": "P",
-   "own": 0.846,
-   "spell": 1,
-   "top": "relaxed non-letter hands count as P"
-  },
-  {
    "L": "A",
-   "own": 0.882,
+   "own": 0.853,
    "spell": 0.75,
    "top": "Spell: missed — held-out hand not read as A at >= 80% votes (read as none/S)"
+  },
+  {
+   "L": "P",
+   "own": 0.857,
+   "spell": 1,
+   "top": "relaxed non-letter hands count as P"
   },
   {
    "L": "T",
@@ -133,16 +133,10 @@
    "top": "middleFlex high: middle finger not raised (tipped forward)"
   },
   {
-   "L": "U",
-   "own": 0.889,
-   "spell": 0.75,
-   "top": "Spell: wrong letter entered (R)"
-  },
-  {
    "L": "K",
    "own": 0.895,
    "spell": 0.88,
-   "top": "Spell: missed — held-out hand not read as K at >= 80% votes (read as D)"
+   "top": "Spell: wrong letter entered (D)"
   },
   {
    "L": "C",
@@ -153,26 +147,26 @@
   {
    "L": "O",
    "own": 0.903,
-   "spell": 0.63,
+   "spell": 0.75,
    "top": "Spell: missed — held-out hand not read as O at >= 80% votes (read as O)"
   },
   {
    "L": "M",
    "own": 0.906,
    "spell": 0.63,
-   "top": "Spell: missed — held-out hand not read as M at >= 80% votes (read as M/none)"
+   "top": "still counts with the pinky raised 60°"
   },
   {
    "L": "B",
    "own": 0.914,
    "spell": 0.88,
-   "top": "Spell: wrong letter entered (V)"
+   "top": "relaxed non-letter hands count as B"
   },
   {
-   "L": "F",
-   "own": 0.915,
-   "spell": 0.88,
-   "top": "Spell: missed — held-out hand not read as F at >= 80% votes (read as none)"
+   "L": "U",
+   "own": 0.917,
+   "spell": 0.75,
+   "top": "tilted toward/away (pitch) 15° (pass 90% -> 27%)"
   },
   {
    "L": "Z",
@@ -181,10 +175,16 @@
    "top": "Spell: wrong letter entered (U/S)"
   },
   {
+   "L": "F",
+   "own": 0.922,
+   "spell": 0.88,
+   "top": "Spell: missed — held-out hand not read as F at >= 80% votes (read as none)"
+  },
+  {
    "L": "G",
    "own": 0.941,
    "spell": 1,
-   "top": "indexFlex high: index finger not raised (tipped forward)"
+   "top": "E hands count as G"
   },
   {
    "L": "V",
@@ -213,7 +213,7 @@
  ],
  "letters": {
   "A": {
-   "own": 0.882,
+   "own": 0.853,
    "n": 34,
    "rejectedBy": {
     "traits": {
@@ -243,13 +243,16 @@
       "failMedian": 0.113
      }
     },
-    "recogniser": {},
+    "recogniser": {
+     "T": 0.029
+    },
     "nonLetter": 0.029
    },
    "readAs": {
-    "A": 0.912,
+    "A": 0.882,
     "none": 0.029,
     "L": 0.029,
+    "T": 0.029,
     "S": 0.029
    },
    "registers": {
@@ -261,7 +264,7 @@
       "curledExt": 0.67,
       "note": "flex >= 70° (or curled: straightness <= 0.67)",
       "passMedian": 117.375,
-      "passP10": 109.271,
+      "passP10": 109.868,
       "passP90": 126.008
      },
      "middleFlex": {
@@ -290,7 +293,7 @@
       "hi": 180,
       "curledExt": 0.65,
       "note": "flex >= 84° (or curled: straightness <= 0.65)",
-      "passMedian": 145.69,
+      "passMedian": 144.161,
       "passP10": 133.815,
       "passP90": 156.622
      },
@@ -308,22 +311,22 @@
       "lo": null,
       "hi": 8.188,
       "note": "[-inf, 8.19] (+-slack good, +-2 slack close)",
-      "passMedian": 5.597,
+      "passMedian": 5.269,
       "passP10": 2.41,
-      "passP90": 8.842
+      "passP90": 8.516
      },
      "thumbAlong": {
       "measure": "thumbAlong",
       "lo": -0.411,
       "hi": -0.204,
       "note": "[-0.41, -0.20] (+-slack good, +-2 slack close)",
-      "passMedian": -0.265,
+      "passMedian": -0.272,
       "passP10": -0.392,
-      "passP90": -0.212
+      "passP90": -0.22
      }
     },
     "envelope": {
-     "base": 0.9,
+     "base": 0.87,
      "n": 30,
      "rotationDeg": {
       "pos": null,
@@ -345,7 +348,7 @@
       },
       "middle": {
        "wrong": "raised",
-       "halvesAt": 30
+       "halvesAt": 45
       },
       "ring": {
        "wrong": "raised",
@@ -374,12 +377,12 @@
        60
       ],
       "rates": [
-       0.9,
+       0.87,
        0.9,
        0.87,
        0.9,
-       0.83,
-       0.73
+       0.87,
+       0.9
       ],
       "halvesAt": null
      },
@@ -393,8 +396,8 @@
        -60
       ],
       "rates": [
-       0.9,
-       0.9,
+       0.87,
+       0.87,
        0.9,
        0.9,
        0.9,
@@ -411,7 +414,7 @@
        60
       ],
       "rates": [
-       0.9,
+       0.87,
        0.9,
        0.9,
        0.9,
@@ -428,8 +431,8 @@
        60
       ],
       "rates": [
-       0.9,
        0.87,
+       0.9,
        0.9,
        0.9,
        0.9
@@ -445,10 +448,10 @@
        0.06
       ],
       "rates": [
-       0.9,
-       0.83,
+       0.87,
+       0.8,
        0.67,
-       0.3,
+       0.27,
        0.17
       ],
       "halvesAt": 0.04,
@@ -467,15 +470,15 @@
        30
       ],
       "rates": [
-       0.9,
-       0.9,
+       0.87,
+       0.87,
        0.47,
        0
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait fingerSplay high": 0.9,
-       "trait indexFlex low": 0.1
+       "trait fingerSplay high": 0.93,
+       "trait indexFlex low": 0.07
       }
      },
      "squeeze": {
@@ -486,8 +489,8 @@
        -30
       ],
       "rates": [
-       0.9,
-       0.73,
+       0.87,
+       0.7,
        0.07,
        0
       ],
@@ -507,11 +510,11 @@
        90
       ],
       "rates": [
+       0.87,
        0.9,
        0.9,
        0.9,
-       0.9,
-       0.87
+       0.9
       ],
       "halvesAt": null
      },
@@ -526,11 +529,11 @@
        0.025
       ],
       "rates": [
-       0.9,
-       0.9,
        0.87,
-       0.9,
        0.87,
+       0.83,
+       0.87,
+       0.83,
        0.73,
        0.67
       ],
@@ -547,7 +550,7 @@
        90
       ],
       "rates": [
-       0.9,
+       0.87,
        0.8,
        0,
        0,
@@ -572,18 +575,18 @@
        90
       ],
       "rates": [
-       0.9,
+       0.87,
        0.9,
        0.43,
        0,
        0,
        0
       ],
-      "halvesAt": 30,
+      "halvesAt": 45,
       "whyAtHalf": {
-       "trait middleFlex low": 0.82,
-       "trait indexFlex low": 0.12,
-       "trait thumbAlong high": 0.06
+       "trait middleFlex low": 0.9,
+       "trait indexFlex low": 0.07,
+       "trait thumbAlong high": 0.03
       },
       "wrong": "raised"
      },
@@ -597,7 +600,7 @@
        90
       ],
       "rates": [
-       0.9,
+       0.87,
        0.9,
        0.83,
        0.1,
@@ -622,7 +625,7 @@
        90
       ],
       "rates": [
-       0.9,
+       0.87,
        0.9,
        0.9,
        0.37,
@@ -646,7 +649,7 @@
        60
       ],
       "rates": [
-       0.9,
+       0.87,
        0.4,
        0,
        0,
@@ -669,7 +672,7 @@
        40
       ],
       "rates": [
-       0.9,
+       0.87,
        0.93,
        0.4,
        0,
@@ -730,14 +733,14 @@
      "none": 1,
      "S": 1
     },
-    "medianEnterMs": 641
+    "medianEnterMs": 632
    },
    "struggles": [
     {
      "mode": "Spell: missed — held-out hand not read as A at >= 80% votes (read as none/S)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "Spell: wrong letter entered (S)",
@@ -749,31 +752,37 @@
      "mode": "indexFlex low: index finger not folded enough",
      "rate": 0.088,
      "stage": "trait",
-     "hint": "9% of 34 held-out A hands fail it (failing median 32; allowed flex >= 70° (or curled: straightness <= 0.67)). Calibrated at js/handshape.js:319; A's trait row js/handshape.js:147; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 34 held-out A hands fail it (failing median 32; allowed flex >= 70° (or curled: straightness <= 0.67)). Calibrated at js/handshape.js:302; A's trait row js/handshape.js:140; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.088,
      "stage": "trait",
-     "hint": "9% of 34 held-out A hands fail it (failing median 34; allowed flex >= 82° (or curled: straightness <= 0.67)). Calibrated at js/handshape.js:319; A's trait row js/handshape.js:147; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 34 held-out A hands fail it (failing median 34; allowed flex >= 82° (or curled: straightness <= 0.67)). Calibrated at js/handshape.js:302; A's trait row js/handshape.js:140; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.088,
      "stage": "trait",
-     "hint": "9% of 34 held-out A hands fail it (failing median 35; allowed flex >= 91° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; A's trait row js/handshape.js:147; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 34 held-out A hands fail it (failing median 35; allowed flex >= 91° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; A's trait row js/handshape.js:140; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
      "rate": 0.059,
      "stage": "trait",
-     "hint": "6% of 34 held-out A hands fail it (failing median 41; allowed flex >= 84° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; A's trait row js/handshape.js:147; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 34 held-out A hands fail it (failing median 41; allowed flex >= 84° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; A's trait row js/handshape.js:140; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbAlong high: thumb too far across toward the pinky",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out A hands fail it (failing median 0.11; allowed [-0.41, -0.20] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; A's trait row js/handshape.js:147; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out A hands fail it (failing median 0.11; allowed [-0.41, -0.20] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; A's trait row js/handshape.js:140; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "recogniser reads T and the hand also fits T's traits (veto)",
+     "rate": 0.029,
+     "stage": "recogniser",
+     "hint": "the verdict rejects A because the recogniser says T (js/verdict.js:46); the A/T split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a A-vs-T head or a trait that separates them would fix it."
     }
    ]
   },
@@ -816,8 +825,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 43.36,
-      "note": "forward fold <= 43° (and flex <= 47° + slack)",
+      "hi": 40.89,
+      "note": "forward fold <= 41° (and flex <= 47° + slack)",
       "passMedian": 8.718,
       "passP10": 5.603,
       "passP90": 11.638
@@ -825,8 +834,8 @@
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 42.37,
-      "note": "forward fold <= 42° (and flex <= 47° + slack)",
+      "hi": 39.9,
+      "note": "forward fold <= 40° (and flex <= 47° + slack)",
       "passMedian": 6.548,
       "passP10": 2.912,
       "passP90": 9.554
@@ -834,8 +843,8 @@
      "ringFlex": {
       "measure": "ringFold",
       "lo": 0,
-      "hi": 42.16,
-      "note": "forward fold <= 42° (and flex <= 47° + slack)",
+      "hi": 39.69,
+      "note": "forward fold <= 40° (and flex <= 47° + slack)",
       "passMedian": 6.674,
       "passP10": 2.296,
       "passP90": 10.306
@@ -843,8 +852,8 @@
      "pinkyFlex": {
       "measure": "pinkyFold",
       "lo": 0,
-      "hi": 39.86,
-      "note": "forward fold <= 40° (and flex <= 47° + slack)",
+      "hi": 37.39,
+      "note": "forward fold <= 37° (and flex <= 47° + slack)",
       "passMedian": 2.829,
       "passP10": 0.552,
       "passP90": 4.772
@@ -876,14 +885,14 @@
       "neg": null
      },
      "tiltDeg": {
-      "pitch": 45,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
      "jitter": 0.04,
      "fanDeg": 20,
      "squeezeDeg": 20,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -944,7 +953,7 @@
        0.9,
        0.9,
        0.9,
-       0.83
+       0.9
       ],
       "halvesAt": null
      },
@@ -960,15 +969,10 @@
        0.9,
        0.9,
        0.9,
-       0.07,
-       0.3
+       0.9,
+       0.9
       ],
-      "halvesAt": 45,
-      "whyAtHalf": {
-       "recogniser reads null": 0.89,
-       "trait middleFlex high": 0.07,
-       "trait ringFlex high": 0.04
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -1063,10 +1067,10 @@
        0.9,
        0.9,
        0.9,
-       0.47,
+       0.2,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
        "trait indexFlex high": 1
       }
@@ -1239,14 +1243,16 @@
    },
    "acceptedAs": {
     "A": 0.059,
-    "C": 0.012,
+    "C": 0.049,
     "E": 0.028,
+    "F": 0.008,
     "I": 0.026,
     "M": 0.019,
-    "N": 0.044,
+    "N": 0.111,
+    "P": 0.011,
     "Q": 0.022,
     "R": 0.019,
-    "space": 0.05
+    "space": 0.15
    },
    "acceptedAsRead": {
     "A": {
@@ -1254,10 +1260,14 @@
      "A": 0.5
     },
     "C": {
-     "C": 1
+     "none": 0.75,
+     "C": 0.25
     },
     "E": {
      "E": 1
+    },
+    "F": {
+     "none": 1
     },
     "I": {
      "none": 1
@@ -1266,8 +1276,11 @@
      "B": 1
     },
     "N": {
-     "C": 0.5,
-     "M": 0.5
+     "C": 0.2,
+     "none": 0.8
+    },
+    "P": {
+     "none": 1
     },
     "Q": {
      "Q": 1
@@ -1277,7 +1290,8 @@
      "R": 0.5
     },
     "space": {
-     "B": 1
+     "B": 0.33,
+     "none": 0.67
     }
    },
    "spell": {
@@ -1299,40 +1313,52 @@
    },
    "struggles": [
     {
+     "mode": "relaxed non-letter hands count as B",
+     "rate": 0.15,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: rejected (null) 67%, B 33%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so B's traits alone decide and they hold (js/handshape.js:145)."
+    },
+    {
      "mode": "Spell: wrong letter entered (V)",
      "rate": 0.13,
      "stage": "spell: wrong letter",
      "hint": "a look-alike or transition shape held long enough to fill the ring (js/spellgate.js:69, js/spellgate.js:71)."
     },
     {
+     "mode": "N hands count as B",
+     "rate": 0.111,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: rejected (null) 80%, C 20%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so B's traits alone decide and they hold (js/handshape.js:145)."
+    },
+    {
      "mode": "ringFlex high: ring finger not raised (tipped forward)",
      "rate": 0.086,
      "stage": "trait",
-     "hint": "9% of 35 held-out B hands fail it (failing median 98; allowed forward fold <= 42° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; B's trait row js/handshape.js:152; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 35 held-out B hands fail it (failing median 98; allowed forward fold <= 40° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; B's trait row js/handshape.js:145; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex high: pinky finger not raised (tipped forward)",
      "rate": 0.086,
      "stage": "trait",
-     "hint": "9% of 35 held-out B hands fail it (failing median 109; allowed forward fold <= 40° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; B's trait row js/handshape.js:152; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 35 held-out B hands fail it (failing median 109; allowed forward fold <= 37° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; B's trait row js/handshape.js:145; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex high: middle finger not raised (tipped forward)",
      "rate": 0.057,
      "stage": "trait",
-     "hint": "6% of 35 held-out B hands fail it (failing median 87; allowed forward fold <= 42° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; B's trait row js/handshape.js:152; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 35 held-out B hands fail it (failing median 87; allowed forward fold <= 40° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; B's trait row js/handshape.js:145; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "fingerSplay high: fingers fanned apart",
      "rate": 0.057,
      "stage": "trait",
-     "hint": "6% of 35 held-out B hands fail it (failing median 17; allowed [-inf, 2.08] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:336; B's trait row js/handshape.js:152; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 35 held-out B hands fail it (failing median 17; allowed [-inf, 2.08] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:318; B's trait row js/handshape.js:145; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.057,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     }
    ]
   },
@@ -1451,13 +1477,13 @@
      },
      "tiltDeg": {
       "pitch": null,
-      "yaw": 60
+      "yaw": null
      },
      "minSpan": null,
      "jitter": null,
-     "fanDeg": 30,
+     "fanDeg": null,
      "squeezeDeg": null,
-     "curlDeg": 90,
+     "curlDeg": null,
      "fingerBendDeg": {},
      "thumbSwingDeg": {
       "out": 45,
@@ -1482,7 +1508,7 @@
        0.87,
        0.9,
        0.87,
-       0.63
+       0.67
       ],
       "halvesAt": null
      },
@@ -1501,7 +1527,7 @@
        0.87,
        0.83,
        0.83,
-       0.7
+       0.8
       ],
       "halvesAt": null
      },
@@ -1516,8 +1542,8 @@
       "rates": [
        0.87,
        0.87,
-       0.87,
        0.83,
+       0.9,
        0.9
       ],
       "halvesAt": null
@@ -1533,16 +1559,11 @@
       "rates": [
        0.87,
        0.9,
-       0.87,
-       0.6,
-       0.23
+       0.77,
+       0.9,
+       0.9
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.87,
-       "trait thumbOut low": 0.09,
-       "trait pinkyFlex high": 0.04
-      }
+      "halvesAt": null
      },
      "jitter": {
       "levels": [
@@ -1572,16 +1593,9 @@
        0.87,
        0.83,
        0.6,
-       0.4
+       0.47
       ],
-      "halvesAt": 30,
-      "whyAtHalf": {
-       "trait thumbNear low": 0.44,
-       "trait thumbTip low": 0.22,
-       "trait thumbOut low": 0.17,
-       "recogniser reads null": 0.11,
-       "trait pinkyFlex high": 0.06
-      }
+      "halvesAt": null
      },
      "squeeze": {
       "levels": [
@@ -1593,7 +1607,7 @@
       "rates": [
        0.87,
        0.87,
-       0.83,
+       0.77,
        0.67
       ],
       "halvesAt": null
@@ -1611,16 +1625,9 @@
        0.83,
        0.73,
        0.63,
-       0.4
+       0.47
       ],
-      "halvesAt": 90,
-      "whyAtHalf": {
-       "trait indexFlex high": 0.5,
-       "trait thumbTip high": 0.17,
-       "trait pinkyFlex high": 0.11,
-       "recogniser reads null": 0.11,
-       "trait thumbOut low": 0.11
-      }
+      "halvesAt": null
      },
      "distance": {
       "levels": [
@@ -1695,9 +1702,9 @@
    "acceptedAs": {
     "F": 0.039,
     "K": 0.026,
-    "Q": 0.054,
+    "Q": 0.076,
     "T": 0.029,
-    "space": 0.25
+    "space": 0.35
    },
    "acceptedAsRead": {
     "F": {
@@ -1708,16 +1715,17 @@
      "M": 1
     },
     "Q": {
-     "P": 0.2,
-     "Q": 0.2,
-     "C": 0.6
+     "P": 0.14,
+     "none": 0.43,
+     "Q": 0.14,
+     "C": 0.29
     },
     "T": {
      "none": 1
     },
     "space": {
-     "C": 0.2,
-     "none": 0.8
+     "C": 0.14,
+     "none": 0.86
     }
    },
    "spell": {
@@ -1740,9 +1748,9 @@
    "struggles": [
     {
      "mode": "relaxed non-letter hands count as C",
-     "rate": 0.25,
+     "rate": 0.35,
      "stage": "false-accept",
-     "hint": "recogniser read them as: rejected (null) 80%, C 20%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:53), so C's traits alone decide and they hold (js/handshape.js:153)."
+     "hint": "recogniser read them as: rejected (null) 86%, C 14%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so C's traits alone decide and they hold (js/handshape.js:146)."
     },
     {
      "mode": "Spell: wrong letter entered (Q)",
@@ -1754,54 +1762,54 @@
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.061,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "thumbOut low: thumb not out far enough",
      "rate": 0.049,
      "stage": "trait",
-     "hint": "5% of 82 held-out C hands fail it (failing median 0.47; allowed [0.92, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; C's trait row js/handshape.js:153; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "5% of 82 held-out C hands fail it (failing median 0.47; allowed [0.92, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; C's trait row js/handshape.js:146; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear low: thumb pressed in too close to the fingers",
      "rate": 0.049,
      "stage": "trait",
-     "hint": "5% of 82 held-out C hands fail it (failing median 0.22; allowed [0.57, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; C's trait row js/handshape.js:153; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "5% of 82 held-out C hands fail it (failing median 0.22; allowed [0.57, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; C's trait row js/handshape.js:146; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads Q and the hand also fits Q's traits (veto)",
      "rate": 0.037,
      "stage": "recogniser",
-     "hint": "the verdict rejects C because the recogniser says Q (js/verdict.js:60); the C/Q split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a C-vs-Q head or a trait that separates them would fix it."
+     "hint": "the verdict rejects C because the recogniser says Q (js/verdict.js:46); the C/Q split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a C-vs-Q head or a trait that separates them would fix it."
     },
     {
      "mode": "pinkyFlex high: pinky finger more bent than real signers",
      "rate": 0.012,
      "stage": "trait",
-     "hint": "1% of 82 held-out C hands fail it (failing median 91; allowed [12, 55] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; C's trait row js/handshape.js:153; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "1% of 82 held-out C hands fail it (failing median 91; allowed [12, 55] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; C's trait row js/handshape.js:146; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbTip high: thumb tip not touching the index tip",
      "rate": 0.012,
      "stage": "trait",
-     "hint": "1% of 82 held-out C hands fail it (failing median 3.30; allowed [0.42, 1.31] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; C's trait row js/handshape.js:153; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "1% of 82 held-out C hands fail it (failing median 3.30; allowed [0.42, 1.31] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; C's trait row js/handshape.js:146; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
   "D": {
-   "own": 0.781,
+   "own": 0.719,
    "n": 32,
    "rejectedBy": {
     "traits": {
+     "middleFlex": {
+      "rate": 0.219,
+      "dir": "low",
+      "failMedian": 34.497
+     },
      "ringFlex": {
-      "rate": 0.094,
+      "rate": 0.063,
       "dir": "low",
       "failMedian": 40.131
-     },
-     "thumbMid": {
-      "rate": 0.063,
-      "dir": "high",
-      "failMedian": 1.051
      },
      "indexFlex": {
       "rate": 0.094,
@@ -1809,64 +1817,54 @@
       "failMedian": 73.956
      }
     },
-    "recogniser": {
-     "null": 0.063
-    },
-    "nonLetter": 0.156
+    "recogniser": {},
+    "nonLetter": 0.188
    },
    "readAs": {
-    "D": 0.844,
-    "none": 0.156
+    "D": 0.813,
+    "none": 0.188
    },
    "registers": {
     "traits": {
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 53.88,
-      "note": "forward fold <= 54° (and flex <= 47° + slack)",
-      "passMedian": 13.554,
-      "passP10": 3.733,
-      "passP90": 32.111
+      "hi": 51.41,
+      "note": "forward fold <= 51° (and flex <= 47° + slack)",
+      "passMedian": 11.001,
+      "passP10": 3.025,
+      "passP90": 32.747
+     },
+     "middleFlex": {
+      "measure": "middleFlex",
+      "lo": 59.71,
+      "hi": 180,
+      "curledExt": 0.82,
+      "note": "flex >= 60° (or curled: straightness <= 0.82)",
+      "passMedian": 80.009,
+      "passP10": 67.415,
+      "passP90": 103.996
      },
      "ringFlex": {
       "measure": "ringFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.81,
-      "note": "flex >= 62° (or curled: straightness <= 0.81)",
-      "passMedian": 83.969,
-      "passP10": 79.841,
+      "note": "flex >= 60° (or curled: straightness <= 0.81)",
+      "passMedian": 83.771,
+      "passP10": 75.199,
       "passP90": 110.141
-     },
-     "thumbMid": {
-      "measure": "thumbMid",
-      "lo": null,
-      "hi": 0.699,
-      "note": "[-inf, 0.70] (+-slack good, +-2 slack close)",
-      "passMedian": 0.282,
-      "passP10": 0.194,
-      "passP90": 0.746
-     },
-     "thumbNear": {
-      "measure": "thumbNear",
-      "lo": null,
-      "hi": 0.305,
-      "note": "[-inf, 0.31] (+-slack good, +-2 slack close)",
-      "passMedian": 0.247,
-      "passP10": 0.167,
-      "passP90": 0.316
      }
     },
     "envelope": {
      "base": 0.77,
      "n": 30,
      "rotationDeg": {
-      "pos": 60,
-      "neg": 60
+      "pos": null,
+      "neg": null
      },
      "tiltDeg": {
-      "pitch": 45,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
@@ -1879,15 +1877,19 @@
        "wrong": "folded",
        "halvesAt": 30
       },
+      "middle": {
+       "wrong": "raised",
+       "halvesAt": 30
+      },
       "ring": {
        "wrong": "raised",
        "halvesAt": 30
       }
      },
      "thumbSwingDeg": {
-      "out": 30,
+      "out": null,
       "in": null,
-      "defined": true
+      "defined": false
      },
      "note": "each value = the perturbation level at which the pass rate falls below half of the unperturbed rate; null = tolerated across the whole tested range"
     },
@@ -1903,19 +1905,13 @@
       ],
       "rates": [
        0.77,
-       0.8,
-       0.83,
-       0.8,
-       0.8,
-       0.23
+       0.77,
+       0.77,
+       0.77,
+       0.77,
+       0.63
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.48,
-       "recogniser reads P": 0.3,
-       "trait indexFlex high": 0.13,
-       "trait ringFlex low": 0.09
-      }
+      "halvesAt": null
      },
      "rotation-": {
       "levels": [
@@ -1931,16 +1927,10 @@
        0.77,
        0.77,
        0.77,
-       0.67,
-       0.13
+       0.73,
+       0.73
       ],
-      "halvesAt": -60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.77,
-       "trait indexFlex high": 0.12,
-       "trait ringFlex low": 0.08,
-       "recogniser reads P": 0.04
-      }
+      "halvesAt": null
      },
      "pitch": {
       "levels": [
@@ -1952,17 +1942,12 @@
       ],
       "rates": [
        0.77,
-       0.8,
-       0.73,
-       0.33,
-       0
+       0.77,
+       0.77,
+       0.77,
+       0.77
       ],
-      "halvesAt": 45,
-      "whyAtHalf": {
-       "recogniser reads null": 0.75,
-       "trait indexFlex high": 0.15,
-       "trait ringFlex low": 0.1
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -1974,10 +1959,10 @@
       ],
       "rates": [
        0.77,
-       0.8,
-       0.8,
        0.77,
-       0.63
+       0.77,
+       0.77,
+       0.77
       ],
       "halvesAt": null
      },
@@ -1994,7 +1979,7 @@
        0.77,
        0.8,
        0.77,
-       0.7
+       0.73
       ],
       "halvesAt": null
      },
@@ -2007,9 +1992,9 @@
       ],
       "rates": [
        0.77,
-       0.77,
-       0.73,
-       0.73
+       0.7,
+       0.67,
+       0.63
       ],
       "halvesAt": null
      },
@@ -2022,9 +2007,9 @@
       ],
       "rates": [
        0.77,
-       0.8,
-       0.77,
-       0.73
+       0.73,
+       0.73,
+       0.8
       ],
       "halvesAt": null
      },
@@ -2039,17 +2024,14 @@
       "rates": [
        0.77,
        0.77,
-       0.63,
-       0.43,
-       0
+       0.73,
+       0.6,
+       0.17
       ],
       "halvesAt": 90,
       "whyAtHalf": {
-       "trait indexFlex high": 0.77,
-       "trait thumbMid high": 0.1,
-       "trait thumbNear high": 0.07,
-       "trait ringFlex low": 0.03,
-       "recogniser reads null": 0.03
+       "trait indexFlex high": 0.96,
+       "trait middleFlex low": 0.04
       }
      },
      "distance": {
@@ -2065,11 +2047,11 @@
       "rates": [
        0.77,
        0.77,
-       0.8,
        0.77,
-       0.73,
        0.77,
-       0.73
+       0.77,
+       0.77,
+       0.77
       ],
       "halvesAt": null,
       "note": "hand span in frame units (0.12 = arm's length)"
@@ -2085,18 +2067,41 @@
       ],
       "rates": [
        0.77,
-       0.7,
-       0.33,
+       0.67,
+       0.23,
        0.03,
        0.03,
        0
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait indexFlex high": 0.95,
-       "trait ringFlex low": 0.05
+       "trait indexFlex high": 1
       },
       "wrong": "folded"
+     },
+     "finger:middle": {
+      "levels": [
+       0,
+       15,
+       30,
+       45,
+       60,
+       90
+      ],
+      "rates": [
+       0.77,
+       0.63,
+       0.3,
+       0.17,
+       0.13,
+       0.1
+      ],
+      "halvesAt": 30,
+      "whyAtHalf": {
+       "trait middleFlex low": 0.86,
+       "trait indexFlex high": 0.14
+      },
+      "wrong": "raised"
      },
      "finger:ring": {
       "levels": [
@@ -2109,17 +2114,17 @@
       ],
       "rates": [
        0.77,
-       0.57,
-       0.23,
+       0.7,
+       0.3,
        0.13,
        0.1,
        0.1
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait ringFlex low": 0.83,
-       "trait indexFlex high": 0.13,
-       "recogniser reads null": 0.04
+       "trait ringFlex low": 0.67,
+       "trait middleFlex low": 0.19,
+       "trait indexFlex high": 0.14
       },
       "wrong": "raised"
      },
@@ -2133,18 +2138,12 @@
       ],
       "rates": [
        0.77,
-       0.67,
-       0.17,
-       0,
-       0
+       0.77,
+       0.77,
+       0.77,
+       0.77
       ],
-      "halvesAt": 30,
-      "whyAtHalf": {
-       "trait thumbNear high": 0.6,
-       "trait thumbMid high": 0.24,
-       "trait indexFlex high": 0.12,
-       "trait ringFlex low": 0.04
-      }
+      "halvesAt": null
      },
      "thumb-in": {
       "levels": [
@@ -2156,45 +2155,77 @@
       ],
       "rates": [
        0.77,
-       0.83,
-       0.83,
-       0.83,
-       0.8
+       0.77,
+       0.77,
+       0.77,
+       0.77
       ],
       "halvesAt": null
      }
     },
     "wrongShapeStillCounts": {
      "index folded 60°": 0.03,
-     "ring raised 60°": 0.1,
-     "thumb out 45°": 0
+     "middle raised 60°": 0.13,
+     "ring raised 60°": 0.1
     }
    },
    "acceptedAs": {
-    "B": 0.029,
-    "E": 0.139,
-    "I": 0.053,
+    "B": 0.057,
+    "C": 0.024,
+    "E": 0.111,
+    "G": 0.029,
+    "H": 0.029,
+    "I": 0.079,
+    "K": 0.026,
     "L": 0.032,
     "O": 0.032,
-    "W": 0.029
+    "P": 0.022,
+    "Q": 0.087,
+    "W": 0.029,
+    "space": 0.05
    },
    "acceptedAsRead": {
     "B": {
      "none": 1
     },
+    "C": {
+     "none": 1
+    },
     "E": {
-     "E": 1
+     "E": 0.75,
+     "none": 0.25
+    },
+    "G": {
+     "G": 1
+    },
+    "H": {
+     "none": 1
     },
     "I": {
-     "I": 1
+     "I": 0.67,
+     "none": 0.33
+    },
+    "K": {
+     "M": 1
     },
     "L": {
-     "I": 1
+     "L": 1
     },
     "O": {
      "O": 1
     },
+    "P": {
+     "none": 0.5,
+     "C": 0.5
+    },
+    "Q": {
+     "P": 0.75,
+     "none": 0.25
+    },
     "W": {
+     "none": 1
+    },
+    "space": {
      "none": 1
     }
    },
@@ -2212,50 +2243,44 @@
      "none": 1,
      "D": 1
     },
-    "medianEnterMs": 634
+    "medianEnterMs": 698
    },
    "struggles": [
     {
      "mode": "Spell: missed — held-out hand not read as D at >= 80% votes (read as none/D)",
      "rate": 0.25,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
+    },
+    {
+     "mode": "middleFlex low: middle finger not folded enough",
+     "rate": 0.219,
+     "stage": "trait",
+     "hint": "22% of 32 held-out D hands fail it (failing median 34; allowed flex >= 60° (or curled: straightness <= 0.82)). Calibrated at js/handshape.js:302; D's trait row js/handshape.js:147; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
-     "rate": 0.156,
+     "rate": 0.188,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "E hands count as D",
-     "rate": 0.139,
+     "rate": 0.111,
      "stage": "false-accept",
-     "hint": "recogniser read them as: E 100%. D's traits (js/handshape.js:163) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:60) doesn't fire."
-    },
-    {
-     "mode": "ringFlex low: ring finger not folded enough",
-     "rate": 0.094,
-     "stage": "trait",
-     "hint": "9% of 32 held-out D hands fail it (failing median 40; allowed flex >= 62° (or curled: straightness <= 0.81)). Calibrated at js/handshape.js:319; D's trait row js/handshape.js:163; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "recogniser read them as: E 75%, rejected (null) 25%. D's traits (js/handshape.js:147) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:46) doesn't fire."
     },
     {
      "mode": "indexFlex high: index finger not raised (tipped forward)",
      "rate": 0.094,
      "stage": "trait",
-     "hint": "9% of 32 held-out D hands fail it (failing median 74; allowed forward fold <= 54° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; D's trait row js/handshape.js:163; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 32 held-out D hands fail it (failing median 74; allowed forward fold <= 51° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; D's trait row js/handshape.js:147; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
-     "mode": "thumbMid high: thumb tip not touching the middle tip",
+     "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.063,
      "stage": "trait",
-     "hint": "6% of 32 held-out D hands fail it (failing median 1.05; allowed [-inf, 0.70] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:333; D's trait row js/handshape.js:163; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
-    },
-    {
-     "mode": "recogniser reads null and the hand also fits null's traits (veto)",
-     "rate": 0.063,
-     "stage": "recogniser",
-     "hint": "the verdict rejects D because the recogniser says null (js/verdict.js:60); the D/null split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a D-vs-null head or a trait that separates them would fix it."
+     "hint": "6% of 32 held-out D hands fail it (failing median 40; allowed flex >= 60° (or curled: straightness <= 0.81)). Calibrated at js/handshape.js:302; D's trait row js/handshape.js:147; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -2270,7 +2295,7 @@
       "failMedian": 34.549
      },
      "middleFlex": {
-      "rate": 0.083,
+      "rate": 0.056,
       "dir": "low",
       "failMedian": 28.972
      },
@@ -2316,20 +2341,20 @@
      },
      "ringFlex": {
       "measure": "ringFlex",
-      "lo": 61.82,
+      "lo": 60.12,
       "hi": 180,
       "curledExt": 0.52,
-      "note": "flex >= 62° (or curled: straightness <= 0.52)",
+      "note": "flex >= 60° (or curled: straightness <= 0.52)",
       "passMedian": 93.915,
       "passP10": 65.334,
       "passP90": 124.572
      },
      "pinkyFlex": {
       "measure": "pinkyFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.54,
-      "note": "flex >= 62° (or curled: straightness <= 0.54)",
+      "note": "flex >= 60° (or curled: straightness <= 0.54)",
       "passMedian": 88.044,
       "passP10": 53.865,
       "passP90": 116.641
@@ -2419,7 +2444,7 @@
        0.8,
        0.8,
        0.73,
-       0.73
+       0.8
       ],
       "halvesAt": null
      },
@@ -2438,7 +2463,7 @@
        0.8,
        0.8,
        0.8,
-       0.77
+       0.8
       ],
       "halvesAt": null
      },
@@ -2452,8 +2477,8 @@
       ],
       "rates": [
        0.8,
+       0.73,
        0.8,
-       0.77,
        0.8,
        0.8
       ],
@@ -2489,7 +2514,7 @@
        0.8,
        0.77,
        0.57,
-       0.2
+       0.23
       ],
       "halvesAt": 0.06,
       "whyAtHalf": {
@@ -2549,15 +2574,16 @@
        0.8,
        0.77,
        0.7,
-       0.67,
+       0.7,
        0
       ],
       "halvesAt": 90,
       "whyAtHalf": {
        "trait ringFlex low": 0.6,
-       "trait pinkyFlex low": 0.13,
        "trait middleFlex low": 0.13,
+       "trait pinkyFlex low": 0.1,
        "trait indexFlex low": 0.1,
+       "trait thumbNear high": 0.03,
        "trait fingerSplay high": 0.03
       }
      },
@@ -2595,7 +2621,7 @@
       "rates": [
        0.8,
        0.77,
-       0.4,
+       0.47,
        0,
        0,
        0
@@ -2644,13 +2670,13 @@
        0.8,
        0.8,
        0.5,
-       0,
+       0.07,
        0
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait ringFlex low": 0.83,
-       "trait indexFlex low": 0.17
+       "trait ringFlex low": 0.82,
+       "trait indexFlex low": 0.18
       },
       "wrong": "raised"
      },
@@ -2667,7 +2693,7 @@
        0.8,
        0.8,
        0.73,
-       0.53,
+       0.57,
        0.13,
        0.03
       ],
@@ -2722,7 +2748,7 @@
     "wrongShapeStillCounts": {
      "index raised 60°": 0,
      "middle raised 60°": 0,
-     "ring raised 60°": 0,
+     "ring raised 60°": 0.07,
      "pinky raised 60°": 0.13,
      "thumb out 45°": 0
     }
@@ -2731,6 +2757,7 @@
     "I": 0.026,
     "M": 0.113,
     "N": 0.067,
+    "O": 0.032,
     "P": 0.011,
     "W": 0.029,
     "space": 0.05
@@ -2743,6 +2770,9 @@
      "none": 1
     },
     "N": {
+     "none": 1
+    },
+    "O": {
      "none": 1
     },
     "P": {
@@ -2773,42 +2803,42 @@
      "mode": "indexFlex low: index finger not folded enough",
      "rate": 0.167,
      "stage": "trait",
-     "hint": "17% of 36 held-out E hands fail it (failing median 35; allowed flex >= 64° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:319; E's trait row js/handshape.js:164; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "17% of 36 held-out E hands fail it (failing median 35; allowed flex >= 64° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:302; E's trait row js/handshape.js:148; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "M hands count as E",
      "rate": 0.113,
      "stage": "false-accept",
-     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:53), so E's traits alone decide and they hold (js/handshape.js:164)."
+     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so E's traits alone decide and they hold (js/handshape.js:148)."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
-     "rate": 0.083,
+     "rate": 0.056,
      "stage": "trait",
-     "hint": "8% of 36 held-out E hands fail it (failing median 29; allowed flex >= 64° (or curled: straightness <= 0.57)). Calibrated at js/handshape.js:319; E's trait row js/handshape.js:164; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 36 held-out E hands fail it (failing median 29; allowed flex >= 64° (or curled: straightness <= 0.57)). Calibrated at js/handshape.js:302; E's trait row js/handshape.js:148; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.056,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "fingerSplay high: fingers fanned apart",
      "rate": 0.028,
      "stage": "trait",
-     "hint": "3% of 36 held-out E hands fail it (failing median 44; allowed [-inf, 4.15] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:336; E's trait row js/handshape.js:164; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 36 held-out E hands fail it (failing median 44; allowed [-inf, 4.15] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:318; E's trait row js/handshape.js:148; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbAlong high: thumb too far across toward the pinky",
      "rate": 0.028,
      "stage": "trait",
-     "hint": "3% of 36 held-out E hands fail it (failing median 1.37; allowed [0.23, 0.88] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; E's trait row js/handshape.js:164; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 36 held-out E hands fail it (failing median 1.37; allowed [0.23, 0.88] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; E's trait row js/handshape.js:148; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
   "F": {
-   "own": 0.915,
+   "own": 0.922,
    "n": 129,
    "rejectedBy": {
     "traits": {
@@ -2817,49 +2847,52 @@
       "dir": "high",
       "failMedian": 0.587
      },
+     "ringFlex": {
+      "rate": 0.008,
+      "dir": "high",
+      "failMedian": 49.637
+     },
      "pinkyFlex": {
       "rate": 0.008,
       "dir": "high",
       "failMedian": 51.884
      }
     },
-    "recogniser": {
-     "null": 0.008
-    },
-    "nonLetter": 0.023
+    "recogniser": {},
+    "nonLetter": 0.039
    },
    "readAs": {
-    "F": 0.977,
-    "none": 0.023
+    "F": 0.961,
+    "none": 0.039
    },
    "registers": {
     "traits": {
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 53.88,
-      "note": "forward fold <= 54° (and flex <= 47° + slack)",
+      "hi": 51.41,
+      "note": "forward fold <= 51° (and flex <= 47° + slack)",
       "passMedian": 18.042,
       "passP10": 5.529,
-      "passP90": 24.782
+      "passP90": 24.855
      },
      "ringFlex": {
       "measure": "ringFold",
       "lo": 0,
-      "hi": 51.44,
-      "note": "forward fold <= 51° (and flex <= 47° + slack)",
+      "hi": 48.97,
+      "note": "forward fold <= 49° (and flex <= 47° + slack)",
       "passMedian": 15.252,
       "passP10": 5.998,
-      "passP90": 18.824
+      "passP90": 19.243
      },
      "pinkyFlex": {
       "measure": "pinkyFold",
       "lo": 0,
-      "hi": 46.88,
-      "note": "forward fold <= 47° (and flex <= 47° + slack)",
+      "hi": 44.41,
+      "note": "forward fold <= 44° (and flex <= 47° + slack)",
       "passMedian": 12.851,
       "passP10": 5.459,
-      "passP90": 17.692
+      "passP90": 17.975
      },
      "thumbTip": {
       "measure": "thumbTip",
@@ -2868,11 +2901,11 @@
       "note": "[0.10, 0.33] (+-slack good, +-2 slack close)",
       "passMedian": 0.167,
       "passP10": 0.101,
-      "passP90": 0.384
+      "passP90": 0.385
      }
     },
     "envelope": {
-     "base": 0.9,
+     "base": 0.93,
      "n": 30,
      "rotationDeg": {
       "pos": null,
@@ -2886,7 +2919,7 @@
      "jitter": null,
      "fanDeg": null,
      "squeezeDeg": 30,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "middle": {
        "wrong": "folded",
@@ -2919,12 +2952,12 @@
        60
       ],
       "rates": [
-       0.9,
        0.93,
        0.93,
        0.93,
        0.93,
-       0.77
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -2938,12 +2971,12 @@
        -60
       ],
       "rates": [
+       0.93,
        0.9,
        0.9,
-       0.9,
-       0.9,
-       0.9,
-       0.9
+       0.93,
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -2956,11 +2989,11 @@
        60
       ],
       "rates": [
-       0.9,
        0.93,
        0.93,
        0.93,
-       0.87
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -2973,11 +3006,11 @@
        60
       ],
       "rates": [
-       0.9,
        0.93,
        0.93,
-       0.9,
-       0.9
+       0.93,
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -2990,10 +3023,10 @@
        0.06
       ],
       "rates": [
+       0.93,
+       0.97,
+       0.93,
        0.9,
-       0.93,
-       0.93,
-       0.87,
        0.77
       ],
       "halvesAt": null
@@ -3006,10 +3039,10 @@
        30
       ],
       "rates": [
-       0.9,
+       0.93,
        0.97,
        0.97,
-       0.6
+       0.57
       ],
       "halvesAt": null
      },
@@ -3021,7 +3054,7 @@
        -30
       ],
       "rates": [
-       0.9,
+       0.93,
        0.8,
        0.67,
        0.27
@@ -3040,18 +3073,18 @@
        90
       ],
       "rates": [
-       0.9,
+       0.93,
        0.97,
        0.87,
-       0.53,
+       0.37,
        0.03
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait middleFlex high": 0.86,
-       "trait pinkyFlex high": 0.07,
-       "trait ringFlex high": 0.03,
-       "trait thumbTip high": 0.03
+       "trait middleFlex high": 0.63,
+       "trait thumbTip high": 0.16,
+       "trait pinkyFlex high": 0.16,
+       "trait ringFlex high": 0.05
       }
      },
      "distance": {
@@ -3065,11 +3098,11 @@
        0.025
       ],
       "rates": [
-       0.9,
-       0.9,
        0.93,
-       0.9,
-       0.9,
+       0.93,
+       0.97,
+       0.93,
+       0.93,
        0.93,
        0.93
       ],
@@ -3086,8 +3119,8 @@
        90
       ],
       "rates": [
-       0.9,
        0.93,
+       0.9,
        0.2,
        0,
        0,
@@ -3109,17 +3142,16 @@
        90
       ],
       "rates": [
+       0.93,
        0.9,
-       0.9,
-       0.23,
+       0.17,
        0,
        0,
        0
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait ringFlex high": 0.96,
-       "trait thumbTip high": 0.04
+       "trait ringFlex high": 1
       },
       "wrong": "folded"
      },
@@ -3133,17 +3165,17 @@
        90
       ],
       "rates": [
-       0.9,
-       0.9,
+       0.93,
+       0.83,
        0.07,
        0,
        0,
-       0.03
+       0
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait pinkyFlex high": 0.93,
-       "trait thumbTip high": 0.07
+       "trait pinkyFlex high": 0.96,
+       "trait thumbTip high": 0.04
       },
       "wrong": "folded"
      },
@@ -3156,7 +3188,7 @@
        60
       ],
       "rates": [
-       0.9,
+       0.93,
        0.77,
        0,
        0,
@@ -3176,9 +3208,9 @@
        40
       ],
       "rates": [
-       0.9,
        0.93,
-       0.93,
+       0.97,
+       0.97,
        0.57,
        0
       ],
@@ -3197,19 +3229,32 @@
    },
    "acceptedAs": {
     "A": 0.029,
+    "C": 0.012,
     "E": 0.028,
-    "P": 0.033
+    "N": 0.022,
+    "P": 0.044,
+    "R": 0.009
    },
    "acceptedAsRead": {
     "A": {
      "L": 1
     },
+    "C": {
+     "none": 1
+    },
     "E": {
      "E": 1
     },
+    "N": {
+     "none": 1
+    },
     "P": {
-     "P": 0.67,
-     "C": 0.33
+     "P": 0.5,
+     "C": 0.25,
+     "none": 0.25
+    },
+    "R": {
+     "none": 1
     }
    },
    "spell": {
@@ -3232,25 +3277,31 @@
      "mode": "Spell: missed — held-out hand not read as F at >= 80% votes (read as none)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "thumbTip high: thumb tip not touching the index tip",
      "rate": 0.078,
      "stage": "trait",
-     "hint": "8% of 129 held-out F hands fail it (failing median 0.59; allowed [0.10, 0.33] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; F's trait row js/handshape.js:165; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "8% of 129 held-out F hands fail it (failing median 0.59; allowed [0.10, 0.33] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; F's trait row js/handshape.js:149; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "recogniser rejects the hand as not-a-letter",
+     "rate": 0.039,
+     "stage": "non-letter rejection",
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+    },
+    {
+     "mode": "ringFlex high: ring finger not raised (tipped forward)",
+     "rate": 0.008,
+     "stage": "trait",
+     "hint": "1% of 129 held-out F hands fail it (failing median 50; allowed forward fold <= 49° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; F's trait row js/handshape.js:149; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex high: pinky finger not raised (tipped forward)",
      "rate": 0.008,
      "stage": "trait",
-     "hint": "1% of 129 held-out F hands fail it (failing median 52; allowed forward fold <= 47° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; F's trait row js/handshape.js:165; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
-    },
-    {
-     "mode": "recogniser reads null and the hand also fits null's traits (veto)",
-     "rate": 0.008,
-     "stage": "recogniser",
-     "hint": "the verdict rejects F because the recogniser says null (js/verdict.js:60); the F/null split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a F-vs-null head or a trait that separates them would fix it."
+     "hint": "1% of 129 held-out F hands fail it (failing median 52; allowed forward fold <= 44° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; F's trait row js/handshape.js:149; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -3282,8 +3333,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 48.6,
-      "note": "forward fold <= 49° (and flex <= 47° + slack)",
+      "hi": 46.13,
+      "note": "forward fold <= 46° (and flex <= 47° + slack)",
       "passMedian": 3.048,
       "passP10": 0.47,
       "passP90": 6.376
@@ -3426,7 +3477,7 @@
        0.93,
        0.93,
        0.93,
-       0.57
+       0.87
       ],
       "halvesAt": null
      },
@@ -3460,7 +3511,7 @@
        0.93,
        0.97,
        0.93,
-       0.93
+       0.97
       ],
       "halvesAt": null
      },
@@ -3504,15 +3555,14 @@
       ],
       "rates": [
        0.93,
-       0.93,
        0.97,
-       0.9,
+       0.97,
+       0.93,
        0.07
       ],
       "halvesAt": 90,
       "whyAtHalf": {
-       "trait indexFlex high": 0.96,
-       "recogniser reads null": 0.04
+       "trait indexFlex high": 1
       }
      },
      "distance": {
@@ -3549,15 +3599,14 @@
       "rates": [
        0.93,
        0.93,
-       0.77,
+       0.6,
        0,
        0,
        0
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "trait indexFlex high": 0.97,
-       "trait middleFlex low": 0.03
+       "trait indexFlex high": 1
       },
       "wrong": "folded"
      },
@@ -3647,8 +3696,8 @@
        0.93,
        0.93,
        0.93,
-       0.8,
-       0.73
+       0.83,
+       0.93
       ],
       "halvesAt": null
      },
@@ -3678,25 +3727,31 @@
     }
    },
    "acceptedAs": {
-    "E": 0.056,
-    "H": 0.057,
+    "B": 0.057,
+    "E": 0.111,
+    "H": 0.086,
     "K": 0.026,
     "L": 0.032,
-    "Q": 0.022,
+    "Q": 0.011,
     "X": 0.031
    },
    "acceptedAsRead": {
+    "B": {
+     "none": 1
+    },
     "E": {
-     "E": 1
+     "E": 0.75,
+     "none": 0.25
     },
     "H": {
-     "G": 1
+     "G": 0.67,
+     "none": 0.33
     },
     "K": {
      "G": 1
     },
     "L": {
-     "I": 1
+     "L": 1
     },
     "Q": {
      "P": 1
@@ -3720,16 +3775,22 @@
    },
    "struggles": [
     {
+     "mode": "E hands count as G",
+     "rate": 0.111,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: E 75%, rejected (null) 25%. G's traits (js/handshape.js:150) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:46) doesn't fire."
+    },
+    {
      "mode": "indexFlex high: index finger not raised (tipped forward)",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out G hands fail it (failing median 66; allowed forward fold <= 49° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; G's trait row js/handshape.js:166; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out G hands fail it (failing median 66; allowed forward fold <= 46° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; G's trait row js/handshape.js:150; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out G hands fail it (failing median 38; allowed flex >= 65° (or curled: straightness <= 0.71)). Calibrated at js/handshape.js:319; G's trait row js/handshape.js:166; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out G hands fail it (failing median 38; allowed flex >= 65° (or curled: straightness <= 0.71)). Calibrated at js/handshape.js:302; G's trait row js/handshape.js:150; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -3742,6 +3803,11 @@
       "rate": 0.086,
       "dir": "high",
       "failMedian": 72.085
+     },
+     "indexFlex": {
+      "rate": 0.029,
+      "dir": "high",
+      "failMedian": 53.008
      }
     },
     "recogniser": {
@@ -3760,8 +3826,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 40.32,
-      "note": "forward fold <= 40° (and flex <= 47° + slack)",
+      "hi": 37.85,
+      "note": "forward fold <= 38° (and flex <= 47° + slack)",
       "passMedian": 4.695,
       "passP10": 0.762,
       "passP90": 7.862
@@ -3769,8 +3835,8 @@
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 41.25,
-      "note": "forward fold <= 41° (and flex <= 47° + slack)",
+      "hi": 38.78,
+      "note": "forward fold <= 39° (and flex <= 47° + slack)",
       "passMedian": 4.028,
       "passP10": 1.098,
       "passP90": 7.23
@@ -3820,7 +3886,7 @@
      "jitter": null,
      "fanDeg": 20,
      "squeezeDeg": null,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -3860,7 +3926,7 @@
        0.87,
        0.83,
        0.7,
-       0.63,
+       0.67,
        0.5,
        0.07
       ],
@@ -3868,8 +3934,9 @@
       "whyAtHalf": {
        "recogniser reads U": 0.75,
        "recogniser reads K": 0.11,
-       "trait middleFlex high": 0.11,
-       "recogniser reads R": 0.04
+       "trait middleFlex high": 0.07,
+       "recogniser reads R": 0.04,
+       "trait indexFlex high": 0.04
       }
      },
      "rotation-": {
@@ -3892,7 +3959,8 @@
       "halvesAt": -45,
       "whyAtHalf": {
        "trait dir high": 0.86,
-       "trait middleFlex high": 0.14
+       "trait middleFlex high": 0.09,
+       "trait indexFlex high": 0.05
       }
      },
      "pitch": {
@@ -3908,7 +3976,7 @@
        0.9,
        0.9,
        0.9,
-       0.8
+       0.83
       ],
       "halvesAt": null
      },
@@ -3922,8 +3990,8 @@
       ],
       "rates": [
        0.87,
-       0.87,
-       0.87,
+       0.83,
+       0.7,
        0.87,
        0.9
       ],
@@ -3942,7 +4010,7 @@
        0.87,
        0.87,
        0.83,
-       0.9
+       0.93
       ],
       "halvesAt": null
      },
@@ -3994,12 +4062,14 @@
        0.87,
        0.87,
        0.8,
-       0.6,
+       0.33,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait indexFlex high": 0.9,
+       "recogniser reads U": 0.05,
+       "recogniser reads R": 0.05
       }
      },
      "distance": {
@@ -4036,7 +4106,7 @@
       "rates": [
        0.87,
        0.87,
-       0.03,
+       0,
        0,
        0,
        0
@@ -4066,7 +4136,8 @@
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait middleFlex high": 1
+       "trait middleFlex high": 0.97,
+       "trait indexFlex high": 0.03
       },
       "wrong": "folded"
      },
@@ -4090,7 +4161,8 @@
       "halvesAt": 45,
       "whyAtHalf": {
        "trait ringFlex low": 0.89,
-       "trait middleFlex high": 0.11
+       "trait middleFlex high": 0.07,
+       "trait indexFlex high": 0.04
       },
       "wrong": "raised"
      },
@@ -4114,8 +4186,9 @@
       "halvesAt": 45,
       "whyAtHalf": {
        "trait pinkyFlex low": 0.83,
-       "trait middleFlex high": 0.13,
-       "recogniser reads R": 0.04
+       "trait middleFlex high": 0.09,
+       "recogniser reads R": 0.04,
+       "trait indexFlex high": 0.04
       },
       "wrong": "raised"
      },
@@ -4131,8 +4204,8 @@
        0.87,
        0.87,
        0.8,
-       0.77,
-       0.73
+       0.73,
+       0.77
       ],
       "halvesAt": null
      },
@@ -4163,13 +4236,19 @@
     }
    },
    "acceptedAs": {
-    "E": 0.083,
+    "D": 0.063,
+    "E": 0.056,
     "G": 0.029,
     "K": 0.026,
-    "P": 0.011,
+    "P": 0.022,
+    "R": 0.009,
     "U": 0.028
    },
    "acceptedAsRead": {
+    "D": {
+     "D": 0.5,
+     "none": 0.5
+    },
     "E": {
      "E": 1
     },
@@ -4181,6 +4260,9 @@
     },
     "P": {
      "none": 1
+    },
+    "R": {
+     "V": 1
     },
     "U": {
      "H": 1
@@ -4204,19 +4286,25 @@
      "mode": "middleFlex high: middle finger not raised (tipped forward)",
      "rate": 0.086,
      "stage": "trait",
-     "hint": "9% of 35 held-out H hands fail it (failing median 72; allowed forward fold <= 41° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; H's trait row js/handshape.js:167; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "9% of 35 held-out H hands fail it (failing median 72; allowed forward fold <= 39° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; H's trait row js/handshape.js:151; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads G (verdict still passes; Spell would enter G)",
      "rate": 0.057,
      "stage": "recogniser (Spell)",
-     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:270 / heads js/heads.js:103)."
+     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:157 / heads js/heads.js:103)."
+    },
+    {
+     "mode": "indexFlex high: index finger not raised (tipped forward)",
+     "rate": 0.029,
+     "stage": "trait",
+     "hint": "3% of 35 held-out H hands fail it (failing median 53; allowed forward fold <= 38° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; H's trait row js/handshape.js:151; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads R and the hand also fits R's traits (veto)",
      "rate": 0.029,
      "stage": "recogniser",
-     "hint": "the verdict rejects H because the recogniser says R (js/verdict.js:60); the H/R split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a H-vs-R head or a trait that separates them would fix it."
+     "hint": "the verdict rejects H because the recogniser says R (js/verdict.js:46); the H/R split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a H-vs-R head or a trait that separates them would fix it."
     }
    ]
   },
@@ -4290,8 +4378,8 @@
      "pinkyFlex": {
       "measure": "pinkyFold",
       "lo": 0,
-      "hi": 43.34,
-      "note": "forward fold <= 43° (and flex <= 47° + slack)",
+      "hi": 40.87,
+      "note": "forward fold <= 41° (and flex <= 47° + slack)",
       "passMedian": 9.422,
       "passP10": 5.895,
       "passP90": 17.833
@@ -4305,7 +4393,7 @@
       "neg": null
      },
      "tiltDeg": {
-      "pitch": 60,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
@@ -4354,7 +4442,7 @@
        0.77,
        0.77,
        0.77,
-       0.6
+       0.77
       ],
       "halvesAt": null
      },
@@ -4389,15 +4477,10 @@
        0.77,
        0.77,
        0.77,
-       0.67,
-       0.1
+       0.77,
+       0.77
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.74,
-       "trait indexFlex low": 0.15,
-       "trait pinkyFlex high": 0.11
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -4442,9 +4525,9 @@
       ],
       "rates": [
        0.77,
-       0.73,
        0.77,
-       0.63
+       0.77,
+       0.67
       ],
       "halvesAt": null
      },
@@ -4473,16 +4556,15 @@
       ],
       "rates": [
        0.77,
-       0.73,
        0.77,
-       0.37,
-       0
+       0.8,
+       0.27,
+       0.07
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait pinkyFlex high": 0.84,
-       "trait indexFlex low": 0.11,
-       "recogniser reads null": 0.05
+       "trait pinkyFlex high": 0.91,
+       "trait indexFlex low": 0.09
       }
      },
      "distance": {
@@ -4497,11 +4579,11 @@
       ],
       "rates": [
        0.77,
-       0.73,
+       0.77,
        0.77,
        0.73,
        0.77,
-       0.73,
+       0.77,
        0.77
       ],
       "halvesAt": null,
@@ -4518,7 +4600,7 @@
       ],
       "rates": [
        0.77,
-       0.67,
+       0.73,
        0.37,
        0,
        0,
@@ -4543,7 +4625,7 @@
       "rates": [
        0.77,
        0.73,
-       0.43,
+       0.47,
        0,
        0,
        0
@@ -4567,15 +4649,15 @@
       "rates": [
        0.77,
        0.77,
-       0.7,
-       0.2,
+       0.73,
+       0.23,
        0,
        0
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "trait ringFlex low": 0.79,
-       "trait indexFlex low": 0.21
+       "trait ringFlex low": 0.83,
+       "trait indexFlex low": 0.17
       },
       "wrong": "raised"
      },
@@ -4590,7 +4672,7 @@
       ],
       "rates": [
        0.77,
-       0.73,
+       0.67,
        0,
        0,
        0,
@@ -4615,8 +4697,8 @@
        0.77,
        0.77,
        0.77,
-       0.73,
-       0.73
+       0.77,
+       0.77
       ],
       "halvesAt": null
      },
@@ -4645,8 +4727,14 @@
      "pinky folded 60°": 0
     }
    },
-   "acceptedAs": {},
-   "acceptedAsRead": {},
+   "acceptedAs": {
+    "Q": 0.022
+   },
+   "acceptedAsRead": {
+    "Q": {
+     "none": 1
+    }
+   },
    "spell": {
     "trials": 8,
     "correct": 0.75,
@@ -4667,43 +4755,43 @@
      "mode": "Spell: missed — held-out hand not read as I at >= 80% votes (read as none)",
      "rate": 0.25,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "pinkyFlex high: pinky finger not raised (tipped forward)",
      "rate": 0.184,
      "stage": "trait",
-     "hint": "18% of 38 held-out I hands fail it (failing median 82; allowed forward fold <= 43° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; I's trait row js/handshape.js:168; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "18% of 38 held-out I hands fail it (failing median 82; allowed forward fold <= 41° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; I's trait row js/handshape.js:152; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.158,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "indexFlex low: index finger not folded enough",
      "rate": 0.132,
      "stage": "trait",
-     "hint": "13% of 38 held-out I hands fail it (failing median 35; allowed flex >= 75° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:319; I's trait row js/handshape.js:168; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "13% of 38 held-out I hands fail it (failing median 35; allowed flex >= 75° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:302; I's trait row js/handshape.js:152; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.079,
      "stage": "trait",
-     "hint": "8% of 38 held-out I hands fail it (failing median 69; allowed flex >= 82° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:319; I's trait row js/handshape.js:168; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "8% of 38 held-out I hands fail it (failing median 69; allowed flex >= 82° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:302; I's trait row js/handshape.js:152; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.079,
      "stage": "trait",
-     "hint": "8% of 38 held-out I hands fail it (failing median 75; allowed flex >= 86° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:319; I's trait row js/handshape.js:168; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "8% of 38 held-out I hands fail it (failing median 75; allowed flex >= 86° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:302; I's trait row js/handshape.js:152; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads O (verdict still passes; Spell would enter O)",
      "rate": 0.053,
      "stage": "recogniser (Spell)",
-     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:270 / heads js/heads.js:103)."
+     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:157 / heads js/heads.js:103)."
     }
    ]
   },
@@ -5093,8 +5181,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 41.87,
-      "note": "forward fold <= 42° (and flex <= 47° + slack)",
+      "hi": 39.4,
+      "note": "forward fold <= 39° (and flex <= 47° + slack)",
       "passMedian": 7.8,
       "passP10": 3.335,
       "passP90": 10.383
@@ -5102,8 +5190,8 @@
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 39.92,
-      "note": "forward fold <= 40° (and flex <= 47° + slack)",
+      "hi": 37.45,
+      "note": "forward fold <= 37° (and flex <= 47° + slack)",
       "passMedian": 3.641,
       "passP10": 0.654,
       "passP90": 6.805
@@ -5142,18 +5230,18 @@
      "base": 0.9,
      "n": 30,
      "rotationDeg": {
-      "pos": 60,
+      "pos": null,
       "neg": 60
      },
      "tiltDeg": {
-      "pitch": 60,
-      "yaw": 60
+      "pitch": null,
+      "yaw": null
      },
      "minSpan": null,
      "jitter": null,
      "fanDeg": 20,
      "squeezeDeg": 20,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -5194,16 +5282,10 @@
        0.87,
        0.87,
        0.83,
-       0.57,
-       0.37
+       0.6,
+       0.87
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.79,
-       "trait ringFlex low": 0.11,
-       "recogniser reads H": 0.05,
-       "trait middleFlex high": 0.05
-      }
+      "halvesAt": null
      },
      "rotation-": {
       "levels": [
@@ -5216,18 +5298,17 @@
       ],
       "rates": [
        0.9,
+       0.9,
+       0.9,
        0.87,
-       0.83,
-       0.83,
-       0.47,
-       0.03
+       0.5,
+       0.07
       ],
       "halvesAt": -60,
       "whyAtHalf": {
-       "recogniser reads H": 0.86,
+       "recogniser reads H": 0.89,
        "trait ringFlex low": 0.07,
-       "recogniser reads null": 0.03,
-       "trait middleFlex high": 0.03
+       "trait middleFlex high": 0.04
       }
      },
      "pitch": {
@@ -5240,17 +5321,12 @@
       ],
       "rates": [
        0.9,
-       0.83,
-       0.83,
-       0.83,
-       0.07
+       0.73,
+       0.9,
+       0.9,
+       0.9
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.89,
-       "trait ringFlex low": 0.07,
-       "trait middleFlex high": 0.04
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -5262,18 +5338,12 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.83,
-       0.87,
-       0.43
+       0.9,
+       0.9,
+       0.9,
+       0.63
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads R": 0.47,
-       "recogniser reads null": 0.35,
-       "trait ringFlex low": 0.12,
-       "trait middleFlex high": 0.06
-      }
+      "halvesAt": null
      },
      "jitter": {
       "levels": [
@@ -5301,15 +5371,14 @@
       ],
       "rates": [
        0.9,
-       0.8,
-       0.1,
-       0
+       0.87,
+       0.13,
+       0.03
       ],
       "halvesAt": 20,
       "whyAtHalf": {
-       "trait spread high": 0.85,
-       "trait ringFlex low": 0.07,
-       "recogniser reads null": 0.04,
+       "trait spread high": 0.88,
+       "trait ringFlex low": 0.08,
        "trait middleFlex high": 0.04
       }
      },
@@ -5322,15 +5391,14 @@
       ],
       "rates": [
        0.9,
-       0.8,
-       0.37,
-       0.07
+       0.77,
+       0.33,
+       0
       ],
       "halvesAt": -20,
       "whyAtHalf": {
-       "recogniser reads H": 0.74,
-       "trait ringFlex low": 0.11,
-       "recogniser reads null": 0.05,
+       "recogniser reads H": 0.8,
+       "trait ringFlex low": 0.1,
        "trait spread low": 0.05,
        "trait middleFlex high": 0.05
       }
@@ -5345,14 +5413,15 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.8,
-       0.53,
+       0.83,
+       0.83,
+       0.3,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait indexFlex high": 0.95,
+       "trait middleFlex high": 0.05
       }
      },
      "distance": {
@@ -5369,10 +5438,10 @@
        0.9,
        0.9,
        0.9,
+       0.87,
        0.9,
-       0.9,
-       0.83,
-       0.9
+       0.87,
+       0.87
       ],
       "halvesAt": null,
       "note": "hand span in frame units (0.12 = arm's length)"
@@ -5388,7 +5457,7 @@
       ],
       "rates": [
        0.9,
-       0.83,
+       0.77,
        0,
        0,
        0,
@@ -5419,8 +5488,8 @@
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait middleFlex high": 0.93,
-       "trait spread high": 0.07
+       "trait middleFlex high": 0.97,
+       "trait spread high": 0.03
       },
       "wrong": "folded"
      },
@@ -5435,15 +5504,16 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.8,
-       0.17,
+       0.83,
+       0.77,
+       0.13,
        0,
        0
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "trait ringFlex low": 0.96,
+       "trait ringFlex low": 0.92,
+       "recogniser reads V": 0.04,
        "trait middleFlex high": 0.04
       },
       "wrong": "raised"
@@ -5459,7 +5529,7 @@
       ],
       "rates": [
        0.9,
-       0.9,
+       0.87,
        0.77,
        0.17,
        0,
@@ -5467,8 +5537,9 @@
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "trait pinkyFlex low": 0.88,
+       "trait pinkyFlex low": 0.84,
        "trait ringFlex low": 0.08,
+       "recogniser reads V": 0.04,
        "trait middleFlex high": 0.04
       },
       "wrong": "raised"
@@ -5485,14 +5556,13 @@
        0.9,
        0.7,
        0.13,
-       0,
-       0
+       0.03,
+       0.03
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "recogniser reads V": 0.85,
+       "recogniser reads V": 0.88,
        "trait ringFlex low": 0.08,
-       "recogniser reads null": 0.04,
        "trait middleFlex high": 0.04
       }
      },
@@ -5506,10 +5576,10 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.87,
-       0.87,
-       0.87
+       0.9,
+       0.9,
+       0.9,
+       0.9
       ],
       "halvesAt": null
      }
@@ -5519,20 +5589,29 @@
      "middle folded 60°": 0,
      "ring raised 60°": 0,
      "pinky raised 60°": 0,
-     "index/middle squeezed 20°": 0.37
+     "index/middle squeezed 20°": 0.33
     }
    },
    "acceptedAs": {
-    "E": 0.083,
+    "D": 0.063,
+    "E": 0.056,
     "G": 0.029,
+    "P": 0.022,
     "V": 0.057
    },
    "acceptedAsRead": {
+    "D": {
+     "D": 0.5,
+     "none": 0.5
+    },
     "E": {
      "E": 1
     },
     "G": {
      "G": 1
+    },
+    "P": {
+     "none": 1
     },
     "V": {
      "K": 1
@@ -5541,13 +5620,15 @@
    "spell": {
     "trials": 8,
     "correct": 0.88,
-    "wrong": 0,
+    "wrong": 0.13,
     "doubled": 0,
-    "missed": 0.13,
+    "missed": 0,
     "missedReadable": 0,
-    "missedUnreadable": 0.13,
+    "missedUnreadable": 0,
     "readable": 0.88,
-    "wrongAs": {},
+    "wrongAs": {
+     "D": 1
+    },
     "unreadableReadAs": {
      "D": 1
     },
@@ -5555,34 +5636,34 @@
    },
    "struggles": [
     {
-     "mode": "Spell: missed — held-out hand not read as K at >= 80% votes (read as D)",
+     "mode": "Spell: wrong letter entered (D)",
      "rate": 0.13,
-     "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "stage": "spell: wrong letter",
+     "hint": "a look-alike or transition shape held long enough to fill the ring (js/spellgate.js:69, js/spellgate.js:71)."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
      "rate": 0.079,
      "stage": "trait",
-     "hint": "8% of 38 held-out K hands fail it (failing median 45; allowed flex >= 77° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; K's trait row js/handshape.js:169; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "8% of 38 held-out K hands fail it (failing median 45; allowed flex >= 77° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; K's trait row js/handshape.js:153; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.053,
      "stage": "trait",
-     "hint": "5% of 38 held-out K hands fail it (failing median 45; allowed flex >= 80° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; K's trait row js/handshape.js:169; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "5% of 38 held-out K hands fail it (failing median 45; allowed flex >= 80° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; K's trait row js/handshape.js:153; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex high: middle finger not raised (tipped forward)",
      "rate": 0.026,
      "stage": "trait",
-     "hint": "3% of 38 held-out K hands fail it (failing median 87; allowed forward fold <= 40° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; K's trait row js/handshape.js:169; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 38 held-out K hands fail it (failing median 87; allowed forward fold <= 37° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; K's trait row js/handshape.js:153; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "spread high: index/middle spread too far",
      "rate": 0.026,
      "stage": "trait",
-     "hint": "3% of 38 held-out K hands fail it (failing median 81; allowed [14, 25] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; K's trait row js/handshape.js:169; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 38 held-out K hands fail it (failing median 81; allowed [14, 25] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; K's trait row js/handshape.js:153; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -5606,16 +5687,15 @@
     "nonLetter": 0
    },
    "readAs": {
-    "L": 0.968,
-    "I": 0.032
+    "L": 1
    },
    "registers": {
     "traits": {
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 46.35,
-      "note": "forward fold <= 46° (and flex <= 47° + slack)",
+      "hi": 43.88,
+      "note": "forward fold <= 44° (and flex <= 47° + slack)",
       "passMedian": 9.331,
       "passP10": 6.375,
       "passP90": 12.618
@@ -5783,7 +5863,7 @@
        0.97,
        0.97,
        0.97,
-       0.73
+       0.97
       ],
       "halvesAt": null
      },
@@ -5800,7 +5880,7 @@
        0.97,
        0.97,
        0.97,
-       0.9
+       0.87
       ],
       "halvesAt": null
      },
@@ -5846,14 +5926,13 @@
        0.97,
        0.97,
        0.97,
-       0.43,
+       0.4,
        0
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 0.47,
-       "recogniser reads T": 0.29,
-       "recogniser reads null": 0.24
+       "trait indexFlex high": 0.78,
+       "recogniser reads T": 0.22
       }
      },
      "distance": {
@@ -6018,11 +6097,15 @@
     }
    },
    "acceptedAs": {
-    "Q": 0.011
+    "C": 0.012,
+    "P": 0.011
    },
    "acceptedAsRead": {
-    "Q": {
-     "P": 1
+    "C": {
+     "none": 1
+    },
+    "P": {
+     "none": 1
     }
    },
    "spell": {
@@ -6043,13 +6126,13 @@
      "mode": "thumbOut low: thumb not out far enough",
      "rate": 0.032,
      "stage": "trait",
-     "hint": "3% of 31 held-out L hands fail it (failing median 0.30; allowed [0.70, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; L's trait row js/handshape.js:170; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 31 held-out L hands fail it (failing median 0.30; allowed [0.70, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; L's trait row js/handshape.js:154; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear low: thumb pressed in too close to the fingers",
      "rate": 0.032,
      "stage": "trait",
-     "hint": "3% of 31 held-out L hands fail it (failing median 0.30; allowed [0.53, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; L's trait row js/handshape.js:170; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 31 held-out L hands fail it (failing median 0.30; allowed [0.53, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; L's trait row js/handshape.js:154; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -6069,9 +6152,9 @@
       "failMedian": 15.977
      },
      "ringFlex": {
-      "rate": 0.038,
+      "rate": 0.019,
       "dir": "low",
-      "failMedian": 61.582
+      "failMedian": 22.328
      },
      "pinkyFlex": {
       "rate": 0.038,
@@ -6104,40 +6187,40 @@
     "traits": {
      "indexFlex": {
       "measure": "indexFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.93,
-      "note": "flex >= 62° (or curled: straightness <= 0.93)",
+      "note": "flex >= 60° (or curled: straightness <= 0.93)",
       "passMedian": 111.4,
       "passP10": 78.888,
       "passP90": 129.358
      },
      "middleFlex": {
       "measure": "middleFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.93,
-      "note": "flex >= 62° (or curled: straightness <= 0.93)",
+      "note": "flex >= 60° (or curled: straightness <= 0.93)",
       "passMedian": 119.922,
       "passP10": 82.82,
       "passP90": 138.316
      },
      "ringFlex": {
       "measure": "ringFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.92,
-      "note": "flex >= 62° (or curled: straightness <= 0.92)",
+      "note": "flex >= 60° (or curled: straightness <= 0.92)",
       "passMedian": 124.83,
       "passP10": 85.797,
       "passP90": 141.914
      },
      "pinkyFlex": {
       "measure": "pinkyFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.91,
-      "note": "flex >= 62° (or curled: straightness <= 0.91)",
+      "note": "flex >= 60° (or curled: straightness <= 0.91)",
       "passMedian": 124.639,
       "passP10": 87.889,
       "passP90": 142.008
@@ -6180,11 +6263,11 @@
      "fingerBendDeg": {
       "index": {
        "wrong": "raised",
-       "halvesAt": 15
+       "halvesAt": 45
       },
       "middle": {
        "wrong": "raised",
-       "halvesAt": 45
+       "halvesAt": 60
       },
       "ring": {
        "wrong": "raised",
@@ -6192,7 +6275,7 @@
       },
       "pinky": {
        "wrong": "raised",
-       "halvesAt": 60
+       "halvesAt": 90
       }
      },
      "thumbSwingDeg": {
@@ -6235,9 +6318,9 @@
        0.9,
        0.93,
        0.9,
-       0.87,
-       0.87,
-       0.87
+       0.9,
+       0.9,
+       0.9
       ],
       "halvesAt": null
      },
@@ -6270,8 +6353,8 @@
        0.9,
        0.93,
        0.93,
-       0.77,
-       0.57
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -6286,7 +6369,7 @@
       "rates": [
        0.9,
        0.87,
-       0.83,
+       0.87,
        0.77,
        0.67
       ],
@@ -6301,9 +6384,9 @@
       ],
       "rates": [
        0.9,
-       0.6,
+       0.63,
        0.57,
-       0.7
+       0.73
       ],
       "halvesAt": null
      },
@@ -6316,7 +6399,7 @@
       ],
       "rates": [
        0.9,
-       0.83,
+       0.87,
        0.87,
        0.83
       ],
@@ -6333,7 +6416,7 @@
       "rates": [
        0.9,
        0.97,
-       0.9,
+       0.93,
        0.9,
        0.83
       ],
@@ -6350,10 +6433,10 @@
        0.025
       ],
       "rates": [
+       0.93,
        0.9,
        0.9,
-       0.9,
-       0.9,
+       0.93,
        0.93,
        0.9,
        0.93
@@ -6372,18 +6455,17 @@
       ],
       "rates": [
        0.9,
-       0.43,
        0.47,
-       0.2,
-       0.07,
+       0.5,
+       0.23,
+       0.1,
        0.03
       ],
-      "halvesAt": 15,
+      "halvesAt": 45,
       "whyAtHalf": {
-       "recogniser reads N": 0.59,
-       "trait indexFlex low": 0.29,
-       "trait thumbNear high": 0.06,
-       "recogniser reads A": 0.06
+       "trait indexFlex low": 0.65,
+       "trait thumbNear high": 0.3,
+       "recogniser reads A": 0.04
       },
       "wrong": "raised"
      },
@@ -6398,16 +6480,16 @@
       ],
       "rates": [
        0.9,
-       0.47,
+       0.57,
        0.7,
-       0.43,
-       0.2,
+       0.47,
+       0.27,
        0.07
       ],
-      "halvesAt": 45,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait middleFlex low": 0.94,
-       "trait indexFlex low": 0.06
+       "trait middleFlex low": 0.95,
+       "trait indexFlex low": 0.05
       },
       "wrong": "raised"
      },
@@ -6425,12 +6507,12 @@
        0.87,
        0.73,
        0.53,
-       0.27,
+       0.33,
        0.03
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait ringFlex low": 0.91,
+       "trait ringFlex low": 0.9,
        "trait indexFlex low": 0.05,
        "recogniser reads A": 0.05
       },
@@ -6450,15 +6532,14 @@
        0.87,
        0.73,
        0.6,
-       0.43,
-       0.37
+       0.5,
+       0.4
       ],
-      "halvesAt": 60,
+      "halvesAt": 90,
       "whyAtHalf": {
-       "trait pinkyFlex low": 0.82,
+       "trait pinkyFlex low": 0.89,
        "trait indexFlex low": 0.06,
-       "recogniser reads A": 0.06,
-       "trait ringFlex low": 0.06
+       "recogniser reads A": 0.06
       },
       "wrong": "raised"
      },
@@ -6482,7 +6563,7 @@
        "trait thumbNear high": 0.81,
        "recogniser reads N": 0.1,
        "trait indexFlex low": 0.05,
-       "trait ringFlex low": 0.05
+       "trait pinkyFlex low": 0.05
       }
      },
      "thumb-in": {
@@ -6498,16 +6579,16 @@
        0.87,
        0.9,
        0.77,
-       0.67
+       0.7
       ],
       "halvesAt": null
      }
     },
     "wrongShapeStillCounts": {
-     "index raised 60°": 0.07,
-     "middle raised 60°": 0.2,
-     "ring raised 60°": 0.27,
-     "pinky raised 60°": 0.43,
+     "index raised 60°": 0.1,
+     "middle raised 60°": 0.27,
+     "ring raised 60°": 0.33,
+     "pinky raised 60°": 0.5,
      "thumb out 45°": 0.3
     }
    },
@@ -6518,6 +6599,7 @@
     "O": 0.065,
     "P": 0.011,
     "R": 0.019,
+    "W": 0.059,
     "space": 0.05
    },
    "acceptedAsRead": {
@@ -6541,6 +6623,9 @@
      "D": 0.5,
      "none": 0.5
     },
+    "W": {
+     "none": 1
+    },
     "space": {
      "none": 1
     }
@@ -6563,64 +6648,70 @@
    },
    "struggles": [
     {
+     "mode": "still counts with the pinky raised 60°",
+     "rate": 0.5,
+     "stage": "false-accept (wrong shape)",
+     "hint": "the wrong-shape trait for it is missing or too wide at js/handshape.js:155."
+    },
+    {
      "mode": "Spell: missed — held-out hand not read as M at >= 80% votes (read as M/none)",
      "rate": 0.38,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "N hands count as M",
      "rate": 0.333,
      "stage": "false-accept",
-     "hint": "recogniser read them as: rejected (null) 73%, M 27%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:53), so M's traits alone decide and they hold (js/handshape.js:171)."
+     "hint": "recogniser read them as: rejected (null) 73%, M 27%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so M's traits alone decide and they hold (js/handshape.js:155)."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.226,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "indexFlex low: index finger not folded enough",
      "rate": 0.038,
      "stage": "trait",
-     "hint": "4% of 53 held-out M hands fail it (failing median 59; allowed flex >= 62° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:319; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
-    },
-    {
-     "mode": "ringFlex low: ring finger not folded enough",
-     "rate": 0.038,
-     "stage": "trait",
-     "hint": "4% of 53 held-out M hands fail it (failing median 62; allowed flex >= 62° (or curled: straightness <= 0.92)). Calibrated at js/handshape.js:319; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "4% of 53 held-out M hands fail it (failing median 59; allowed flex >= 60° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:302; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
      "rate": 0.038,
      "stage": "trait",
-     "hint": "4% of 53 held-out M hands fail it (failing median 60; allowed flex >= 62° (or curled: straightness <= 0.91)). Calibrated at js/handshape.js:319; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "4% of 53 held-out M hands fail it (failing median 60; allowed flex >= 60° (or curled: straightness <= 0.91)). Calibrated at js/handshape.js:302; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.019,
      "stage": "trait",
-     "hint": "2% of 53 held-out M hands fail it (failing median 16; allowed flex >= 62° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:319; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "2% of 53 held-out M hands fail it (failing median 16; allowed flex >= 60° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:302; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "ringFlex low: ring finger not folded enough",
+     "rate": 0.019,
+     "stage": "trait",
+     "hint": "2% of 53 held-out M hands fail it (failing median 22; allowed flex >= 60° (or curled: straightness <= 0.92)). Calibrated at js/handshape.js:302; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "knuckleFold low: fingers not folded forward at the knuckles",
      "rate": 0.019,
      "stage": "trait",
-     "hint": "2% of 53 held-out M hands fail it (failing median 14; allowed [72, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:327; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "2% of 53 held-out M hands fail it (failing median 14; allowed [72, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:310; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear high: thumb too far from the fingers (sticking out)",
      "rate": 0.019,
      "stage": "trait",
-     "hint": "2% of 53 held-out M hands fail it (failing median 0.55; allowed [-inf, 0.38] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:336; M's trait row js/handshape.js:171; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "2% of 53 held-out M hands fail it (failing median 0.55; allowed [-inf, 0.38] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:318; M's trait row js/handshape.js:155; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads A and the hand also fits A's traits (veto)",
      "rate": 0.019,
      "stage": "recogniser",
-     "hint": "the verdict rejects M because the recogniser says A (js/verdict.js:60); the M/A split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a M-vs-A head or a trait that separates them would fix it."
+     "hint": "the verdict rejects M because the recogniser says A (js/verdict.js:46); the M/A split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a M-vs-A head or a trait that separates them would fix it."
     }
    ]
   },
@@ -6663,52 +6754,52 @@
     "recogniser": {
      "M": 0.089
     },
-    "nonLetter": 0.378
+    "nonLetter": 0.4
    },
    "readAs": {
     "N": 0.489,
-    "none": 0.378,
-    "M": 0.111,
+    "none": 0.4,
+    "M": 0.089,
     "C": 0.022
    },
    "registers": {
     "traits": {
      "indexFlex": {
       "measure": "indexFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.93,
-      "note": "flex >= 62° (or curled: straightness <= 0.93)",
+      "note": "flex >= 60° (or curled: straightness <= 0.93)",
       "passMedian": 100.764,
       "passP10": 75.328,
       "passP90": 127.774
      },
      "middleFlex": {
       "measure": "middleFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.93,
-      "note": "flex >= 62° (or curled: straightness <= 0.93)",
+      "note": "flex >= 60° (or curled: straightness <= 0.93)",
       "passMedian": 106.775,
       "passP10": 80.58,
       "passP90": 142.142
      },
      "ringFlex": {
       "measure": "ringFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.9,
-      "note": "flex >= 62° (or curled: straightness <= 0.90)",
+      "note": "flex >= 60° (or curled: straightness <= 0.90)",
       "passMedian": 108.392,
       "passP10": 85.631,
       "passP90": 147.66
      },
      "pinkyFlex": {
       "measure": "pinkyFlex",
-      "lo": 61.82,
+      "lo": 59.71,
       "hi": 180,
       "curledExt": 0.87,
-      "note": "flex >= 62° (or curled: straightness <= 0.87)",
+      "note": "flex >= 60° (or curled: straightness <= 0.87)",
       "passMedian": 109.42,
       "passP10": 87.584,
       "passP90": 143.226
@@ -6741,7 +6832,7 @@
      },
      "tiltDeg": {
       "pitch": null,
-      "yaw": 60
+      "yaw": null
      },
      "minSpan": null,
      "jitter": null,
@@ -6759,11 +6850,11 @@
       },
       "ring": {
        "wrong": "raised",
-       "halvesAt": 45
+       "halvesAt": 60
       },
       "pinky": {
        "wrong": "raised",
-       "halvesAt": 60
+       "halvesAt": 90
       }
      },
      "thumbSwingDeg": {
@@ -6822,8 +6913,8 @@
       ],
       "rates": [
        0.73,
-       0.47,
-       0.43,
+       0.5,
+       0.8,
        0.8,
        0.8
       ],
@@ -6841,14 +6932,10 @@
        0.73,
        0.67,
        0.73,
-       0.7,
-       0.2
+       0.77,
+       0.8
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.75,
-       "trait indexFlex low": 0.25
-      }
+      "halvesAt": null
      },
      "jitter": {
       "levels": [
@@ -6893,7 +6980,7 @@
        0.73,
        0.6,
        0.57,
-       0.5
+       0.53
       ],
       "halvesAt": null
      },
@@ -6908,8 +6995,8 @@
       "rates": [
        0.73,
        0.57,
-       0.6,
-       0.8,
+       0.67,
+       0.83,
        0.8
       ],
       "halvesAt": null
@@ -6947,16 +7034,16 @@
       ],
       "rates": [
        0.73,
-       0.53,
+       0.57,
        0.33,
-       0.17,
+       0.2,
        0.1,
        0.03
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait indexFlex low": 0.8,
-       "trait thumbNear high": 0.2
+       "trait indexFlex low": 0.75,
+       "trait thumbNear high": 0.25
       },
       "wrong": "raised"
      },
@@ -6971,10 +7058,10 @@
       ],
       "rates": [
        0.73,
-       0.77,
-       0.5,
+       0.8,
+       0.57,
        0.27,
-       0.07,
+       0.1,
        0.03
       ],
       "halvesAt": 45,
@@ -6995,16 +7082,16 @@
       ],
       "rates": [
        0.73,
-       0.47,
+       0.5,
        0.6,
-       0.23,
+       0.37,
        0.17,
        0.03
       ],
-      "halvesAt": 45,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait ringFlex low": 0.74,
-       "trait indexFlex low": 0.26
+       "trait ringFlex low": 0.76,
+       "trait indexFlex low": 0.24
       },
       "wrong": "raised"
      },
@@ -7020,15 +7107,15 @@
       "rates": [
        0.73,
        0.53,
-       0.53,
        0.57,
-       0.3,
+       0.6,
+       0.37,
        0.2
       ],
-      "halvesAt": 60,
+      "halvesAt": 90,
       "whyAtHalf": {
-       "trait pinkyFlex low": 0.71,
-       "trait indexFlex low": 0.29
+       "trait pinkyFlex low": 0.75,
+       "trait indexFlex low": 0.25
       },
       "wrong": "raised"
      },
@@ -7073,9 +7160,9 @@
     },
     "wrongShapeStillCounts": {
      "index raised 60°": 0.1,
-     "middle raised 60°": 0.07,
+     "middle raised 60°": 0.1,
      "ring raised 60°": 0.17,
-     "pinky raised 60°": 0.3,
+     "pinky raised 60°": 0.37,
      "thumb out 45°": 0.13
     }
    },
@@ -7085,7 +7172,8 @@
     "M": 0.208,
     "O": 0.065,
     "P": 0.011,
-    "R": 0.019
+    "R": 0.019,
+    "W": 0.029
    },
    "acceptedAsRead": {
     "E": {
@@ -7106,6 +7194,9 @@
     "R": {
      "D": 0.5,
      "none": 0.5
+    },
+    "W": {
+     "none": 1
     }
    },
    "spell": {
@@ -7129,61 +7220,61 @@
      "mode": "Spell: missed — held-out hand not read as N at >= 80% votes (read as none/N)",
      "rate": 0.5,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
-     "rate": 0.378,
+     "rate": 0.4,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "M hands count as N",
      "rate": 0.208,
      "stage": "false-accept",
-     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:53), so N's traits alone decide and they hold (js/handshape.js:172)."
+     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so N's traits alone decide and they hold (js/handshape.js:156)."
     },
     {
      "mode": "indexFlex low: index finger not folded enough",
      "rate": 0.2,
      "stage": "trait",
-     "hint": "20% of 45 held-out N hands fail it (failing median 28; allowed flex >= 62° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:319; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "20% of 45 held-out N hands fail it (failing median 28; allowed flex >= 60° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:302; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.178,
      "stage": "trait",
-     "hint": "18% of 45 held-out N hands fail it (failing median 26; allowed flex >= 62° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:319; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "18% of 45 held-out N hands fail it (failing median 26; allowed flex >= 60° (or curled: straightness <= 0.93)). Calibrated at js/handshape.js:302; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "knuckleFold low: fingers not folded forward at the knuckles",
      "rate": 0.178,
      "stage": "trait",
-     "hint": "18% of 45 held-out N hands fail it (failing median 18; allowed [91, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:327; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "18% of 45 held-out N hands fail it (failing median 18; allowed [91, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:310; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.156,
      "stage": "trait",
-     "hint": "16% of 45 held-out N hands fail it (failing median 26; allowed flex >= 62° (or curled: straightness <= 0.90)). Calibrated at js/handshape.js:319; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "16% of 45 held-out N hands fail it (failing median 26; allowed flex >= 60° (or curled: straightness <= 0.90)). Calibrated at js/handshape.js:302; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
      "rate": 0.156,
      "stage": "trait",
-     "hint": "16% of 45 held-out N hands fail it (failing median 24; allowed flex >= 62° (or curled: straightness <= 0.87)). Calibrated at js/handshape.js:319; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "16% of 45 held-out N hands fail it (failing median 24; allowed flex >= 60° (or curled: straightness <= 0.87)). Calibrated at js/handshape.js:302; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear high: thumb too far from the fingers (sticking out)",
      "rate": 0.133,
      "stage": "trait",
-     "hint": "13% of 45 held-out N hands fail it (failing median 0.83; allowed [-inf, 0.36] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:336; N's trait row js/handshape.js:172; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "13% of 45 held-out N hands fail it (failing median 0.83; allowed [-inf, 0.36] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:318; N's trait row js/handshape.js:156; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads M and the hand also fits M's traits (veto)",
      "rate": 0.089,
      "stage": "recogniser",
-     "hint": "the verdict rejects N because the recogniser says M (js/verdict.js:60); the N/M split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a N-vs-M head or a trait that separates them would fix it."
+     "hint": "the verdict rejects N because the recogniser says M (js/verdict.js:46); the N/M split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a N-vs-M head or a trait that separates them would fix it."
     }
    ]
   },
@@ -7275,7 +7366,7 @@
       "neg": null
      },
      "tiltDeg": {
-      "pitch": 60,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
@@ -7306,8 +7397,8 @@
        0.93,
        0.93,
        0.93,
-       0.9,
-       0.87
+       0.93,
+       0.93
       ],
       "halvesAt": null
      },
@@ -7326,7 +7417,7 @@
        0.93,
        0.93,
        0.9,
-       0.8
+       0.9
       ],
       "halvesAt": null
      },
@@ -7340,16 +7431,12 @@
       ],
       "rates": [
        0.93,
-       0.9,
        0.93,
-       0.73,
-       0.13
+       0.93,
+       0.93,
+       0.93
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.92,
-       "trait ringFlex high": 0.08
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -7364,7 +7451,7 @@
        0.93,
        0.93,
        0.93,
-       0.87
+       0.93
       ],
       "halvesAt": null
      },
@@ -7381,7 +7468,7 @@
        0.93,
        0.93,
        0.97,
-       0.87
+       0.9
       ],
       "halvesAt": null
      },
@@ -7395,7 +7482,7 @@
       "rates": [
        0.93,
        0.93,
-       0.9,
+       0.93,
        0.9
       ],
       "halvesAt": null
@@ -7506,89 +7593,119 @@
    },
    "acceptedAs": {
     "A": 0.029,
-    "D": 0.063,
+    "D": 0.125,
     "E": 0.028,
-    "I": 0.079,
-    "N": 0.022,
-    "P": 0.066,
-    "R": 0.009
+    "F": 0.016,
+    "H": 0.029,
+    "I": 0.132,
+    "N": 0.044,
+    "P": 0.077,
+    "R": 0.028,
+    "W": 0.029,
+    "space": 0.05
    },
    "acceptedAsRead": {
     "A": {
      "L": 1
     },
     "D": {
-     "D": 1
+     "D": 0.5,
+     "none": 0.5
     },
     "E": {
      "E": 1
     },
+    "F": {
+     "none": 1
+    },
+    "H": {
+     "none": 1
+    },
     "I": {
-     "O": 0.67,
-     "none": 0.33
+     "O": 0.4,
+     "none": 0.6
     },
     "N": {
      "none": 1
     },
     "P": {
-     "Q": 0.17,
-     "P": 0.67,
-     "C": 0.17
+     "Q": 0.29,
+     "P": 0.57,
+     "C": 0.14
     },
     "R": {
-     "D": 1
+     "none": 0.67,
+     "D": 0.33
+    },
+    "W": {
+     "none": 1
+    },
+    "space": {
+     "none": 1
     }
    },
    "spell": {
     "trials": 8,
-    "correct": 0.63,
+    "correct": 0.75,
     "wrong": 0,
     "doubled": 0,
-    "missed": 0.38,
+    "missed": 0.25,
     "missedReadable": 0,
-    "missedUnreadable": 0.38,
-    "readable": 0.63,
+    "missedUnreadable": 0.25,
+    "readable": 0.75,
     "wrongAs": {},
     "unreadableReadAs": {
-     "O": 3
+     "O": 2
     },
     "medianEnterMs": 631
    },
    "struggles": [
     {
      "mode": "Spell: missed — held-out hand not read as O at >= 80% votes (read as O)",
-     "rate": 0.38,
+     "rate": 0.25,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
+    },
+    {
+     "mode": "I hands count as O",
+     "rate": 0.132,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: rejected (null) 60%, O 40%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so O's traits alone decide and they hold (js/handshape.js:157)."
+    },
+    {
+     "mode": "D hands count as O",
+     "rate": 0.125,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: D 50%, rejected (null) 50%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so O's traits alone decide and they hold (js/handshape.js:157)."
     },
     {
      "mode": "ringFlex high: ring finger more bent than real signers",
      "rate": 0.065,
      "stage": "trait",
-     "hint": "7% of 31 held-out O hands fail it (failing median 109; allowed [39, 88] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; O's trait row js/handshape.js:173; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "7% of 31 held-out O hands fail it (failing median 109; allowed [39, 88] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; O's trait row js/handshape.js:157; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex high: pinky finger more bent than real signers",
      "rate": 0.065,
      "stage": "trait",
-     "hint": "7% of 31 held-out O hands fail it (failing median 107; allowed [30, 82] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; O's trait row js/handshape.js:173; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "7% of 31 held-out O hands fail it (failing median 107; allowed [30, 82] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; O's trait row js/handshape.js:157; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.065,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "thumbTip high: thumb tip not touching the index tip",
      "rate": 0.032,
      "stage": "trait",
-     "hint": "3% of 31 held-out O hands fail it (failing median 0.65; allowed [0.07, 0.32] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; O's trait row js/handshape.js:173; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 31 held-out O hands fail it (failing median 0.65; allowed [0.07, 0.32] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; O's trait row js/handshape.js:157; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
   "P": {
-   "own": 0.846,
+   "own": 0.857,
    "n": 91,
    "rejectedBy": {
     "traits": {
@@ -7609,7 +7726,6 @@
      }
     },
     "recogniser": {
-     "null": 0.011,
      "Q": 0.022
     },
     "nonLetter": 0.055
@@ -7628,7 +7744,7 @@
       "hi": 74.408,
       "slack": 18,
       "note": "[16, 74] (+-slack good, +-2 slack close)",
-      "passMedian": 32.533,
+      "passMedian": 34.212,
       "passP10": 18.029,
       "passP90": 57.396
      },
@@ -7639,7 +7755,7 @@
       "slack": 18,
       "note": "[69, 97] (+-slack good, +-2 slack close)",
       "passMedian": 86.511,
-      "passP10": 76.718,
+      "passP10": 74.432,
       "passP90": 93.094
      },
      "thumbNear": {
@@ -7657,7 +7773,7 @@
       "hi": 73.889,
       "note": "[45, 74] (+-slack good, +-2 slack close)",
       "passMedian": 57.981,
-      "passP10": 47.781,
+      "passP10": 47.482,
       "passP90": 65.877
      }
     },
@@ -7761,10 +7877,10 @@
       ],
       "rates": [
        0.83,
-       0.8,
-       0.8,
-       0.73,
-       0.63
+       0.83,
+       0.83,
+       0.83,
+       0.83
       ],
       "halvesAt": null
      },
@@ -7811,7 +7927,7 @@
        0.83,
        0.83,
        0.87,
-       0.83
+       0.87
       ],
       "halvesAt": null
      },
@@ -7825,16 +7941,16 @@
       ],
       "rates": [
        0.83,
-       0.73,
+       0.7,
+       0.33,
        0.27,
-       0.27,
-       0.17
+       0.63
       ],
       "halvesAt": 40,
       "whyAtHalf": {
-       "trait thumbNear high": 0.45,
-       "recogniser reads Q": 0.41,
-       "trait indexFlex high": 0.14
+       "trait thumbNear high": 0.5,
+       "recogniser reads Q": 0.35,
+       "trait indexFlex high": 0.15
       }
      },
      "distance": {
@@ -7893,7 +8009,7 @@
        0.83,
        0.87,
        0.87,
-       0.83
+       0.87
       ],
       "halvesAt": null
      }
@@ -7903,18 +8019,35 @@
     }
    },
    "acceptedAs": {
-    "A": 0.029,
+    "A": 0.059,
+    "B": 0.057,
     "D": 0.031,
+    "E": 0.056,
+    "I": 0.053,
+    "N": 0.067,
     "O": 0.032,
-    "Q": 0.022,
-    "R": 0.009,
-    "space": 0.1
+    "Q": 0.033,
+    "R": 0.028,
+    "space": 0.15
    },
    "acceptedAsRead": {
     "A": {
-     "L": 1
+     "none": 0.5,
+     "L": 0.5
+    },
+    "B": {
+     "none": 1
     },
     "D": {
+     "none": 1
+    },
+    "E": {
+     "none": 1
+    },
+    "I": {
+     "none": 1
+    },
+    "N": {
      "none": 1
     },
     "O": {
@@ -7924,7 +8057,8 @@
      "P": 1
     },
     "R": {
-     "D": 1
+     "D": 0.33,
+     "none": 0.67
     },
     "space": {
      "none": 1
@@ -7946,45 +8080,39 @@
    "struggles": [
     {
      "mode": "relaxed non-letter hands count as P",
-     "rate": 0.1,
+     "rate": 0.15,
      "stage": "false-accept",
-     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:53), so P's traits alone decide and they hold (js/handshape.js:178)."
+     "hint": "recogniser read them as: rejected (null) 100%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so P's traits alone decide and they hold (js/handshape.js:162)."
     },
     {
      "mode": "middleFlex low: middle finger straighter than real signers",
      "rate": 0.077,
      "stage": "trait",
-     "hint": "8% of 91 held-out P hands fail it (failing median 25; allowed [69, 97] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; P's trait row js/handshape.js:178; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "8% of 91 held-out P hands fail it (failing median 25; allowed [69, 97] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; P's trait row js/handshape.js:162; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear high: thumb too far from the fingers (sticking out)",
      "rate": 0.055,
      "stage": "trait",
-     "hint": "6% of 91 held-out P hands fail it (failing median 0.65; allowed [-inf, 0.34] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:336; P's trait row js/handshape.js:178; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 91 held-out P hands fail it (failing median 0.65; allowed [-inf, 0.34] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:318; P's trait row js/handshape.js:162; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.055,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "dir high: hand points too far sideways/down",
      "rate": 0.033,
      "stage": "trait",
-     "hint": "3% of 91 held-out P hands fail it (failing median 161; allowed [45, 74] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; P's trait row js/handshape.js:178; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 91 held-out P hands fail it (failing median 161; allowed [45, 74] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; P's trait row js/handshape.js:162; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads Q and the hand also fits Q's traits (veto)",
      "rate": 0.022,
      "stage": "recogniser",
-     "hint": "the verdict rejects P because the recogniser says Q (js/verdict.js:60); the P/Q split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a P-vs-Q head or a trait that separates them would fix it."
-    },
-    {
-     "mode": "recogniser reads null and the hand also fits null's traits (veto)",
-     "rate": 0.011,
-     "stage": "recogniser",
-     "hint": "the verdict rejects P because the recogniser says null (js/verdict.js:60); the P/null split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a P-vs-null head or a trait that separates them would fix it."
+     "hint": "the verdict rejects P because the recogniser says Q (js/verdict.js:46); the P/Q split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a P-vs-Q head or a trait that separates them would fix it."
     }
    ]
   },
@@ -8015,16 +8143,16 @@
      }
     },
     "recogniser": {
-     "P": 0.011,
-     "C": 0.033
+     "P": 0.022,
+     "C": 0.022
     },
-    "nonLetter": 0.087
+    "nonLetter": 0.098
    },
    "readAs": {
-    "Q": 0.772,
-    "P": 0.109,
-    "none": 0.087,
-    "C": 0.033
+    "Q": 0.75,
+    "P": 0.13,
+    "none": 0.098,
+    "C": 0.022
    },
    "registers": {
     "traits": {
@@ -8034,9 +8162,9 @@
       "hi": 65.163,
       "slack": 18,
       "note": "[38, 65] (+-slack good, +-2 slack close)",
-      "passMedian": 53.313,
+      "passMedian": 53.114,
       "passP10": 24.902,
-      "passP90": 63.922
+      "passP90": 60.797
      },
      "thumbOut": {
       "measure": "thumbOut",
@@ -8044,7 +8172,7 @@
       "hi": null,
       "note": "[0.96, inf] (+-slack good, +-2 slack close)",
       "passMedian": 1.2,
-      "passP10": 1.106,
+      "passP10": 1.101,
       "passP90": 1.297
      },
      "thumbNear": {
@@ -8052,8 +8180,8 @@
       "lo": 0.533,
       "hi": null,
       "note": "[0.53, inf] (+-slack good, +-2 slack close)",
-      "passMedian": 0.71,
-      "passP10": 0.579,
+      "passMedian": 0.717,
+      "passP10": 0.582,
       "passP90": 0.962
      },
      "dir": {
@@ -8062,7 +8190,7 @@
       "hi": 70.387,
       "note": "[42, 70] (+-slack good, +-2 slack close)",
       "passMedian": 70.659,
-      "passP10": 54.837,
+      "passP10": 57.01,
       "passP90": 79.042
      }
     },
@@ -8075,7 +8203,7 @@
      },
      "tiltDeg": {
       "pitch": null,
-      "yaw": 30
+      "yaw": null
      },
      "minSpan": null,
      "jitter": null,
@@ -8106,12 +8234,11 @@
        0.9,
        0.9,
        0.73,
-       0.33
+       0.37
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait dir low": 0.8,
-       "recogniser reads null": 0.05,
+       "trait dir low": 0.84,
        "trait indexFlex high": 0.05,
        "trait dir high": 0.05,
        "trait indexFlex low": 0.05
@@ -8154,7 +8281,7 @@
        0.83,
        0.77,
        0.73,
-       0.57
+       0.73
       ],
       "halvesAt": null
      },
@@ -8168,19 +8295,12 @@
       ],
       "rates": [
        0.87,
-       0.8,
-       0.23,
-       0.13,
-       0
+       0.83,
+       0.87,
+       0.9,
+       0.9
       ],
-      "halvesAt": 30,
-      "whyAtHalf": {
-       "recogniser reads null": 0.83,
-       "trait indexFlex high": 0.04,
-       "trait dir high": 0.04,
-       "trait indexFlex low": 0.04,
-       "recogniser reads C": 0.04
-      }
+      "halvesAt": null
      },
      "jitter": {
       "levels": [
@@ -8193,7 +8313,7 @@
       "rates": [
        0.87,
        0.87,
-       0.83,
+       0.8,
        0.77,
        0.7
       ],
@@ -8280,7 +8400,7 @@
        0.87,
        0.87,
        0.87,
-       0.87,
+       0.9,
        0.9
       ],
       "halvesAt": null
@@ -8314,20 +8434,38 @@
     }
    },
    "acceptedAs": {
-    "C": 0.037,
+    "C": 0.049,
+    "F": 0.008,
+    "N": 0.022,
     "P": 0.066,
-    "space": 0.2
+    "R": 0.009,
+    "T": 0.029,
+    "space": 0.6
    },
    "acceptedAsRead": {
     "C": {
-     "Q": 1
+     "none": 0.25,
+     "Q": 0.75
+    },
+    "F": {
+     "none": 1
+    },
+    "N": {
+     "none": 1
     },
     "P": {
      "Q": 0.83,
      "P": 0.17
     },
+    "R": {
+     "none": 1
+    },
+    "T": {
+     "none": 1
+    },
     "space": {
-     "C": 1
+     "none": 0.67,
+     "C": 0.33
     }
    },
    "spell": {
@@ -8351,15 +8489,15 @@
    "struggles": [
     {
      "mode": "relaxed non-letter hands count as Q",
-     "rate": 0.2,
+     "rate": 0.6,
      "stage": "false-accept",
-     "hint": "recogniser read them as: C 100%. Q's traits (js/handshape.js:179) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:60) doesn't fire."
+     "hint": "recogniser read them as: rejected (null) 67%, C 33%. the recogniser REJECTS most of them as non-letters (null), and judgeLetter treats null as benefit of the doubt (js/verdict.js:39), so Q's traits alone decide and they hold (js/handshape.js:163)."
     },
     {
      "mode": "Spell: missed — held-out hand not read as Q at >= 80% votes (read as C/none)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "Spell: wrong letter entered (C)",
@@ -8369,50 +8507,50 @@
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
-     "rate": 0.087,
+     "rate": 0.098,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "thumbOut low: thumb not out far enough",
      "rate": 0.065,
      "stage": "trait",
-     "hint": "7% of 92 held-out Q hands fail it (failing median 0.53; allowed [0.96, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; Q's trait row js/handshape.js:179; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "7% of 92 held-out Q hands fail it (failing median 0.53; allowed [0.96, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; Q's trait row js/handshape.js:163; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbNear low: thumb pressed in too close to the fingers",
      "rate": 0.065,
      "stage": "trait",
-     "hint": "7% of 92 held-out Q hands fail it (failing median 0.25; allowed [0.53, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:329; Q's trait row js/handshape.js:179; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "7% of 92 held-out Q hands fail it (failing median 0.25; allowed [0.53, inf] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:312; Q's trait row js/handshape.js:163; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "dir high: hand points too far sideways/down",
      "rate": 0.054,
      "stage": "trait",
-     "hint": "5% of 92 held-out Q hands fail it (failing median 109; allowed [42, 70] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; Q's trait row js/handshape.js:179; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "5% of 92 held-out Q hands fail it (failing median 109; allowed [42, 70] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; Q's trait row js/handshape.js:163; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "recogniser reads P and the hand also fits P's traits (veto)",
+     "rate": 0.022,
+     "stage": "recogniser",
+     "hint": "the verdict rejects Q because the recogniser says P (js/verdict.js:46); the Q/P split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a Q-vs-P head or a trait that separates them would fix it."
     },
     {
      "mode": "recogniser reads C and the hand also fits C's traits (veto)",
-     "rate": 0.033,
+     "rate": 0.022,
      "stage": "recogniser",
-     "hint": "the verdict rejects Q because the recogniser says C (js/verdict.js:60); the Q/C split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a Q-vs-C head or a trait that separates them would fix it."
+     "hint": "the verdict rejects Q because the recogniser says C (js/verdict.js:46); the Q/C split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a Q-vs-C head or a trait that separates them would fix it."
     },
     {
      "mode": "indexFlex low: index finger straighter than real signers",
      "rate": 0.011,
      "stage": "trait",
-     "hint": "1% of 92 held-out Q hands fail it (failing median 8.69; allowed [38, 65] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; Q's trait row js/handshape.js:179; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
-    },
-    {
-     "mode": "recogniser reads P and the hand also fits P's traits (veto)",
-     "rate": 0.011,
-     "stage": "recogniser",
-     "hint": "the verdict rejects Q because the recogniser says P (js/verdict.js:60); the Q/P split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a Q-vs-P head or a trait that separates them would fix it."
+     "hint": "1% of 92 held-out Q hands fail it (failing median 8.69; allowed [38, 65] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; Q's trait row js/handshape.js:163; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
   "R": {
-   "own": 0.722,
+   "own": 0.741,
    "n": 108,
    "rejectedBy": {
     "traits": {
@@ -8422,9 +8560,9 @@
       "failMedian": 39.135
      },
      "pinkyFlex": {
-      "rate": 0.056,
+      "rate": 0.065,
       "dir": "low",
-      "failMedian": 54.742
+      "failMedian": 52.593
      },
      "indexFlex": {
       "rate": 0.028,
@@ -8439,38 +8577,39 @@
     },
     "recogniser": {
      "U": 0.046,
-     "V": 0.037
+     "V": 0.019
     },
     "nonLetter": 0.037
    },
    "readAs": {
-    "R": 0.833,
+    "R": 0.824,
     "U": 0.046,
     "none": 0.037,
     "V": 0.037,
     "W": 0.028,
     "C": 0.009,
-    "D": 0.009
+    "D": 0.009,
+    "B": 0.009
    },
    "registers": {
     "traits": {
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 43.86,
-      "note": "forward fold <= 44° (and flex <= 47° + slack)",
-      "passMedian": 5.571,
+      "hi": 41.39,
+      "note": "forward fold <= 41° (and flex <= 47° + slack)",
+      "passMedian": 5.628,
       "passP10": 1.706,
-      "passP90": 8.8
+      "passP90": 9.12
      },
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 42.41,
-      "note": "forward fold <= 42° (and flex <= 47° + slack)",
-      "passMedian": 7.244,
+      "hi": 39.95,
+      "note": "forward fold <= 40° (and flex <= 47° + slack)",
+      "passMedian": 7.443,
       "passP10": 3.08,
-      "passP90": 11.496
+      "passP90": 11.59
      },
      "ringFlex": {
       "measure": "ringFlex",
@@ -8478,9 +8617,9 @@
       "hi": 180,
       "curledExt": 0.65,
       "note": "flex >= 78° (or curled: straightness <= 0.65)",
-      "passMedian": 111.479,
+      "passMedian": 111.753,
       "passP10": 93.601,
-      "passP90": 122.154
+      "passP90": 122.37
      },
      "pinkyFlex": {
       "measure": "pinkyFlex",
@@ -8488,8 +8627,8 @@
       "hi": 180,
       "curledExt": 0.65,
       "note": "flex >= 75° (or curled: straightness <= 0.65)",
-      "passMedian": 109.552,
-      "passP10": 97.509,
+      "passMedian": 109.284,
+      "passP10": 97.345,
       "passP90": 121.009
      },
      "spread": {
@@ -8497,27 +8636,27 @@
       "lo": 8.577,
       "hi": 18.906,
       "note": "[8.58, 19] (+-slack good, +-2 slack close)",
-      "passMedian": 10.495,
-      "passP10": 5.535,
+      "passMedian": 10.331,
+      "passP10": 5.528,
       "passP90": 14.232
      }
     },
     "envelope": {
-     "base": 0.77,
+     "base": 0.8,
      "n": 30,
      "rotationDeg": {
       "pos": null,
       "neg": 60
      },
      "tiltDeg": {
-      "pitch": 30,
+      "pitch": 15,
       "yaw": null
      },
      "minSpan": null,
      "jitter": null,
      "fanDeg": 10,
      "squeezeDeg": 30,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -8554,12 +8693,12 @@
        60
       ],
       "rates": [
-       0.77,
        0.8,
        0.83,
-       0.73,
+       0.83,
        0.77,
-       0.63
+       0.77,
+       0.7
       ],
       "halvesAt": null
      },
@@ -8573,19 +8712,18 @@
        -60
       ],
       "rates": [
-       0.77,
+       0.8,
+       0.83,
        0.83,
        0.8,
-       0.77,
        0.47,
-       0
+       0.03
       ],
       "halvesAt": -60,
       "whyAtHalf": {
-       "recogniser reads H": 0.8,
-       "trait ringFlex low": 0.13,
-       "trait indexFlex high": 0.03,
-       "recogniser reads null": 0.03
+       "recogniser reads H": 0.83,
+       "trait ringFlex low": 0.14,
+       "trait indexFlex high": 0.03
       }
      },
      "pitch": {
@@ -8597,18 +8735,18 @@
        60
       ],
       "rates": [
+       0.8,
+       0.27,
        0.77,
-       0.73,
-       0.37,
-       0.77,
-       0.53
+       0.83,
+       0.83
       ],
-      "halvesAt": 30,
+      "halvesAt": 15,
       "whyAtHalf": {
-       "recogniser reads U": 0.68,
-       "trait ringFlex low": 0.21,
-       "trait indexFlex high": 0.05,
-       "recogniser reads null": 0.05
+       "recogniser reads H": 0.64,
+       "trait ringFlex low": 0.18,
+       "recogniser reads U": 0.14,
+       "trait indexFlex high": 0.05
       }
      },
      "yaw": {
@@ -8620,7 +8758,7 @@
        60
       ],
       "rates": [
-       0.77,
+       0.8,
        0.73,
        0.83,
        0.8,
@@ -8637,8 +8775,8 @@
        0.06
       ],
       "rates": [
-       0.77,
        0.8,
+       0.77,
        0.73,
        0.63,
        0.53
@@ -8653,17 +8791,16 @@
        30
       ],
       "rates": [
-       0.77,
-       0.17,
+       0.8,
+       0.2,
        0.03,
-       0.07
+       0.03
       ],
       "halvesAt": 10,
       "whyAtHalf": {
-       "recogniser reads U": 0.76,
-       "trait ringFlex low": 0.16,
-       "trait indexFlex high": 0.04,
-       "recogniser reads V": 0.04
+       "recogniser reads U": 0.79,
+       "trait ringFlex low": 0.17,
+       "trait indexFlex high": 0.04
       }
      },
      "squeeze": {
@@ -8674,17 +8811,16 @@
        -30
       ],
       "rates": [
-       0.77,
        0.8,
-       0.53,
-       0
+       0.83,
+       0.57,
+       0.03
       ],
       "halvesAt": -30,
       "whyAtHalf": {
-       "trait spread high": 0.8,
-       "trait ringFlex low": 0.13,
-       "trait indexFlex high": 0.03,
-       "recogniser reads V": 0.03
+       "trait spread high": 0.83,
+       "trait ringFlex low": 0.14,
+       "trait indexFlex high": 0.03
       }
      },
      "curl": {
@@ -8696,15 +8832,18 @@
        90
       ],
       "rates": [
-       0.77,
-       0.73,
        0.8,
-       0.67,
+       0.73,
+       0.77,
+       0.3,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait indexFlex high": 0.57,
+       "trait middleFlex high": 0.33,
+       "recogniser reads U": 0.05,
+       "trait ringFlex low": 0.05
       }
      },
      "distance": {
@@ -8718,13 +8857,13 @@
        0.025
       ],
       "rates": [
-       0.77,
+       0.8,
+       0.83,
        0.8,
        0.77,
        0.77,
        0.73,
-       0.73,
-       0.77
+       0.73
       ],
       "halvesAt": null,
       "note": "hand span in frame units (0.12 = arm's length)"
@@ -8739,7 +8878,7 @@
        90
       ],
       "rates": [
-       0.77,
+       0.8,
        0.8,
        0,
        0,
@@ -8748,8 +8887,8 @@
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait indexFlex high": 0.93,
-       "trait spread high": 0.07
+       "trait indexFlex high": 0.97,
+       "trait spread high": 0.03
       },
       "wrong": "folded"
      },
@@ -8763,7 +8902,7 @@
        90
       ],
       "rates": [
-       0.77,
+       0.8,
        0.77,
        0,
        0,
@@ -8787,8 +8926,8 @@
        90
       ],
       "rates": [
-       0.77,
        0.8,
+       0.83,
        0.73,
        0.07,
        0.03,
@@ -8811,7 +8950,7 @@
        90
       ],
       "rates": [
-       0.77,
+       0.8,
        0.83,
        0.33,
        0.07,
@@ -8835,11 +8974,11 @@
        60
       ],
       "rates": [
+       0.8,
        0.77,
-       0.73,
-       0.6,
-       0.43,
-       0.5
+       0.63,
+       0.5,
+       0.77
       ],
       "halvesAt": null
      },
@@ -8852,10 +8991,10 @@
        40
       ],
       "rates": [
+       0.8,
        0.77,
-       0.73,
-       0.77,
-       0.77,
+       0.8,
+       0.8,
        0.8
       ],
       "halvesAt": null
@@ -8870,13 +9009,19 @@
     }
    },
    "acceptedAs": {
+    "D": 0.063,
     "E": 0.083,
     "G": 0.029,
     "H": 0.029,
     "K": 0.026,
-    "U": 0.056
+    "P": 0.022,
+    "U": 0.028
    },
    "acceptedAsRead": {
+    "D": {
+     "D": 0.5,
+     "none": 0.5
+    },
     "E": {
      "E": 1
     },
@@ -8888,6 +9033,9 @@
     },
     "K": {
      "M": 1
+    },
+    "P": {
+     "none": 1
     },
     "U": {
      "R": 1
@@ -8910,52 +9058,58 @@
    },
    "struggles": [
     {
+     "mode": "tilted toward/away (pitch) 15° (pass 80% -> 27%)",
+     "rate": 0.53,
+     "stage": "envelope: recogniser reads H",
+     "hint": "rejected at that level by: recogniser reads H 64%, trait ringFlex low 18%. Look at the recogniser (kNN js/knn.js:157; train augmentation is in-plane only, js/config.js:83) then the veto js/verdict.js:46."
+    },
+    {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.176,
      "stage": "trait",
-     "hint": "18% of 108 held-out R hands fail it (failing median 39; allowed flex >= 78° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; R's trait row js/handshape.js:180; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "18% of 108 held-out R hands fail it (failing median 39; allowed flex >= 78° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; R's trait row js/handshape.js:164; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "Spell: missed — held-out hand not read as R at >= 80% votes (read as W)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
-     "rate": 0.056,
+     "rate": 0.065,
      "stage": "trait",
-     "hint": "6% of 108 held-out R hands fail it (failing median 55; allowed flex >= 75° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:319; R's trait row js/handshape.js:180; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "7% of 108 held-out R hands fail it (failing median 53; allowed flex >= 75° (or curled: straightness <= 0.65)). Calibrated at js/handshape.js:302; R's trait row js/handshape.js:164; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads U and the hand also fits U's traits (veto)",
      "rate": 0.046,
      "stage": "recogniser",
-     "hint": "the verdict rejects R because the recogniser says U (js/verdict.js:60); the R/U split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a R-vs-U head or a trait that separates them would fix it."
-    },
-    {
-     "mode": "recogniser reads V and the hand also fits V's traits (veto)",
-     "rate": 0.037,
-     "stage": "recogniser",
-     "hint": "the verdict rejects R because the recogniser says V (js/verdict.js:60); the R/V split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a R-vs-V head or a trait that separates them would fix it."
+     "hint": "the verdict rejects R because the recogniser says U (js/verdict.js:46); the R/U split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a R-vs-U head or a trait that separates them would fix it."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.037,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "indexFlex high: index finger not raised (tipped forward)",
      "rate": 0.028,
      "stage": "trait",
-     "hint": "3% of 108 held-out R hands fail it (failing median 68; allowed forward fold <= 44° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; R's trait row js/handshape.js:180; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 108 held-out R hands fail it (failing median 68; allowed forward fold <= 41° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; R's trait row js/handshape.js:164; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "middleFlex high: middle finger not raised (tipped forward)",
      "rate": 0.019,
      "stage": "trait",
-     "hint": "2% of 108 held-out R hands fail it (failing median 91; allowed forward fold <= 42° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; R's trait row js/handshape.js:180; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "2% of 108 held-out R hands fail it (failing median 91; allowed forward fold <= 40° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; R's trait row js/handshape.js:164; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "recogniser reads V and the hand also fits V's traits (veto)",
+     "rate": 0.019,
+     "stage": "recogniser",
+     "hint": "the verdict rejects R because the recogniser says V (js/verdict.js:46); the R/V split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a R-vs-V head or a trait that separates them would fix it."
     }
    ]
   },
@@ -9104,8 +9258,8 @@
        0.87,
        0.9,
        0.87,
-       0.87,
-       0.8
+       0.9,
+       0.93
       ],
       "halvesAt": null
      },
@@ -9121,10 +9275,10 @@
       "rates": [
        0.93,
        0.9,
-       0.9,
+       0.87,
        0.93,
        0.8,
-       0.7
+       0.9
       ],
       "halvesAt": null
      },
@@ -9138,8 +9292,8 @@
       ],
       "rates": [
        0.93,
-       0.87,
        0.9,
+       0.93,
        0.93,
        0.93
       ],
@@ -9229,13 +9383,13 @@
        0.87,
        0.83,
        0.83,
-       0.17
+       0.23
       ],
       "halvesAt": 90,
       "whyAtHalf": {
-       "trait pinkyFlex low": 0.68,
-       "trait ringFlex low": 0.2,
-       "trait indexFlex low": 0.08,
+       "trait pinkyFlex low": 0.7,
+       "trait ringFlex low": 0.17,
+       "trait indexFlex low": 0.09,
        "trait thumbAlong low": 0.04
       }
      },
@@ -9255,7 +9409,7 @@
        0.93,
        0.97,
        0.9,
-       0.87,
+       0.83,
        0.87
       ],
       "halvesAt": null,
@@ -9272,16 +9426,17 @@
       ],
       "rates": [
        0.93,
-       0.93,
-       0.33,
-       0.07,
+       0.9,
+       0.3,
+       0.03,
        0.07,
        0.03
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait indexFlex low": 0.65,
-       "recogniser reads X": 0.3,
+       "trait indexFlex low": 0.62,
+       "recogniser reads X": 0.29,
+       "recogniser reads A": 0.05,
        "trait thumbAlong low": 0.05
       },
       "wrong": "raised"
@@ -9298,14 +9453,15 @@
       "rates": [
        0.93,
        0.93,
-       0.77,
-       0.1,
+       0.73,
        0.07,
-       0.07
+       0.03,
+       0.03
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "trait middleFlex low": 0.96,
+       "trait middleFlex low": 0.93,
+       "recogniser reads A": 0.04,
        "trait thumbAlong low": 0.04
       },
       "wrong": "raised"
@@ -9346,16 +9502,17 @@
       ],
       "rates": [
        0.93,
-       0.93,
        0.9,
-       0.83,
-       0.27,
+       0.87,
+       0.77,
+       0.23,
        0.03
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "trait pinkyFlex low": 0.95,
-       "trait thumbAlong low": 0.05
+       "trait pinkyFlex low": 0.91,
+       "recogniser reads M": 0.04,
+       "trait thumbAlong low": 0.04
       },
       "wrong": "raised"
      },
@@ -9392,7 +9549,7 @@
       "rates": [
        0.93,
        0.87,
-       0.57,
+       0.6,
        0.13,
        0
       ],
@@ -9406,9 +9563,9 @@
     },
     "wrongShapeStillCounts": {
      "index raised 60°": 0.07,
-     "middle raised 60°": 0.07,
+     "middle raised 60°": 0.03,
      "ring raised 60°": 0.03,
-     "pinky raised 60°": 0.27,
+     "pinky raised 60°": 0.23,
      "thumb out 45°": 0.07
     }
    },
@@ -9445,20 +9602,20 @@
     "unreadableReadAs": {
      "none": 1
     },
-    "medianEnterMs": 594
+    "medianEnterMs": 596
    },
    "struggles": [
     {
      "mode": "Spell: missed — held-out hand not read as S at >= 80% votes (read as none)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "thumbAlong low: thumb too far to the index side",
      "rate": 0.054,
      "stage": "trait",
-     "hint": "5% of 37 held-out S hands fail it (failing median 0.00; allowed [0.29, 0.74] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; S's trait row js/handshape.js:181; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "5% of 37 held-out S hands fail it (failing median 0.00; allowed [0.29, 0.74] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; S's trait row js/handshape.js:165; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
@@ -9578,7 +9735,7 @@
      "n": 30,
      "rotationDeg": {
       "pos": null,
-      "neg": 60
+      "neg": null
      },
      "tiltDeg": {
       "pitch": null,
@@ -9588,7 +9745,7 @@
      "jitter": 0.04,
      "fanDeg": 20,
      "squeezeDeg": 20,
-     "curlDeg": 90,
+     "curlDeg": null,
      "fingerBendDeg": {
       "middle": {
        "wrong": "raised",
@@ -9624,9 +9781,9 @@
        0.87,
        0.87,
        0.87,
-       0.83,
-       0.9,
-       0.63
+       0.87,
+       0.97,
+       0.97
       ],
       "halvesAt": null
      },
@@ -9645,16 +9802,9 @@
        0.87,
        0.87,
        0.73,
-       0.33
+       0.47
       ],
-      "halvesAt": -60,
-      "whyAtHalf": {
-       "recogniser reads G": 0.35,
-       "recogniser reads A": 0.35,
-       "recogniser reads null": 0.2,
-       "recogniser reads X": 0.05,
-       "trait middleFlex low": 0.05
-      }
+      "halvesAt": null
      },
      "pitch": {
       "levels": [
@@ -9667,7 +9817,7 @@
       "rates": [
        0.87,
        0.9,
-       0.9,
+       0.97,
        0.97,
        0.97
       ],
@@ -9684,9 +9834,9 @@
       "rates": [
        0.87,
        0.9,
-       0.93,
-       0.93,
-       0.6
+       0.97,
+       0.97,
+       0.97
       ],
       "halvesAt": null
      },
@@ -9765,16 +9915,9 @@
        0.87,
        0.9,
        0.9,
-       0.37
+       0.53
       ],
-      "halvesAt": 90,
-      "whyAtHalf": {
-       "trait ringFlex low": 0.74,
-       "trait pinkyFlex low": 0.11,
-       "trait indexFlex high": 0.05,
-       "trait middleFlex low": 0.05,
-       "trait indexFlex low": 0.05
-      }
+      "halvesAt": null
      },
      "distance": {
       "levels": [
@@ -9947,7 +10090,7 @@
      "mode": "Spell: missed — held-out hand not read as T at >= 80% votes (read as A/none)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "Spell: wrong letter entered (A)",
@@ -9959,42 +10102,42 @@
      "mode": "recogniser reads A and the hand also fits A's traits (veto)",
      "rate": 0.088,
      "stage": "recogniser",
-     "hint": "the verdict rejects T because the recogniser says A (js/verdict.js:60); the T/A split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a T-vs-A head or a trait that separates them would fix it."
+     "hint": "the verdict rejects T because the recogniser says A (js/verdict.js:46); the T/A split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a T-vs-A head or a trait that separates them would fix it."
     },
     {
      "mode": "middleFlex low: middle finger not folded enough",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out T hands fail it (failing median 47; allowed flex >= 87° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:319; T's trait row js/handshape.js:182; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out T hands fail it (failing median 47; allowed flex >= 87° (or curled: straightness <= 0.63)). Calibrated at js/handshape.js:302; T's trait row js/handshape.js:166; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out T hands fail it (failing median 44; allowed flex >= 93° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:319; T's trait row js/handshape.js:182; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out T hands fail it (failing median 44; allowed flex >= 93° (or curled: straightness <= 0.62)). Calibrated at js/handshape.js:302; T's trait row js/handshape.js:166; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "pinkyFlex low: pinky finger not folded enough",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out T hands fail it (failing median 39; allowed flex >= 88° (or curled: straightness <= 0.60)). Calibrated at js/handshape.js:319; T's trait row js/handshape.js:182; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out T hands fail it (failing median 39; allowed flex >= 88° (or curled: straightness <= 0.60)). Calibrated at js/handshape.js:302; T's trait row js/handshape.js:166; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbOut high: thumb too far out from the index knuckle",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out T hands fail it (failing median 1.43; allowed [-inf, 0.84] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:332; T's trait row js/handshape.js:182; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out T hands fail it (failing median 1.43; allowed [-inf, 0.84] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:315; T's trait row js/handshape.js:166; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "thumbAlong high: thumb too far across toward the pinky",
      "rate": 0.029,
      "stage": "trait",
-     "hint": "3% of 34 held-out T hands fail it (failing median 1.17; allowed [-0.83, -0.45] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:330 / js/handshape.js:338; T's trait row js/handshape.js:182; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 34 held-out T hands fail it (failing median 1.17; allowed [-0.83, -0.45] (+-slack good, +-2 slack close)). Calibrated at js/handshape.js:313 / js/handshape.js:320; T's trait row js/handshape.js:166; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     }
    ]
   },
   "U": {
-   "own": 0.889,
+   "own": 0.917,
    "n": 36,
    "rejectedBy": {
     "traits": {
@@ -10005,14 +10148,14 @@
      }
     },
     "recogniser": {
-     "R": 0.056,
+     "R": 0.028,
      "H": 0.028
     },
     "nonLetter": 0
    },
    "readAs": {
-    "U": 0.889,
-    "R": 0.083,
+    "U": 0.917,
+    "R": 0.056,
     "H": 0.028
    },
    "registers": {
@@ -10020,17 +10163,17 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 40.96,
-      "note": "forward fold <= 41° (and flex <= 47° + slack)",
-      "passMedian": 4.554,
+      "hi": 38.49,
+      "note": "forward fold <= 38° (and flex <= 47° + slack)",
+      "passMedian": 4.544,
       "passP10": 1.703,
       "passP90": 6.783
      },
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 41.23,
-      "note": "forward fold <= 41° (and flex <= 47° + slack)",
+      "hi": 38.76,
+      "note": "forward fold <= 39° (and flex <= 47° + slack)",
       "passMedian": 4.285,
       "passP10": 1.239,
       "passP90": 8.62
@@ -10041,7 +10184,7 @@
       "hi": 180,
       "curledExt": 0.68,
       "note": "flex >= 80° (or curled: straightness <= 0.68)",
-      "passMedian": 117.086,
+      "passMedian": 116.8,
       "passP10": 103.409,
       "passP90": 124.311
      },
@@ -10051,8 +10194,8 @@
       "hi": 180,
       "curledExt": 0.68,
       "note": "flex >= 78° (or curled: straightness <= 0.68)",
-      "passMedian": 118.617,
-      "passP10": 113.744,
+      "passMedian": 117.766,
+      "passP10": 113.577,
       "passP90": 128.5
      },
      "spread": {
@@ -10062,7 +10205,7 @@
       "note": "[0.69, 3.88] (+-slack good, +-2 slack close)",
       "passMedian": 2.144,
       "passP10": 0.89,
-      "passP90": 4.615
+      "passP90": 4.986
      },
      "dir": {
       "measure": "dir",
@@ -10082,14 +10225,14 @@
       "neg": 45
      },
      "tiltDeg": {
-      "pitch": 45,
+      "pitch": 15,
       "yaw": 60
      },
      "minSpan": null,
      "jitter": 0.06,
      "fanDeg": 10,
      "squeezeDeg": 20,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -10175,15 +10318,18 @@
       ],
       "rates": [
        0.9,
-       0.9,
-       0.83,
-       0,
-       0
+       0.27,
+       0.93,
+       0.97,
+       0.93
       ],
-      "halvesAt": 45,
+      "halvesAt": 15,
       "whyAtHalf": {
-       "recogniser reads null": 0.97,
-       "trait ringFlex low": 0.03
+       "recogniser reads R": 0.45,
+       "recogniser reads H": 0.41,
+       "trait ringFlex low": 0.05,
+       "recogniser reads K": 0.05,
+       "recogniser reads V": 0.05
       }
      },
      "yaw": {
@@ -10199,13 +10345,12 @@
        0.9,
        0.9,
        0.5,
-       0.03
+       0.07
       ],
       "halvesAt": 60,
       "whyAtHalf": {
-       "recogniser reads R": 0.93,
-       "trait ringFlex low": 0.03,
-       "recogniser reads null": 0.03
+       "recogniser reads R": 0.96,
+       "trait ringFlex low": 0.04
       }
      },
      "jitter": {
@@ -10218,17 +10363,18 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.87,
+       0.9,
+       0.9,
        0.5,
        0.2
       ],
       "halvesAt": 0.06,
       "whyAtHalf": {
-       "trait spread high": 0.71,
+       "trait spread high": 0.67,
        "recogniser reads H": 0.1,
        "recogniser reads V": 0.05,
        "recogniser reads R": 0.05,
+       "trait indexFlex high": 0.05,
        "trait pinkyFlex low": 0.05,
        "recogniser reads K": 0.05
       }
@@ -10242,14 +10388,15 @@
       ],
       "rates": [
        0.9,
-       0.2,
+       0.17,
        0,
        0
       ],
       "halvesAt": 10,
       "whyAtHalf": {
-       "recogniser reads V": 0.92,
+       "recogniser reads V": 0.88,
        "trait ringFlex low": 0.04,
+       "recogniser reads R": 0.04,
        "trait spread high": 0.04
       }
      },
@@ -10262,7 +10409,7 @@
       ],
       "rates": [
        0.9,
-       0.47,
+       0.5,
        0,
        0
       ],
@@ -10283,13 +10430,18 @@
       "rates": [
        0.9,
        0.9,
-       0.87,
-       0.47,
+       0.73,
+       0.33,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait indexFlex high": 0.4,
+       "recogniser reads V": 0.35,
+       "trait middleFlex high": 0.1,
+       "trait ringFlex low": 0.05,
+       "recogniser reads R": 0.05,
+       "recogniser reads H": 0.05
       }
      },
      "distance": {
@@ -10306,8 +10458,8 @@
        0.9,
        0.9,
        0.9,
+       0.9,
        0.87,
-       0.83,
        0.9,
        0.83
       ],
@@ -10373,8 +10525,8 @@
       ],
       "rates": [
        0.9,
-       0.87,
-       0.87,
+       0.83,
+       0.8,
        0.17,
        0,
        0
@@ -10422,14 +10574,13 @@
        0.9,
        0.87,
        0.67,
-       0,
-       0.2
+       0.03,
+       0.37
       ],
       "halvesAt": 45,
       "whyAtHalf": {
-       "recogniser reads V": 0.9,
+       "recogniser reads V": 0.93,
        "trait ringFlex low": 0.03,
-       "recogniser reads null": 0.03,
        "recogniser reads H": 0.03
       }
      },
@@ -10445,8 +10596,8 @@
        0.9,
        0.87,
        0.73,
-       0.63,
-       0.57
+       0.6,
+       0.53
       ],
       "halvesAt": null
      }
@@ -10460,58 +10611,80 @@
     }
    },
    "acceptedAs": {
-    "E": 0.083,
-    "R": 0.046
+    "D": 0.031,
+    "E": 0.056,
+    "K": 0.026,
+    "R": 0.056
    },
    "acceptedAsRead": {
+    "D": {
+     "none": 1
+    },
     "E": {
      "E": 1
     },
+    "K": {
+     "M": 1
+    },
     "R": {
-     "U": 1
+     "U": 0.83,
+     "V": 0.17
     }
    },
    "spell": {
     "trials": 8,
     "correct": 0.75,
-    "wrong": 0.25,
+    "wrong": 0.13,
     "doubled": 0,
-    "missed": 0,
+    "missed": 0.13,
     "missedReadable": 0,
-    "missedUnreadable": 0,
+    "missedUnreadable": 0.13,
     "readable": 0.75,
     "wrongAs": {
-     "R": 2
+     "R": 1
     },
     "unreadableReadAs": {
-     "R": 2
+     "R": 1,
+     "U": 1
     },
-    "medianEnterMs": 709
+    "medianEnterMs": 706
    },
    "struggles": [
     {
-     "mode": "Spell: wrong letter entered (R)",
-     "rate": 0.25,
-     "stage": "spell: wrong letter",
-     "hint": "a look-alike or transition shape held long enough to fill the ring (js/spellgate.js:69, js/spellgate.js:71)."
+     "mode": "tilted toward/away (pitch) 15° (pass 90% -> 27%)",
+     "rate": 0.63,
+     "stage": "envelope: recogniser reads R",
+     "hint": "rejected at that level by: recogniser reads R 45%, recogniser reads H 41%. Look at the recogniser (kNN js/knn.js:157; train augmentation is in-plane only, js/config.js:83) then the veto js/verdict.js:46."
     },
     {
-     "mode": "recogniser reads R and the hand also fits R's traits (veto)",
-     "rate": 0.056,
-     "stage": "recogniser",
-     "hint": "the verdict rejects U because the recogniser says R (js/verdict.js:60); the U/R split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a U-vs-R head or a trait that separates them would fix it."
+     "mode": "Spell: missed — held-out hand not read as U at >= 80% votes (read as R/U)",
+     "rate": 0.13,
+     "stage": "spell: recogniser",
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
+    },
+    {
+     "mode": "Spell: wrong letter entered (R)",
+     "rate": 0.13,
+     "stage": "spell: wrong letter",
+     "hint": "a look-alike or transition shape held long enough to fill the ring (js/spellgate.js:69, js/spellgate.js:71)."
     },
     {
      "mode": "ringFlex low: ring finger not folded enough",
      "rate": 0.028,
      "stage": "trait",
-     "hint": "3% of 36 held-out U hands fail it (failing median 18; allowed flex >= 80° (or curled: straightness <= 0.68)). Calibrated at js/handshape.js:319; U's trait row js/handshape.js:183; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "3% of 36 held-out U hands fail it (failing median 18; allowed flex >= 80° (or curled: straightness <= 0.68)). Calibrated at js/handshape.js:302; U's trait row js/handshape.js:167; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
+    },
+    {
+     "mode": "recogniser reads R and the hand also fits R's traits (veto)",
+     "rate": 0.028,
+     "stage": "recogniser",
+     "hint": "the verdict rejects U because the recogniser says R (js/verdict.js:46); the U/R split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a U-vs-R head or a trait that separates them would fix it."
     },
     {
      "mode": "recogniser reads H and the hand also fits H's traits (veto)",
      "rate": 0.028,
      "stage": "recogniser",
-     "hint": "the verdict rejects U because the recogniser says H (js/verdict.js:60); the U/H split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a U-vs-H head or a trait that separates them would fix it."
+     "hint": "the verdict rejects U because the recogniser says H (js/verdict.js:46); the U/H split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a U-vs-H head or a trait that separates them would fix it."
     }
    ]
   },
@@ -10534,8 +10707,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 41.87,
-      "note": "forward fold <= 42° (and flex <= 47° + slack)",
+      "hi": 39.4,
+      "note": "forward fold <= 39° (and flex <= 47° + slack)",
       "passMedian": 7.767,
       "passP10": 4.41,
       "passP90": 11.644
@@ -10543,8 +10716,8 @@
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 39.7,
-      "note": "forward fold <= 40° (and flex <= 47° + slack)",
+      "hi": 37.23,
+      "note": "forward fold <= 37° (and flex <= 47° + slack)",
       "passMedian": 3.241,
       "passP10": 0.761,
       "passP90": 6.748
@@ -10587,14 +10760,14 @@
       "neg": 60
      },
      "tiltDeg": {
-      "pitch": 60,
-      "yaw": 60
+      "pitch": null,
+      "yaw": null
      },
      "minSpan": null,
      "jitter": null,
      "fanDeg": 30,
      "squeezeDeg": 20,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -10636,7 +10809,7 @@
        0.97,
        0.93,
        0.97,
-       0.8
+       1
       ],
       "halvesAt": null
      },
@@ -10672,15 +10845,12 @@
       ],
       "rates": [
        0.93,
-       0.93,
-       0.9,
+       0.77,
        1,
-       0
+       1,
+       1
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 1
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -10694,16 +10864,10 @@
        0.93,
        0.97,
        0.9,
-       0.67,
-       0.33
+       0.7,
+       0.63
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.45,
-       "recogniser reads R": 0.4,
-       "recogniser reads U": 0.1,
-       "recogniser reads K": 0.05
-      }
+      "halvesAt": null
      },
      "jitter": {
       "levels": [
@@ -10715,7 +10879,7 @@
       ],
       "rates": [
        0.93,
-       0.9,
+       0.87,
        0.9,
        0.87,
        0.83
@@ -10737,7 +10901,8 @@
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait spread high": 1
+       "trait spread high": 0.97,
+       "trait indexFlex high": 0.03
       }
      },
      "squeeze": {
@@ -10749,7 +10914,7 @@
       ],
       "rates": [
        0.93,
-       0.77,
+       0.73,
        0,
        0
       ],
@@ -10769,14 +10934,15 @@
       ],
       "rates": [
        0.93,
+       0.93,
        0.97,
-       0.97,
-       0.47,
+       0.37,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait indexFlex high": 0.95,
+       "recogniser reads K": 0.05
       }
      },
      "distance": {
@@ -10791,12 +10957,12 @@
       ],
       "rates": [
        0.93,
-       0.93,
+       0.9,
+       0.9,
        0.9,
        0.93,
        0.93,
-       0.93,
-       0.87
+       0.83
       ],
       "halvesAt": null,
       "note": "hand span in frame units (0.12 = arm's length)"
@@ -10835,7 +11001,7 @@
       ],
       "rates": [
        0.93,
-       0.93,
+       0.9,
        0,
        0,
        0,
@@ -10881,7 +11047,7 @@
       ],
       "rates": [
        0.93,
-       0.93,
+       0.9,
        0.23,
        0.03,
        0.03,
@@ -10923,7 +11089,7 @@
        0.8,
        0.53,
        0.5,
-       0.57
+       0.53
       ],
       "halvesAt": null
      }
@@ -10937,13 +11103,19 @@
     }
    },
    "acceptedAs": {
-    "E": 0.083,
+    "D": 0.063,
+    "E": 0.056,
     "G": 0.029,
     "K": 0.026,
-    "R": 0.037,
+    "P": 0.022,
+    "R": 0.019,
     "W": 0.059
    },
    "acceptedAsRead": {
+    "D": {
+     "D": 0.5,
+     "none": 0.5
+    },
     "E": {
      "E": 1
     },
@@ -10952,6 +11124,9 @@
     },
     "K": {
      "M": 1
+    },
+    "P": {
+     "none": 1
     },
     "R": {
      "V": 1
@@ -10981,13 +11156,13 @@
      "mode": "Spell: missed — held-out hand not read as V at >= 80% votes (read as V/K)",
      "rate": 0.25,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "recogniser reads K and the hand also fits K's traits (veto)",
      "rate": 0.057,
      "stage": "recogniser",
-     "hint": "the verdict rejects V because the recogniser says K (js/verdict.js:60); the V/K split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a V-vs-K head or a trait that separates them would fix it."
+     "hint": "the verdict rejects V because the recogniser says K (js/verdict.js:46); the V/K split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a V-vs-K head or a trait that separates them would fix it."
     }
    ]
   },
@@ -11002,7 +11177,7 @@
       "failMedian": 100.395
      },
      "middleFlex": {
-      "rate": 0.088,
+      "rate": 0.118,
       "dir": "high",
       "failMedian": 105.187
      },
@@ -11026,8 +11201,8 @@
      "indexFlex": {
       "measure": "indexFold",
       "lo": 0,
-      "hi": 38.67,
-      "note": "forward fold <= 39° (and flex <= 47° + slack)",
+      "hi": 36.2,
+      "note": "forward fold <= 36° (and flex <= 47° + slack)",
       "passMedian": 1.073,
       "passP10": 0.232,
       "passP90": 3.109
@@ -11035,8 +11210,8 @@
      "middleFlex": {
       "measure": "middleFold",
       "lo": 0,
-      "hi": 38.7,
-      "note": "forward fold <= 39° (and flex <= 47° + slack)",
+      "hi": 36.23,
+      "note": "forward fold <= 36° (and flex <= 47° + slack)",
       "passMedian": 2.784,
       "passP10": 0.909,
       "passP90": 4.431
@@ -11044,8 +11219,8 @@
      "ringFlex": {
       "measure": "ringFold",
       "lo": 0,
-      "hi": 42.98,
-      "note": "forward fold <= 43° (and flex <= 47° + slack)",
+      "hi": 40.51,
+      "note": "forward fold <= 41° (and flex <= 47° + slack)",
       "passMedian": 9.415,
       "passP10": 5.693,
       "passP90": 12.034
@@ -11065,18 +11240,18 @@
      "base": 0.8,
      "n": 30,
      "rotationDeg": {
-      "pos": 60,
+      "pos": null,
       "neg": null
      },
      "tiltDeg": {
-      "pitch": 60,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
      "jitter": null,
      "fanDeg": null,
      "squeezeDeg": null,
-     "curlDeg": 90,
+     "curlDeg": 60,
      "fingerBendDeg": {
       "index": {
        "wrong": "folded",
@@ -11117,16 +11292,10 @@
        0.8,
        0.8,
        0.8,
-       0.77,
-       0.23
+       0.8,
+       0.8
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.74,
-       "trait ringFlex high": 0.13,
-       "trait indexFlex high": 0.09,
-       "trait middleFlex high": 0.04
-      }
+      "halvesAt": null
      },
      "rotation-": {
       "levels": [
@@ -11143,7 +11312,7 @@
        0.8,
        0.8,
        0.8,
-       0.7
+       0.8
       ],
       "halvesAt": null
      },
@@ -11159,16 +11328,10 @@
        0.8,
        0.8,
        0.8,
-       0.77,
-       0
+       0.8,
+       0.8
       ],
-      "halvesAt": 60,
-      "whyAtHalf": {
-       "recogniser reads null": 0.8,
-       "trait ringFlex high": 0.1,
-       "trait indexFlex high": 0.07,
-       "trait middleFlex high": 0.03
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -11200,7 +11363,7 @@
        0.8,
        0.8,
        0.8,
-       0.83
+       0.77
       ],
       "halvesAt": null
      },
@@ -11246,12 +11409,14 @@
        0.8,
        0.8,
        0.8,
-       0.4,
+       0.2,
        0
       ],
-      "halvesAt": 90,
+      "halvesAt": 60,
       "whyAtHalf": {
-       "trait indexFlex high": 1
+       "trait ringFlex high": 0.75,
+       "trait indexFlex high": 0.21,
+       "trait middleFlex high": 0.04
       }
      },
      "distance": {
@@ -11342,9 +11507,9 @@
       ],
       "halvesAt": 30,
       "whyAtHalf": {
-       "trait ringFlex high": 0.9,
+       "trait ringFlex high": 0.87,
        "trait indexFlex high": 0.07,
-       "trait middleFlex high": 0.03
+       "trait middleFlex high": 0.07
       },
       "wrong": "folded"
      },
@@ -11368,9 +11533,9 @@
       "halvesAt": 45,
       "whyAtHalf": {
        "trait pinkyFlex low": 0.79,
-       "trait ringFlex high": 0.1,
        "trait indexFlex high": 0.07,
-       "trait middleFlex high": 0.03
+       "trait ringFlex high": 0.07,
+       "trait middleFlex high": 0.07
       },
       "wrong": "raised"
      },
@@ -11419,7 +11584,7 @@
    "acceptedAs": {
     "A": 0.029,
     "E": 0.028,
-    "R": 0.111,
+    "R": 0.102,
     "U": 0.028
    },
    "acceptedAsRead": {
@@ -11430,8 +11595,11 @@
      "E": 1
     },
     "R": {
-     "R": 0.75,
-     "W": 0.25
+     "none": 0.09,
+     "R": 0.45,
+     "W": 0.27,
+     "B": 0.09,
+     "V": 0.09
     },
     "U": {
      "R": 1
@@ -11460,13 +11628,13 @@
      "mode": "Spell: missed — held-out hand not read as W at >= 80% votes (read as V/none)",
      "rate": 0.25,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
     },
     {
      "mode": "ringFlex high: ring finger not raised (tipped forward)",
      "rate": 0.176,
      "stage": "trait",
-     "hint": "18% of 34 held-out W hands fail it (failing median 110; allowed forward fold <= 43° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; W's trait row js/handshape.js:185; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "18% of 34 held-out W hands fail it (failing median 110; allowed forward fold <= 41° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; W's trait row js/handshape.js:169; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "Spell: wrong letter entered (V)",
@@ -11475,34 +11643,34 @@
      "hint": "a look-alike or transition shape held long enough to fill the ring (js/spellgate.js:69, js/spellgate.js:71)."
     },
     {
-     "mode": "R hands count as W",
-     "rate": 0.111,
-     "stage": "false-accept",
-     "hint": "recogniser read them as: R 75%, W 25%. W's traits (js/handshape.js:185) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:60) doesn't fire."
+     "mode": "middleFlex high: middle finger not raised (tipped forward)",
+     "rate": 0.118,
+     "stage": "trait",
+     "hint": "12% of 34 held-out W hands fail it (failing median 105; allowed forward fold <= 36° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; W's trait row js/handshape.js:169; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
-     "mode": "middleFlex high: middle finger not raised (tipped forward)",
-     "rate": 0.088,
-     "stage": "trait",
-     "hint": "9% of 34 held-out W hands fail it (failing median 105; allowed forward fold <= 39° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; W's trait row js/handshape.js:185; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "mode": "R hands count as W",
+     "rate": 0.102,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: R 45%, W 27%, rejected (null) 9%, B 9%, V 9%. W's traits (js/handshape.js:169) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:46) doesn't fire."
     },
     {
      "mode": "recogniser rejects the hand as not-a-letter",
      "rate": 0.088,
      "stage": "non-letter rejection",
-     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:130). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
+     "hint": "nearest training hand farther than REJECT_DIST (js/config.js:118). Practice gives it the benefit of the doubt, but Spell's ring gets no letter at all."
     },
     {
      "mode": "indexFlex high: index finger not raised (tipped forward)",
      "rate": 0.059,
      "stage": "trait",
-     "hint": "6% of 34 held-out W hands fail it (failing median 100; allowed forward fold <= 39° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; W's trait row js/handshape.js:185; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "6% of 34 held-out W hands fail it (failing median 100; allowed forward fold <= 36° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; W's trait row js/handshape.js:169; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads V (verdict still passes; Spell would enter V)",
      "rate": 0.059,
      "stage": "recogniser (Spell)",
-     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:270 / heads js/heads.js:103)."
+     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:157 / heads js/heads.js:103)."
     }
    ]
   },
@@ -11571,7 +11739,7 @@
       "neg": 60
      },
      "tiltDeg": {
-      "pitch": 45,
+      "pitch": null,
       "yaw": null
      },
      "minSpan": null,
@@ -11635,12 +11803,11 @@
        0.97,
        0.93,
        0.77,
-       0.03
+       0.3
       ],
       "halvesAt": -60,
       "whyAtHalf": {
-       "recogniser reads G": 0.72,
-       "recogniser reads null": 0.28
+       "recogniser reads G": 1
       }
      },
      "pitch": {
@@ -11653,15 +11820,12 @@
       ],
       "rates": [
        0.97,
-       0.97,
        0.83,
-       0.27,
-       0
+       0.73,
+       1,
+       1
       ],
-      "halvesAt": 45,
-      "whyAtHalf": {
-       "recogniser reads null": 1
-      }
+      "halvesAt": null
      },
      "yaw": {
       "levels": [
@@ -11676,7 +11840,7 @@
        1,
        1,
        1,
-       0.93
+       1
       ],
       "halvesAt": null
      },
@@ -11723,7 +11887,7 @@
        0.97,
        0.97,
        0.97,
-       0.8
+       0.83
       ],
       "halvesAt": null
      },
@@ -11739,13 +11903,12 @@
        0.97,
        1,
        1,
-       0.93,
-       0.03
+       1,
+       0.43
       ],
       "halvesAt": 90,
       "whyAtHalf": {
-       "trait indexFlex high": 0.66,
-       "recogniser reads null": 0.34
+       "trait indexFlex high": 1
       }
      },
      "distance": {
@@ -11881,28 +12044,41 @@
     }
    },
    "acceptedAs": {
-    "E": 0.083,
+    "B": 0.029,
+    "C": 0.012,
+    "E": 0.111,
     "L": 0.032,
+    "N": 0.022,
     "P": 0.011,
-    "Q": 0.065,
-    "R": 0.009
+    "Q": 0.076,
+    "R": 0.019
    },
    "acceptedAsRead": {
+    "B": {
+     "none": 1
+    },
+    "C": {
+     "none": 1
+    },
     "E": {
-     "E": 0.67,
-     "none": 0.33
+     "E": 0.75,
+     "none": 0.25
     },
     "L": {
-     "I": 1
+     "L": 1
+    },
+    "N": {
+     "none": 1
     },
     "P": {
-     "Q": 1
+     "none": 1
     },
     "Q": {
      "P": 1
     },
     "R": {
-     "D": 1
+     "D": 0.5,
+     "none": 0.5
     }
    },
    "spell": {
@@ -11925,13 +12101,19 @@
      "mode": "Spell: missed — held-out hand not read as X at >= 80% votes (read as G)",
      "rate": 0.13,
      "stage": "spell: recogniser",
-     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:130); fix is on the recogniser side."
+     "hint": "the ring only charges on vote share >= minConf (js/spellgate.js:71) with a non-rejected label (js/config.js:118); fix is on the recogniser side."
+    },
+    {
+     "mode": "E hands count as X",
+     "rate": 0.111,
+     "stage": "false-accept",
+     "hint": "recogniser read them as: E 75%, rejected (null) 25%. X's traits (js/handshape.js:170) also hold and the recogniser's reading isn't a letter whose traits fit, so the veto (js/verdict.js:46) doesn't fire."
     },
     {
      "mode": "recogniser reads G and the hand also fits G's traits (veto)",
      "rate": 0.031,
      "stage": "recogniser",
-     "hint": "the verdict rejects X because the recogniser says G (js/verdict.js:60); the X/G split is kNN (js/knn.js:270, k at js/config.js:98) + heads (js/heads.js:103) — a X-vs-G head or a trait that separates them would fix it."
+     "hint": "the verdict rejects X because the recogniser says G (js/verdict.js:46); the X/G split is kNN (js/knn.js:157, k at js/config.js:86) + heads (js/heads.js:103) — a X-vs-G head or a trait that separates them would fix it."
     }
    ]
   },
@@ -11950,8 +12132,8 @@
     "nonLetter": 0
    },
    "readAs": {
-    "Y": 0.892,
-    "A": 0.108
+    "Y": 0.838,
+    "A": 0.162
    },
    "registers": {
     "traits": {
@@ -11988,8 +12170,8 @@
      "pinkyFlex": {
       "measure": "pinkyFold",
       "lo": 0,
-      "hi": 48.34,
-      "note": "forward fold <= 48° (and flex <= 47° + slack)",
+      "hi": 45.87,
+      "note": "forward fold <= 46° (and flex <= 47° + slack)",
       "passMedian": 7.516,
       "passP10": 4.232,
       "passP90": 15.915
@@ -12089,7 +12271,7 @@
        0.8,
        0.8,
        0.8,
-       0.77
+       0.8
       ],
       "halvesAt": null
      },
@@ -12106,7 +12288,7 @@
        0.8,
        0.8,
        0.8,
-       0.43
+       0.8
       ],
       "halvesAt": null
      },
@@ -12154,7 +12336,7 @@
       "rates": [
        0.8,
        0.8,
-       0.7,
+       0.67,
        0.17
       ],
       "halvesAt": 30,
@@ -12189,14 +12371,13 @@
       "rates": [
        0.8,
        0.8,
-       0.8,
        0.77,
-       0.13
+       0.77,
+       0.1
       ],
       "halvesAt": 90,
       "whyAtHalf": {
-       "trait pinkyFlex high": 0.96,
-       "recogniser reads null": 0.04
+       "trait pinkyFlex high": 1
       }
      },
      "distance": {
@@ -12303,8 +12484,8 @@
       ],
       "rates": [
        0.8,
-       0.77,
-       0.07,
+       0.73,
+       0.03,
        0.03,
        0.03,
        0.03
@@ -12363,8 +12544,14 @@
      "thumb in 30°": 0
     }
    },
-   "acceptedAs": {},
-   "acceptedAsRead": {},
+   "acceptedAs": {
+    "Q": 0.011
+   },
+   "acceptedAsRead": {
+    "Q": {
+     "none": 1
+    }
+   },
    "spell": {
     "trials": 8,
     "correct": 1,
@@ -12383,13 +12570,13 @@
      "mode": "pinkyFlex high: pinky finger not raised (tipped forward)",
      "rate": 0.189,
      "stage": "trait",
-     "hint": "19% of 37 held-out Y hands fail it (failing median 127; allowed forward fold <= 48° (and flex <= 47° + slack)). Calibrated at js/handshape.js:292; Y's trait row js/handshape.js:187; slack js/handshape.js:194; 2-close rule js/handshape.js:382."
+     "hint": "19% of 37 held-out Y hands fail it (failing median 127; allowed forward fold <= 46° (and flex <= 47° + slack)). Calibrated at js/handshape.js:275; Y's trait row js/handshape.js:171; slack js/handshape.js:178; 2-close rule js/handshape.js:364."
     },
     {
      "mode": "recogniser reads A (verdict still passes; Spell would enter A)",
-     "rate": 0.108,
+     "rate": 0.162,
      "stage": "recogniser (Spell)",
-     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:270 / heads js/heads.js:103)."
+     "hint": "top-1 misread with no trait veto: harmless in Practice, a wrong letter in Spell (kNN js/knn.js:157 / heads js/heads.js:103)."
     }
    ]
   },
