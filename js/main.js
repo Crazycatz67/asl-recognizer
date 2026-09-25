@@ -237,8 +237,9 @@ let glowTimer = 0;
 // level 0..3; ttlMs > 0 fades it back out on its own (Practice runs lapse)
 function setGlow(level, ttlMs = 0) {
   comboGlow.dataset.level = String(level | 0);
+  bg.setStreak((level | 0) / 3); // aurora amber = "on a roll" (never "close")
   clearTimeout(glowTimer);
-  if (level && ttlMs > 0) glowTimer = setTimeout(() => { comboGlow.dataset.level = "0"; }, ttlMs);
+  if (level && ttlMs > 0) glowTimer = setTimeout(() => { comboGlow.dataset.level = "0"; bg.setStreak(0); }, ttlMs);
 }
 // Practice "in a row" run: another rep within RUN_WINDOW_MS extends it
 const RUN_WINDOW_MS = 30000;
@@ -1838,6 +1839,7 @@ function renderChallenge(snap, near) {
     }
     fx.flash(snap.mult >= 3 ? "#fde047" : "#22c55e");
     setGlow(glowLevel(snap.mult)); // the combo's visual twin, on the frame
+    bg.pulse(0.35 + 0.15 * snap.mult);
     sound.hit(snap.mult);
     buzz([0, 30, 25, 55]);
   } else if (snap.event === "miss") {
@@ -2035,6 +2037,7 @@ function reward(originLandmark) {
   fx.burst(x, y, { count: plan.particles, stars: plan.stars, ...(colors ? { colors } : {}) });
   fx.ring(x, y, { color: plan.color, rings: plan.rings }); // "locked in" on the hand
   fx.flash(plan.color);
+  bg.pulse(tier === "mastery" ? 1 : tier === "first" ? 0.75 : 0.45);
   sound.success({ step: practiceRun - 1, tier });
   setGlow(glowLevel(practiceRun - 1), RUN_WINDOW_MS); // runs of 3+ light the frame
   if (plan.moment && targetLetter) {
@@ -2391,7 +2394,9 @@ function loop() {
       for (let i = 0; i < 21; i++) sum += Math.hypot(hand[i].x - fxPrevHand[i].x, hand[i].y - fxPrevHand[i].y);
       speed = sum / 21 / ((now - fxPrevAt) / 1000);
     }
-    bg.setHand({ present: !!hand, speed });
+    // span: wrist -> middle knuckle, in frame heights (framing distance)
+    const span = hand ? Math.hypot(hand[9].x - hand[0].x, (hand[9].y - hand[0].y)) : 0;
+    bg.setHand({ present: !!hand, speed, span });
     fxPrevHand = hand ? hand.map((p) => ({ x: p.x, y: p.y })) : null;
     fxPrevAt = now;
   }

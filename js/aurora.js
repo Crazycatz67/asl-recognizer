@@ -10,16 +10,20 @@
 // WHAT IT REACTS TO (and what it deliberately doesn't):
 //   - idle (no target/hand): a cool blue breath (--calm #38bdf8).
 //   - setHand({present, span, speed}): a hand in frame wakes the field a little
-//     warmer toward --amber-wash; fast motion adds a faint shimmer that settles
-//     to glassy when the hand is still (rewards the stillness the classifier
-//     needs).
-//   - setMatch(score, bucket, regions): warmth follows the match; a correct
-//     shape adds a soft green floor. A WRONG REGION shows as LOST ENERGY
-//     (dimmer, slower, desaturated lobe) — never as orange/magenta, which are
-//     the correction guide's colours near the hand.
+//     warmer; fast motion adds a faint shimmer that settles to glassy when the
+//     hand is still (rewards the stillness the classifier needs).
+//   - setMatch(score, bucket, regions): the match drives ENERGY/SATURATION of
+//     the cool hue only — never warmth, never a verdict hue. "Warmer = closer"
+//     would repeat the guide's "orange = close" in the periphery, and the
+//     camera frame already owns the verdict (so there's no green floor). A
+//     WRONG REGION shows as LOST ENERGY (dimmer, desaturated lobe).
+//   - AMBER WARMTH = hand presence + streak (setStreak) + a short reward pulse
+//     (pulse()) — amber means "you're on a roll", not "you're close". Its
+//     premultiplied contribution is clamped in the shader to WARM_CEIL (0.15).
 //   - setIntensity(0..1): Challenge ramp cool -> electric violet -> gold (B4).
-//   Warm contribution is capped at the --amber-wash ceiling (alpha <= 0.15) and
-//   a dark calm zone is kept behind #viewport, so nothing competes with the
+//   - setSplit(x|null): Race tug-of-war — left half P1 blue, right half P2,
+//     the seam leans toward the trailing player (B4).
+//   A dark calm zone is kept behind #viewport, so nothing competes with the
 //   hand or lights the user's skin (webcam auto-exposure).
 //
 // BUDGET (js/fxquality.js governor): full = animated, 1/4 resolution, <= 20
@@ -33,11 +37,28 @@
 //   const bg = createAurora({ governor, viewport, debug });
 //   bg.setMatch(score, bucket, regions)   // same contract as bg.js
 //   bg.setHand({ present, span, speed })  // per detection frame (optional)
+//   bg.setStreak(x)                       // 0..1 run / combo level -> warmth
+//   bg.pulse(x)                           // 0..1 reward flare, decays ~1.2 s
 //   bg.setIntensity(x)                    // 0..1 (optional)
+//   bg.setSplit(lean | null)              // Race: -1..1 seam lean, null = off
+//   auroraWarmth({present, streak, pulse}) -> 0..1   (pure, exported)
+//   WARM_CEIL                             // max premultiplied amber alpha
 //   bg.kind                               // "aurora" | "canvas2d"
 //   bg.stop()
 
 import { createBackground } from "./bg.js";
+
+/** Max premultiplied amber the aurora may add anywhere (brief: <= 0.15). */
+export const WARM_CEIL = 0.15;
+
+/**
+ * Amber warmth of the aurora, 0..1. Deliberately has NO match-score input:
+ * warmth says "hand here / on a streak / just landed one", never "close".
+ */
+export function auroraWarmth({ present = false, streak = 0, pulse = 0 } = {}) {
+  const c = (x) => Math.max(0, Math.min(1, Number(x) || 0));
+  return c((present ? 0.22 : 0) + 0.5 * c(streak) + 0.45 * c(pulse));
+}
 
 const VERT = `#version 300 es
 void main() {
@@ -53,8 +74,10 @@ uniform float uTime;
 uniform vec3 uCool;      // idle / calm hue
 uniform vec3 uWarm;      // amber stop
 uniform vec3 uHot;       // intensity ramp colour (electric -> gold)
-uniform float uWarmth;   // 0..1 hand presence + match
-uniform float uGreen;    // 0..1 correct-shape floor glow
+uniform float uWarmth;   // 0..1 presence + streak + reward pulse (NOT the score)
+uniform vec4 uSplit;     // Race: (on, seam x, unused, unused)
+uniform vec3 uP1;        // Race: player 1 hue
+uniform vec3 uP2;        // Race: player 2 hue
 uniform vec3 uRegion;    // top, left, right error 0..1 (higher = more wrong)
 uniform float uEnergy;   // 0..1 overall
 uniform float uIntensity;// 0..1 Challenge
@@ -98,28 +121,41 @@ void main() {
   float lR = lobe(uv - w.yx, vec2(0.94, 0.55), 0.32) * eR;
   float lFloor = lobe(uv + w, vec2(0.5, 1.02), 0.42);
 
-  // colour: cool base, warmed toward amber (ceiling via uWarmth), Challenge ramp
-  vec3 base = mix(uCool, uWarm, clamp(uWarmth, 0.0, 1.0) * 0.55);
-  base = mix(base, uHot, uIntensity * 0.8);
+  // colour: cool base (Challenge ramp mixes in); amber is a separate,
+  // clamped layer added at the end — never mixed by the match score
+  vec3 base = mix(uCool, uHot, uIntensity * 0.8);
+  if (uSplit.x > 0.5) {
+    // Race tug-of-war: soft seam between the two players' hues
+    float side = smoothstep(uSplit.y - 0.08, uSplit.y + 0.08, uv.x);
+    base = mix(uP1, uP2, side);
+  }
   float sat = 0.55 + 0.45 * uEnergy;
   vec3 grey = vec3(dot(base, vec3(0.299, 0.587, 0.114)));
   vec3 cTop = mix(grey, base, sat * eTop);
   vec3 cL = mix(grey, base, sat * eL);
   vec3 cR = mix(grey, base, sat * eR);
-  vec3 cFloor = mix(base, vec3(0.133, 0.773, 0.369), uGreen * 0.7); // #22c55e
-
-  vec3 col = cTop * lTop + cL * lL + cR * lR + cFloor * lFloor * (0.7 + 0.5 * uGreen);
+  vec3 col = cTop * lTop + cL * lL + cR * lR + base * lFloor * 0.7;
   float m = smoothstep(0.25, 0.85, field);
-  col *= (0.35 + 0.9 * m) * (0.45 + 0.55 * uEnergy);
+  float gain = (0.35 + 0.9 * m) * (0.45 + 0.55 * uEnergy);
+  col *= gain;
+  float E = (lTop + lL + lR + lFloor * 0.7) * gain; // scalar field strength
 
   // calm dark zone behind the camera frame (soft-edged)
   vec2 hc = (uHole.xy + uHole.zw) * 0.5, hs = (uHole.zw - uHole.xy) * 0.5 + 0.04;
   vec2 hd = max(abs(uv - hc) - hs, 0.0);
   float hole = smoothstep(0.0, 0.14, length(hd * vec2(asp, 1.0)));
-  col *= mix(0.25, 1.0, hole);
+  float calm = mix(0.25, 1.0, hole);
+  col *= calm;
+  E *= calm;
 
-  float a = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0) * uAlpha;
-  outColor = vec4(col * uAlpha, a);        // premultiplied
+  // amber layer: its share of the field, premultiplied alpha clamped to the
+  // ceiling however the lobes stack up
+  float ws = clamp(uWarmth, 0.0, 1.0) * 0.8;   // amber share
+  vec3 cool = col * uAlpha * (1.0 - ws);
+  float warmA = min(E * ws * uAlpha, ${WARM_CEIL.toFixed(3)});
+  vec3 prem = cool + uWarm * warmA;
+  float a = clamp(max(cool.r, max(cool.g, cool.b)) + warmA, 0.0, 1.0);
+  outColor = vec4(prem, a);                 // premultiplied
 }`;
 
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
@@ -127,6 +163,8 @@ const COOL = hex("#38bdf8"); // --calm
 const AMBER = hex("#fbbf24"); // --amber-400 (capped to --amber-wash by uWarmth/uAlpha)
 const ELECTRIC = hex("#a78bfa"); // --fx-electric
 const GOLD = hex("#ffc861"); // --fx-gold
+const P1 = hex("#38bdf8"); // Race player 1 (sky)
+const P2 = hex("#fb923c"); // Race player 2 — shown only as a far-periphery half-field
 const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 export function createAurora({ governor = null, viewport = null, debug = false } = {}) {
@@ -146,7 +184,7 @@ export function createAurora({ governor = null, viewport = null, debug = false }
   document.body.prepend(cv);
 
   const U = {};
-  for (const n of ["uRes", "uTime", "uCool", "uWarm", "uHot", "uWarmth", "uGreen", "uRegion", "uEnergy", "uIntensity", "uShimmer", "uHole", "uAlpha"])
+  for (const n of ["uRes", "uTime", "uCool", "uWarm", "uHot", "uWarmth", "uSplit", "uP1", "uP2", "uRegion", "uEnergy", "uIntensity", "uShimmer", "uHole", "uAlpha"])
     U[n] = gl.getUniformLocation(prog, n);
   gl.useProgram(prog);
   gl.bindVertexArray(gl.createVertexArray());
@@ -163,10 +201,13 @@ export function createAurora({ governor = null, viewport = null, debug = false }
   window.addEventListener("resize", resize);
 
   // eased state (cur) chases targets (want)
-  const want = { warmth: 0, green: 0, energy: 0.45, top: 0, left: 0, right: 0, intensity: 0, shimmer: 0 };
+  const want = { warmth: 0, energy: 0.45, top: 0, left: 0, right: 0, intensity: 0, shimmer: 0, seam: 0.5 };
   const cur = { ...want };
   let idle = true;
-  let hand = { present: false, speed: 0 };
+  let hand = { present: false, speed: 0, span: 0 };
+  let streak = 0;
+  let pulseV = 0; // decays in ease()
+  let split = false;
   let hole = [0.3, 0.2, 0.7, 0.8];
   let holeAt = 0;
   let dirty = true;
@@ -196,18 +237,18 @@ export function createAurora({ governor = null, viewport = null, debug = false }
 
   function targets(t) {
     if (idle) {
-      // cool breath; a present hand wakes it a little warmer
-      want.warmth = hand.present ? 0.28 : 0;
+      // cool breath; a present hand wakes it a little
       want.energy = 0.42 + (level === "full" ? 0.1 * Math.sin(t * 0.55) : 0) + (hand.present ? 0.12 : 0);
-      want.green = 0;
       want.top = want.left = want.right = 0;
     }
+    want.warmth = auroraWarmth({ present: hand.present, streak, pulse: pulseV });
     want.shimmer = hand.present ? Math.min(1, hand.speed / 1.5) : 0;
   }
 
   function ease(dt) {
     const k = 1 - Math.pow(0.02, dt); // ~ 0.25 s time constant
-    let moved = 0;
+    if (pulseV > 0) { pulseV = Math.max(0, pulseV - dt / 1.2); }
+    let moved = pulseV > 0 ? 1 : 0;
     for (const key in want) {
       const d = want[key] - cur[key];
       cur[key] += d * k;
@@ -235,13 +276,15 @@ export function createAurora({ governor = null, viewport = null, debug = false }
     gl.uniform3fv(U.uWarm, AMBER);
     gl.uniform3fv(U.uHot, ramp);
     gl.uniform1f(U.uWarmth, cur.warmth);
-    gl.uniform1f(U.uGreen, cur.green);
+    gl.uniform4f(U.uSplit, split ? 1 : 0, cur.seam, 0, 0);
+    gl.uniform3fv(U.uP1, P1);
+    gl.uniform3fv(U.uP2, P2);
     gl.uniform3f(U.uRegion, cur.top, cur.left, cur.right);
     gl.uniform1f(U.uEnergy, Math.max(0, Math.min(1, cur.energy)));
     gl.uniform1f(U.uIntensity, cur.intensity);
     gl.uniform1f(U.uShimmer, level === "full" ? cur.shimmer : 0);
     gl.uniform4fv(U.uHole, hole);
-    gl.uniform1f(U.uAlpha, 0.34);
+    gl.uniform1f(U.uAlpha, 0.3);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     if (q) { gl.endQuery(tq.TIME_ELAPSED_EXT); pendingQ = q; }
     governor?.cost("aurora", performance.now() - c0);
@@ -278,7 +321,7 @@ export function createAurora({ governor = null, viewport = null, debug = false }
     cancelAnimationFrame(raf);
     raf = 0;
     cv.remove();
-    fb = createBackground(); // keep an ambient background either way
+    fb = createBackground({ governor }); // keep an ambient background either way
   });
 
   schedule();
@@ -306,18 +349,36 @@ export function createAurora({ governor = null, viewport = null, debug = false }
       if (score == null || bucket == null) { idle = true; return; }
       idle = false;
       const s = Math.max(0, Math.min(1, score));
-      want.warmth = 0.3 + 0.5 * s; // capped to --amber-wash by the shader mix + uAlpha
-      want.green = bucket === "correct" ? 1 : 0;
-      want.energy = bucket === "off" ? 0.5 : bucket === "close" ? 0.7 : 0.9;
+      // score -> energy/saturation of the cool hue only (no warmth, no green)
+      want.energy = bucket === "correct" ? 0.95 : 0.45 + 0.4 * s;
       want.top = regions?.top ?? 0;
       want.left = regions?.left ?? 0;
       want.right = regions?.right ?? 0;
     },
     setHand(h) {
-      hand = { present: !!h?.present, speed: Number(h?.speed) || 0 };
+      hand = { present: !!h?.present, speed: Number(h?.speed) || 0, span: Number(h?.span) || 0 };
+    },
+    setStreak(x) {
+      if (fb) return;
+      const v = Math.max(0, Math.min(1, Number(x) || 0));
+      if (v !== streak) { streak = v; dirty = true; }
+    },
+    pulse(x = 1) {
+      if (fb) return;
+      pulseV = Math.max(pulseV, Math.max(0, Math.min(1, Number(x) || 0)));
+      dirty = true;
     },
     setIntensity(x) {
       want.intensity = Math.max(0, Math.min(1, Number(x) || 0));
+    },
+    // Race: lean -1 (P2 far behind) .. +1 (P1 far behind); the seam (P1 on
+    // the left) moves up to 12% toward the TRAILING player. null = off.
+    setSplit(lean) {
+      if (fb) return;
+      const on = lean != null && Number.isFinite(Number(lean));
+      if (on !== split) dirty = true;
+      split = on;
+      want.seam = on ? 0.5 - 0.12 * Math.max(-1, Math.min(1, Number(lean))) : 0.5;
     },
     stop() {
       cancelAnimationFrame(raf);
@@ -333,8 +394,8 @@ export function createAurora({ governor = null, viewport = null, debug = false }
   return api;
 
   function fallback() {
-    const b = createBackground();
-    return { kind: "canvas2d", setMatch: b.setMatch, setHand() {}, setIntensity() {}, stop: b.stop };
+    const b = createBackground({ governor });
+    return { kind: "canvas2d", setMatch: b.setMatch, setHand() {}, setStreak() {}, pulse() {}, setIntensity() {}, setSplit() {}, stop: b.stop };
   }
 }
 

@@ -1656,6 +1656,22 @@ function mkHand() {
       fl.dispose(); c.remove();
       return ok2;
     })());
+    ok("aurora: the WebGL2 shader compiles + links (kind 'aurora' whenever WebGL2 exists), amber alpha <= WARM_CEIL", (() => {
+      const has = !!document.createElement("canvas").getContext("webgl2");
+      const au = auroraMod.createAurora({ debug: true });
+      const kind = au.kind;
+      let amberOk = true;
+      if (kind === "aurora") {
+        au.renderAt(12.3, { warmth: 1, energy: 1, intensity: 0 });
+        const cv = document.querySelector("canvas.fx-aurora"), gl = cv.getContext("webgl2");
+        const px = new Uint8Array(cv.width * cv.height * 4);
+        gl.readPixels(0, 0, cv.width, cv.height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        // premultiplied: R - B approximates the amber layer's contribution
+        for (let i = 0; i < px.length; i += 4) if ((px[i] - px[i + 2]) / 255 > auroraMod.WARM_CEIL + 0.02) { amberOk = false; break; }
+      }
+      au.stop();
+      return (has ? kind === "aurora" : kind === "canvas2d") && amberOk;
+    })());
     ok("fxmath: coverMap centres + crops like object-fit: cover (4:3 video on 16:9 and portrait)", (() => {
       const a = fxm.coverMap(0.5, 0.5, 640, 480, 1600, 900); // centre stays centre
       const b = fxm.coverMap(0, 0, 640, 480, 1600, 900);     // wide screen: top is cropped

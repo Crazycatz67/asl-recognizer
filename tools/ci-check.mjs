@@ -1042,6 +1042,24 @@ await check("fxmath.js: coverMap matches object-fit: cover (centre fixed, overfl
   return "centre fixed; wide crops top/bottom evenly; portrait crops sides; no-size falls back";
 });
 
+// ---- 20. aurora.js: amber means "on a roll", never "close" ----------------
+await check("aurora.js: warmth ignores the match score, amber clamped to <= 0.15, no green verdict floor", async () => {
+  const a = await import(pathToFileURL(path.join(ROOT, "js", "aurora.js")));
+  if (!(a.WARM_CEIL > 0 && a.WARM_CEIL <= 0.15)) throw new Error(`WARM_CEIL ${a.WARM_CEIL} above the brief's 0.15`);
+  const w = a.auroraWarmth;
+  if (w({}) !== 0) throw new Error("idle should have no warmth");
+  if (!(w({ present: true }) > 0 && w({ present: true }) < 0.3)) throw new Error("presence should warm only slightly");
+  if (!(w({ present: true, streak: 1 }) > w({ present: true, streak: 0.33 }))) throw new Error("warmth should rise with the streak");
+  if (w({ present: true, streak: 1, pulse: 1 }) > 1 || w({ present: true, streak: 9, pulse: 9 }) !== 1) throw new Error("warmth must clamp to 0..1");
+  if (w.length > 1 || /score/.test(w.toString())) throw new Error("auroraWarmth must not take a match score");
+  const src = fs.readFileSync(path.join(ROOT, "js", "aurora.js"), "utf8");
+  if (!/min\(E \* ws \* uAlpha, \$\{WARM_CEIL/.test(src)) throw new Error("shader no longer clamps the amber layer to WARM_CEIL");
+  if (/uGreen/.test(src)) throw new Error("the green verdict floor is back — the camera frame owns the verdict");
+  const sm = src.slice(src.indexOf("setMatch(score, bucket, regions) {"), src.indexOf("setHand(h)"));
+  if (/warmth/.test(sm.replace(/\/\/.*$/gm, ""))) throw new Error("setMatch() must not drive warmth");
+  return `WARM_CEIL ${a.WARM_CEIL}; presence ${w({ present: true }).toFixed(2)}, full streak ${w({ present: true, streak: 1 }).toFixed(2)}; score-free`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

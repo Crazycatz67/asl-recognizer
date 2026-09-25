@@ -16,7 +16,10 @@
 //   mode calls setMatch(null) to return it to idle.
 //
 // PUBLIC API:
-//   const bg = createBackground();   // prepends a fixed canvas behind the page
+//   const bg = createBackground({ governor }?);   // prepends a fixed canvas
+//     governor (js/fxquality.js, optional): "off" freezes the field after one
+//     frame (reduced motion / manual Effects Off / hidden tab), "lite" caps it
+//     at ~5 fps. Used as aurora.js's fallback (no WebGL2 / lost context).
 //   bg.setMatch(score, bucket, regions);
 //     score   : 0..1 overall shape match
 //     bucket  : "off" | "close" | "correct" | null   (null/absent score -> idle)
@@ -32,7 +35,7 @@
  * @returns {{setMatch: (score: (number|null), bucket?: (string|null),
  *   regions?: {top?: number, left?: number, right?: number}) => void, stop: () => void}}
  */
-export function createBackground() {
+export function createBackground({ governor = null } = {}) {
   // Read once AND stay live — see fx.js's identical comment: a mid-session
   // OS-level toggle should take effect on the very next frame, not wait for
   // a reload.
@@ -87,17 +90,27 @@ export function createBackground() {
   let idle = true; // no target / no hand yet — show a calm living ambience
   let raf = 0;
   let last = performance.now();
+  let level = governor?.level ?? "full";
+  let frozenDrawn = false;
+  let lastKey = "idle";
+  const unsub = governor?.subscribe((l) => {
+    level = l;
+    frozenDrawn = false;
+    if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+  });
 
   // ---- animation loop (runs continuously until stop()) ----
   function frame(now) {
     // slow ambient drift doesn't need the display's full 60-120 Hz — every
     // repaint is 5 radial gradients composited full-screen, so cap it at ~30
     // (dt below still eases by real elapsed time, so motion speed is unchanged)
-    if (now - last < 30) {
+    if (level === "off" && frozenDrawn) { raf = 0; return; } // static: resumed by the governor
+    if (now - last < (level === "lite" ? 200 : 30)) {
       raf = requestAnimationFrame(frame);
       return;
     }
-    const dt = Math.min(0.05, (now - last) / 1000);
+    if (level === "off") frozenDrawn = true;
+    const dt = level === "off" ? 1 : Math.min(0.05, (now - last) / 1000); // off: jump straight to the target colours
     last = now;
     const t = now / 1000;
     const k = 1 - Math.pow(0.0015, dt); // ease factor
@@ -155,6 +168,10 @@ export function createBackground() {
 
   return {
     setMatch(score, bucket, regions) {
+      // frozen (off): redraw one still frame only when the state really changes
+      const key = score == null || bucket == null ? "idle" : bucket;
+      if (level === "off" && frozenDrawn && !raf && key !== lastKey) { frozenDrawn = false; raf = requestAnimationFrame(frame); }
+      lastKey = key;
       if (score == null || bucket == null) {
         idle = true;
         want = { greenness: 0, energy: 0, regions: { top: 0, left: 0, right: 0 } };
@@ -173,6 +190,7 @@ export function createBackground() {
     },
     stop() {
       cancelAnimationFrame(raf);
+      unsub?.();
       cv.remove();
     },
   };
