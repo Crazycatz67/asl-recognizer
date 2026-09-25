@@ -26,6 +26,7 @@ import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
 import { createBackground } from "./bg.js";
+import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
 import { createLeaderboard } from "./leaderboard.js";
@@ -343,6 +344,38 @@ const saveJSON = (k, v) => savePref(k, JSON.stringify(v));
 const reduceMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 let reduceMotion = reduceMotionQuery?.matches ?? false;
 reduceMotionQuery?.addEventListener?.("change", (e) => { reduceMotion = e.matches; });
+// ---- visual effects budget (visual layer v2, B0) — js/fxquality.js --------
+// One governor decides how much every effect may draw ("full" | "lite" |
+// "off") so MediaPipe's GPU delegate keeps ~30 detections/s. The "Effects"
+// button in the top bar cycles the manual override (Auto / Lite / Off),
+// persisted like the other prefs; ?debug shows effect ms + detection fps.
+const FX_LABEL = { auto: "Auto", lite: "Lite", off: "Off" };
+const fxq = createGovernor({
+  override: FX_LABEL[loadPref("fx")] ? loadPref("fx") : "auto",
+  reducedMotion: reduceMotion,
+  webgl2: hasWebGL2(),
+  hidden: document.visibilityState === "hidden",
+});
+reduceMotionQuery?.addEventListener?.("change", (e) => fxq.set({ reducedMotion: e.matches }));
+const fxDebug = DEBUG ? mountFxDebug(fxq) : null;
+const fxBtn = $("fxBtn");
+function syncFxBtn() {
+  const o = fxq.state().override;
+  fxBtn.querySelector(".fx-val").textContent = FX_LABEL[o] || "Auto";
+  fxBtn.setAttribute("aria-label", `Visual effects: ${FX_LABEL[o] || "Auto"} (now ${fxq.level}) — tap to change`);
+  fxBtn.title = `Visual effects: ${FX_LABEL[o] || "Auto"}`;
+}
+fxBtn.addEventListener("click", () => {
+  const order = ["auto", "lite", "off"];
+  const next = order[(order.indexOf(fxq.state().override) + 1) % order.length];
+  savePref("fx", next);
+  fxq.set({ override: next });
+  syncFxBtn();
+});
+fxq.subscribe(syncFxBtn);
+syncFxBtn();
+document.addEventListener("visibilitychange", () => fxq.set({ hidden: document.visibilityState === "hidden" }));
+
 const buzz = (p) => {
   if (reduceMotion) return;
   try {
@@ -2148,6 +2181,8 @@ async function start() {
 function stop() {
   cancelAnimationFrame(rafId);
   rafId = 0;
+  fxq.reportFps(null, false, performance.now());
+  fxDebug?.setFps(null);
   stopCamera(stream);
   stream = null;
   tracker?.close();
@@ -2931,6 +2966,10 @@ function loop() {
     fps = Math.round((detCount * 1000) / (now - detStamp));
     detCount = 0;
     detStamp = now;
+    // effects budget: Race tracks two hands (heaviest load) -> pinned to lite
+    fxq.set({ mode: mode === "challenge" && versus?.active && versus.mode === "race" ? "race" : mode });
+    fxq.reportFps(fps, true, now);
+    fxDebug?.setFps(fps);
     statsEl.hidden = false;
     let line = `${video.videoWidth}×${video.videoHeight} · ${fps} fps · ${tracker.delegate}`;
     if (classifier) line += lastPred ? ` · ${lastPred.label} ${(lastPred.confidence * 100) | 0}%` : " · —";

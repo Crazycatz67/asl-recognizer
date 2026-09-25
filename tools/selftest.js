@@ -1589,6 +1589,34 @@ function mkHand() {
       fxm.contrastRatio("#1a1204", "#fbbf24") >= 7 && fxm.contrastRatio("#ffffff", "#fbbf24") < 4.5,
       fxm.contrastRatio("#1a1204", "#fbbf24").toFixed(2));
 
+    // ---- fxquality.js (visual layer v2 B0: quality governor, pure) ----
+    const fxq = await import("../js/fxquality.js");
+    ok("fxquality: auto starts full; reduced-motion / hidden / manual off -> off; Race + no-WebGL2 cap lite", (() => {
+      const g = fxq.createGovernor();
+      const seq = [g.level];
+      g.set({ reducedMotion: true }); seq.push(g.level); g.set({ reducedMotion: false });
+      g.set({ hidden: true }); seq.push(g.level); g.set({ hidden: false });
+      g.set({ mode: "race" }); seq.push(g.level); g.set({ mode: "practice" });
+      g.set({ webgl2: false }); seq.push(g.level); g.set({ webgl2: true });
+      g.set({ override: "off" }); seq.push(g.level);
+      g.set({ override: "lite" }); seq.push(g.level);
+      g.set({ override: "bogus" }); seq.push(g.state().override, g.level);
+      return seq.join() === "full,off,off,lite,lite,off,lite,auto,full";
+    })());
+    ok("fxquality: fps < 26 for 3 s -> lite, 10 s healthy -> full, blips don't flip it, subscribers fire once per change", (() => {
+      const g = fxq.createGovernor(); const seen = [];
+      g.subscribe((l, p) => seen.push(`${p}>${l}`));
+      let t = 0; const feed = (fps, ms, cam = true) => { for (const end = t + ms; t < end; t += 500) g.reportFps(fps, cam, t); };
+      feed(20, 2500); const early = g.level;           // 2.5 s low: not yet
+      feed(30, 500); feed(20, 2500); const blip = g.level; // a healthy blip resets the 3 s window
+      feed(20, 1000); const dropped = g.level;
+      feed(30, 9500); const notYet = g.level;
+      feed(30, 1000); const back = g.level;
+      feed(10, 60000, false); const camOff = g.level;  // camera off: fps ignored
+      return early === "full" && blip === "full" && dropped === "lite" && notYet === "lite" &&
+        back === "full" && camOff === "full" && seen.join() === "full>lite,lite>full";
+    })());
+
     // ---- config practice knobs ----
     ok("config: REFERENCE_IMG builds a path", cfg.REFERENCE_IMG("N") === "assets/reference/N.jpg");
 

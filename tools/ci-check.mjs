@@ -992,6 +992,23 @@ await check("style.css: amber palette tokens meet contrast + don't alias the gui
   return `${out.join(", ")} on --bg; ink ${ink.toFixed(1)}:1; guide colours unchanged`;
 });
 
+// ---- 17. fxquality.js: the effects governor protects detection fps -------
+await check("fxquality.js: governor drops to lite after 3 s under 26 fps, restores after 10 s, obeys caps", async () => {
+  const q = await import(pathToFileURL(path.join(ROOT, "js", "fxquality.js")));
+  const g = q.createGovernor();
+  let t = 0;
+  const feed = (fps, ms, cam = true) => { for (const end = t + ms; t < end; t += 500) g.reportFps(fps, cam, t); };
+  feed(25, 2500); if (g.level !== "full") throw new Error("dropped before 3 s");
+  feed(25, 1000); if (g.level !== "lite") throw new Error("didn't drop to lite after 3 s under 26 fps");
+  feed(30, 9500); if (g.level !== "lite") throw new Error("restored before 10 s healthy");
+  feed(30, 1000); if (g.level !== "full") throw new Error("didn't restore after 10 s healthy");
+  g.set({ mode: "race" }); if (g.level !== "lite") throw new Error("Race not pinned to lite");
+  g.set({ mode: "practice", reducedMotion: true }); if (g.level !== "off") throw new Error("reduced motion not off");
+  g.set({ reducedMotion: false, override: "off" }); if (g.level !== "off") throw new Error("manual off ignored");
+  g.set({ override: "auto", webgl2: false }); if (g.level !== "lite") throw new Error("no-WebGL2 not capped at lite");
+  return "3 s drop / 10 s restore / Race, reduced-motion, manual, no-WebGL2 caps verified";
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
