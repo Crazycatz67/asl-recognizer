@@ -94,9 +94,12 @@ export function createSpeller({
     },
 
     // append a letter that's already been segmented upstream (transition.js /
-    // fluid mode). No dedupe here — the caller owns segmentation.
-    addLetter(letter, conf) {
-      return add(letter, conf);
+    // fluid mode). No dedupe here — the caller owns segmentation. `now`
+    // (performance.now()) lets a J/Z stroke that follows replace its start
+    // letter, same as the hold path — without it fluid mode spelled "IJ"
+    // (lab issue LAB-040).
+    addLetter(letter, conf, now = 0) {
+      return add(letter, conf, now);
     },
 
     feed({ holding, letter, stroke, moved, now }) {

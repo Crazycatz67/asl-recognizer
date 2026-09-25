@@ -247,7 +247,7 @@ await check("speller-fluid-j-after-i", "speller", () => {
   // fluid mode commits via addLetter() (no timestamp), then the J stroke
   // arrives through feed() at a real performance.now()
   const sp = createSpeller();
-  sp.addLetter("I", 0.9);
+  sp.addLetter("I", 0.9, 59500); // main.js passes the frame time (fixed LAB-040)
   sp.feed({ holding: false, stroke: "J", moved: false, now: 60000 });
   return sp.pending !== "J" ? { title: "fluid mode: a J stroke after its I start shape spells \"IJ\" (addLetter records no time, so the stroke can't replace the I)", severity: "P1", metric: `pending "${sp.pending}" (hold-to-type path gives "J")` } : null;
 });

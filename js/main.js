@@ -605,6 +605,10 @@ let azRun = false; // practice: walk a bounded queue (A->Z or Review), auto-adva
 let runKind = null; // "az" | "review" | null (mirrors which queue azRun is walking)
 let runQueue = ALL_LETTERS; // the queue azRun walks — ALL_LETTERS for A->Z, a picked subset for Review
 let azAdvancing = false; // guards the "next: X" bridge
+// the pending "Next: X" bridge (advanceAz / skipLetter). Cancelled when the run
+// ends — leaving the run or switching mode within the 0.7-1.3 s bridge used
+// to still call setTarget(next) in the new mode (lab issue LAB-054).
+let azBridgeTimer = 0;
 const azDone = new Set();
 const azSkipped = new Set(); // letters skipped (not completed) in the current run
 let azTimes = []; // {letter, ms} per completion in the current run
@@ -926,6 +930,8 @@ function setAzRun(on, kind = "az") {
   azRun = on;
   runKind = on ? kind : null;
   runQueue = kind === "review" ? buildReviewQueue(REVIEW_SIZE) : ALL_LETTERS;
+  clearTimeout(azBridgeTimer);
+  azBridgeTimer = 0;
   azAdvancing = false;
   azNext.hidden = true;
   learnRow.dataset.run = on ? "on" : "off";
@@ -965,7 +971,8 @@ function advanceAz() {
   if (next) {
     azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
     azNext.hidden = false;
-    setTimeout(() => {
+    azBridgeTimer = setTimeout(() => {
+      azBridgeTimer = 0;
       azNext.hidden = true;
       azAdvancing = false;
       setTarget(next);
@@ -1000,7 +1007,8 @@ function skipLetter() {
   if (next) {
     azNext.innerHTML = `Next&nbsp; <b>${next}</b>`;
     azNext.hidden = false;
-    setTimeout(() => {
+    azBridgeTimer = setTimeout(() => {
+      azBridgeTimer = 0;
       azNext.hidden = true;
       azAdvancing = false;
       setTarget(next);
@@ -2296,7 +2304,7 @@ function loop() {
       transition.push(hand, handEntering || now < spellSuppressUntil ? null : lastPred, now);
       const e = transition.read();
       if (e && now >= spellSuppressUntil) {
-        const added = speller.addLetter(e.letter, e.conf);
+        const added = speller.addLetter(e.letter, e.conf, now);
         if (added === "full") {
           showToast("Line full — Clear or Copy");
         } else {

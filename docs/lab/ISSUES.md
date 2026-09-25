@@ -21,8 +21,8 @@ Status: open · fixing · fixed-offline · needs-live (needs a real camera) · w
 | LAB-018 | P0 | open | 97% of real G hands count as T | G->T 97% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-019 | P0 | open | 17% of real I hands count as S | I->S 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-020 | P0 | open | 100% of real L hands count as T | L->T 100% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
-| LAB-021 | P0 | open | 20% of real M hands count as A | M->A 20% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
-| LAB-022 | P0 | open | 20% of real M hands count as E | M->E 20% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
+| LAB-021 | P0 | open | 17% of real M hands count as A | M->A 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
+| LAB-022 | P0 | open | 17% of real M hands count as E | M->E 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-023 | P0 | open | 20% of real M hands count as N | M->N 20% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-024 | P0 | open | 17% of real M hands count as S | M->S 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-025 | P0 | open | 23% of real N hands count as M | N->M 23% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
@@ -37,9 +37,10 @@ Status: open · fixing · fixed-offline · needs-live (needs a real camera) · w
 | LAB-034 | P0 | open | 20% of real Q hands count as P | Q->P 20% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-035 | P0 | open | 83% of real Q hands count as T | Q->T 83% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-036 | P0 | open | 97% of real X hands count as T | X->T 97% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
+| LAB-061 | P0 | open | 17% of real Q hands count as C | Q->C 17% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-001 | P1 | open | B: only 73% of real held-out B hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-003 | P1 | open | E: only 73% of real held-out E hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
-| LAB-013 | P1 | open | N: only 73% of real held-out N hands count | own pass 73% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
+| LAB-013 | P1 | open | N: only 70% of real held-out N hands count | own pass 70% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-014 | P1 | open | Q: only 70% of real held-out Q hands count | own pass 70% | probe-thresholds | `node tools/lab/probe-thresholds.mjs` |
 | LAB-040 | P1 | open | fluid mode: a J stroke after its I start shape spells "IJ" (addLetter records no time, so the stroke can't replace the I) | pending "IJ" (hold-to-type path gives "J") | break-it | `node tools/lab/break-it.mjs --only speller-fluid-j-after-i` |
 | LAB-054 | P1 | open | A->Z 'Next' bridge timer isn't cancelled: leaving the run (Free, Review, another mode) within 1.3 s still calls setTarget(next) | js/main.js:935 (advanceAz) and :968 (skipLetter) setTimeout -> setTarget(next) unconditionally | break-it/static | `static: js/main.js:935-939 — land a letter in A->Z, then tap Spell (or Free / Review) within 1.3 s: the old run's next letter becomes the target in the new mode (ref panel opens over Spell; a new Review run jumps to the A->Z letter)` |

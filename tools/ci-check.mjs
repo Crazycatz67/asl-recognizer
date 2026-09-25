@@ -915,6 +915,19 @@ await check("sound.js: frequent cues vary, none louder than the old loudest cue 
   return `${frequent.length} frequent cues each >= 3 voicings with 0% back-to-back repeats; loudest peak ${top}`;
 });
 
+// ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------
+// Static check (main.js is DOM-bound): both bridge timers (advanceAz and
+// skipLetter) must be stored in azBridgeTimer, and setAzRun — which every
+// exit path (leaving the run, setMode) goes through — must clear it.
+await check("main.js: A->Z bridge timers are tracked and cancelled when the run ends (LAB-054)", () => {
+  const src = fs.readFileSync(path.join(ROOT, "js", "main.js"), "utf8");
+  const assigned = (src.match(/azBridgeTimer = setTimeout\(/g) || []).length;
+  const setAz = src.slice(src.indexOf("function setAzRun"), src.indexOf("function setAzRun") + 800);
+  if (assigned !== 2) throw new Error(`expected 2 tracked bridge timers, found ${assigned}`);
+  if (!/clearTimeout\(azBridgeTimer\)/.test(setAz)) throw new Error("setAzRun doesn't clear azBridgeTimer");
+  return "2 bridge timers tracked; setAzRun clears them";
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|

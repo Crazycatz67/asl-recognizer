@@ -993,6 +993,12 @@ function mkHand() {
       sp.feed({ holding: false, letter: null, stroke: "J", moved: false, now: t + 500 });
       return sp.pending === "HJ" && sp.raw.map((r) => r.letter).join("") === "HJ";
     })());
+    ok("speller: fluid mode — a J stroke right after addLetter('I') replaces it (LAB-040)", (() => {
+      const sp = spMod.createSpeller();
+      sp.addLetter("H", 0.9, 1000); sp.addLetter("I", 0.9, 1500);
+      sp.feed({ holding: false, letter: null, stroke: "J", moved: false, now: 2000 });
+      return sp.pending === "HJ";
+    })());
     ok("speller: swipe (clearPending) throws away the half-formed word", (() => {
       const sp = spMod.createSpeller();
       let u = hold(sp, "H", 0).t;
