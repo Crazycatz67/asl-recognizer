@@ -16,7 +16,8 @@ import { createOverlay } from "./overlay.js";
 import { normalizeLandmarks, aspectOf, mirrorVector } from "./normalize.js";
 import { loadDataset } from "./dataset.js";
 import { createClassifier, classifyEitherHand } from "./knn.js";
-import { createHandshapeJudge, THUMB_GROUP } from "./handshape.js";
+import { createHandshapeJudge } from "./handshape.js";
+import { judgeLetter } from "./verdict.js";
 import { loadRefiner } from "./heads.js";
 import { createStabilizer } from "./stabilizer.js";
 import { buildReference, createCanonicalPlayer, LETTER_GUIDE } from "./reference.js";
@@ -2098,24 +2099,12 @@ function loop() {
   // recogniser: it must not be reading a DIFFERENT letter whose traits also
   // match (for the fist letters A E M N S T it's the only signal).
   if (m && handshape) {
-    const hs = handshape.check(vec, targetLetter);
-    const p = lastPred?.label || null; // either-hand kNN + heads, non-letters rejected
-    let otherLetter = null;
-    if (p && p !== targetLetter) {
-      if (THUMB_GROUP.has(targetLetter)) otherLetter = THUMB_GROUP.has(p) ? p : null;
-      else if (handshape.check(vec, p)?.ok) otherLetter = p;
-    }
-    m.traits = hs;
-    m.strict = !!hs?.ok && !otherLetter;
-    m.confusedWith = hs?.ok && otherLetter ? otherLetter : null;
-    const anyFix = hs?.traits.some((t) => t.state === "fix");
-    m.bucket = m.strict ? "correct" : !anyFix ? "close" : "off";
-    // colour each finger by ITS trait (blue ok / orange nearly / magenta
-    // wrong) — the same verdict the reward uses
-    const lvl = { good: 0, close: 1.5, fix: 2.5 };
-    const JOINTS = { thumb: [1, 2, 3, 4], index: [5, 6, 7, 8], middle: [9, 10, 11, 12], ring: [13, 14, 15, 16], pinky: [17, 18, 19, 20] };
-    m.errors = new Array(21).fill(0);
-    for (const [f, js] of Object.entries(JOINTS)) for (const j of js) m.errors[j] = lvl[hs?.fingerStates[f] || "good"] * m.tol;
+    const v = judgeLetter(handshape, vec, targetLetter, lastPred?.label, m.tol);
+    m.traits = v.traits;
+    m.strict = v.strict;
+    m.confusedWith = v.confusedWith;
+    m.bucket = v.bucket;
+    m.errors = v.errors; // colour each finger by ITS trait — the same verdict the reward uses
   } else if (m) {
     m.strict = m.bucket === "correct";
   }
