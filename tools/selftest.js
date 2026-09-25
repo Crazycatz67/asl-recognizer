@@ -1139,6 +1139,130 @@ function mkHand() {
       return afterBack && afterCP && sp.raw.length === 0;
     })());
 
+    // ---- spellgate.js (Spell's circle lock: ring per letter + word window) ----
+    const sgMod = await import("../js/spellgate.js");
+    // drive a gate for `ms` of 33 ms frames; collect what it emitted
+    const sgRun = (g, st, steps) => {
+      for (const s of steps) {
+        const end = st.t + s.ms;
+        while (st.t < end) {
+          st.t += 33;
+          const o = g.feed({
+            now: st.t, letter: s.L ?? null, conf: s.conf ?? 0.9, stroke: null,
+            pos: s.gone ? null : { x: 0.5 + (s.dx ?? 0), y: 0.5, span: 0.1 },
+          });
+          if (o.confirm) st.out.push({ c: o.confirm, t: st.t, replace: o.replace });
+          if (o.space) st.out.push({ c: " ", t: st.t });
+          st.last = o;
+        }
+        if (s.stroke) {
+          st.t += 33;
+          const o = g.feed({ now: st.t, letter: null, stroke: s.stroke, pos: { x: 0.5, y: 0.5, span: 0.1 } });
+          if (o.confirm) st.out.push({ c: o.confirm, t: st.t, replace: o.replace });
+          st.last = o;
+        }
+      }
+      return st;
+    };
+    const sgNew = () => ({ g: sgMod.createSpellGate(), st: { t: 1000, out: [] } });
+    const sgText = (st) => {
+      let s = "";
+      for (const e of st.out) s = e.replace ? s.slice(0, -1) + e.c : s + e.c;
+      return s;
+    };
+    const CONF = sgMod.SPELL_GATE.confirmMs, WIN = sgMod.SPELL_GATE.windowMs;
+    ok("spellgate: a letter confirms only after a full ring (not before confirmMs)", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "H", ms: CONF - 120 }]);
+      const early = st.out.length === 0 && st.last.progress > 0.6 && st.last.progress < 1 && st.last.candidate === "H";
+      sgRun(g, st, [{ L: "H", ms: 200 }]);
+      return early && sgText(st) === "H";
+    })());
+    ok("spellgate: changing letter mid-ring restarts it (no letter from a split hold)", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "A", ms: CONF * 0.7 }, { L: "S", ms: CONF * 0.7 }]);
+      const none = st.out.length === 0;
+      sgRun(g, st, [{ L: "S", ms: CONF }]);
+      return none && sgText(st) === "S";
+    })());
+    ok("spellgate: low-confidence frames never charge the ring", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "M", conf: 0.6, ms: 3000 }]);
+      return st.out.length === 0 && st.last.progress === 0;
+    })());
+    ok("spellgate: a brief tracking blip only pauses the ring", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "B", ms: CONF * 0.6 }, { gone: true, ms: 150 }, { L: "B", ms: CONF * 0.5 }]);
+      return sgText(st) === "B";
+    })());
+    ok("spellgate: a letter confirmed inside the word window joins the word (H then I = HI)", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "H", ms: CONF + 100 }, { L: null, ms: 300 }, { L: "I", ms: CONF + 100 }]);
+      return sgText(st) === "HI" && st.last.inWord && st.last.windowFrac > 0.8;
+    })());
+    ok("spellgate: the window running out is a space; the next letter starts a new word", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "H", ms: CONF + 50 }, { L: "I", ms: CONF + 250 }, { L: "I", ms: WIN + 200 }, { L: "C", ms: CONF + 100 }]);
+      const sp = st.out.filter((e) => e.c === " ");
+      return sgText(st) === "HI C" && sp.length === 1;
+    })());
+    ok("spellgate: a ring that is charging freezes the window (a letter started in time still joins)", (() => {
+      const { g, st } = sgNew();
+      // next letter starts 300 ms before the window would run out
+      sgRun(g, st, [{ L: "H", ms: CONF + 30 }, { L: null, ms: WIN - 300 }, { L: "I", ms: CONF + 200 }]);
+      return sgText(st) === "HI";
+    })());
+    ok("spellgate: holding a letter (even 5 s, with a tracking blip) never repeats it", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "L", ms: 2500 }, { gone: true, ms: 200 }, { L: "L", ms: 2500 }]);
+      return sgText(st).replace(/ /g, "") === "L";
+    })());
+    ok("spellgate: a doubled letter after a release (open hand) enters twice — HELLO", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [
+        { L: "H", ms: CONF + 60 }, { L: "E", ms: CONF + 60 }, { L: "L", ms: CONF + 60 },
+        { L: "B", conf: 0.5, ms: 330 }, // the hand opens briefly (release)
+        { L: "L", ms: CONF + 60 }, { L: "O", ms: CONF + 60 },
+      ]);
+      return sgText(st) === "HELLO";
+    })());
+    ok("spellgate: a doubled letter after a sideways bounce enters twice", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "L", ms: CONF + 60 }, { L: "L", ms: 99, dx: 0.07 }, { L: "L", ms: CONF + 300, dx: 0.07 }]);
+      return sgText(st) === "LL";
+    })());
+    ok("spellgate: J/Z confirm on the stroke (no ring); J right after its I replaces it", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "A", ms: CONF + 60 }, { L: "Z", ms: 0, stroke: "Z" }]);
+      const az = sgText(st) === "AZ";
+      const b = sgNew();
+      sgRun(b.g, b.st, [{ L: "I", ms: CONF + 60, stroke: "J" }]);
+      const rep = b.st.out.at(-1)?.replace === true && sgText(b.st) === "J";
+      // the stroke's tail matching again straight away is ignored
+      sgRun(b.g, b.st, [{ L: null, ms: 700, stroke: "J" }]);
+      return az && rep && sgText(b.st) === "J";
+    })());
+    ok("spellgate: after a stroke, holding its start shape doesn't ring in the start letter", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "I", ms: CONF + 60, stroke: "J" }, { L: "I", ms: 2000 }]);
+      return sgText(st).replace(/ /g, "") === "J";
+    })());
+    ok("spellgate: reset() and closeWord() end the word without a space event", (() => {
+      const { g, st } = sgNew();
+      sgRun(g, st, [{ L: "H", ms: CONF + 60 }]);
+      g.closeWord();
+      sgRun(g, st, [{ L: null, ms: WIN + 300 }]);
+      const closed = !st.out.some((e) => e.c === " ") && !st.last.inWord;
+      g.reset();
+      return closed && g.held === null && !g.inWord;
+    })());
+    ok("speller: replaceLast() swaps the last pending letter (and its raw entry)", (() => {
+      const sp = spMod.createSpeller();
+      sp.addLetter("H", 0.9); sp.addLetter("I", 0.9);
+      const r = sp.replaceLast("J", 0.85);
+      return r === "letter" && sp.pending === "HJ" && sp.raw.length === 2 && sp.raw[1].letter === "J";
+    })());
+
     // ---- decode.js (Stage 8 lexicon decoder) ----
     const dcMod = await import("../js/decode.js");
     const lexTxt = "the 100\nquick 40\nbrown 30\nfox 20\nwhat 90\nare 80\nyou 85\ndoing 25\n" +
