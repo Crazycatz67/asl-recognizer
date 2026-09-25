@@ -22,7 +22,7 @@ const CORE = [
   "./about.html",
   "./manifest.webmanifest",
   "./css/style.css",
-  "./js/bg.js", "./js/camera.js", "./js/challenge.js", "./js/config.js",
+  "./js/aurora.js", "./js/bg.js", "./js/camera.js", "./js/challenge.js", "./js/config.js",
   "./js/curriculum.js", "./js/dataset.js", "./js/decode.js", "./js/fx.js", "./js/fxmath.js", "./js/fxquality.js",
   "./js/handTracker.js", "./js/handshape.js", "./js/heads.js", "./js/jointstate.js", "./js/heads.json", "./js/juice.js", "./js/leaderboard.js", "./js/knn.js",
   "./js/main.js", "./js/mediapipe.js", "./js/motion.js", "./js/normalize.js",

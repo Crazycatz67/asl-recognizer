@@ -2264,3 +2264,5 @@ summary:focus-visible,
   padding: 3px 7px;
   max-width: calc(100vw - 16px);
 }
+/* the aurora is ambience: dim it under high contrast so text/edges stay crisp */
+.high-contrast .fx-aurora { opacity: 0.45; }

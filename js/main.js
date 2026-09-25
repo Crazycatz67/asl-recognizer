@@ -25,7 +25,7 @@ import { createSheet } from "./sheet.js";
 import { createSound } from "./sound.js";
 import { createFx } from "./fx.js";
 import { rewardTier, nextRun, celebrationPlan, glowLevel } from "./juice.js";
-import { createBackground } from "./bg.js";
+import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL2
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
@@ -223,7 +223,6 @@ const spDecodeError = $("spDecodeError");
 
 const sound = createSound();
 const fx = createFx();
-const bg = createBackground();
 
 // ---- reward juice (2026-09-25) --------------------------------------------
 // Combo glow on the camera frame — the visual twin of a climbing streak
@@ -375,6 +374,12 @@ fxBtn.addEventListener("click", () => {
 fxq.subscribe(syncFxBtn);
 syncFxBtn();
 document.addEventListener("visibilitychange", () => fxq.set({ hidden: document.visibilityState === "hidden" }));
+// always-on background (B1): WebGL2 aurora, bg.js canvas blobs as fallback —
+// same setMatch(score, bucket, regions) API either way
+const bg = createAurora({ governor: fxq, viewport, debug: DEBUG });
+if (DEBUG) window.__fx = { bg, gov: fxq }; // measure effects in isolation (see aurora.js bench)
+let fxPrevHand = null; // last frame's smoothed landmarks, for hand speed
+let fxPrevAt = 0;
 
 const buzz = (p) => {
   if (reduceMotion) return;
@@ -2182,6 +2187,7 @@ function stop() {
   cancelAnimationFrame(rafId);
   rafId = 0;
   fxq.reportFps(null, false, performance.now());
+  bg.setHand({ present: false });
   fxDebug?.setFps(null);
   stopCamera(stream);
   stream = null;
@@ -2360,6 +2366,19 @@ function loop() {
   // the skeleton look stringy, and steadies the meter. Reset on a lost hand so
   // it doesn't lerp across a re-acquire.
   const hand = smoothLandmarks(hasHand ? result.landmarks[0] : null, now);
+  // background presence/stillness cue (presentation only): mean landmark
+  // speed in frame-widths per second, from the smoothed landmarks
+  {
+    let speed = 0;
+    if (hand && fxPrevHand && now > fxPrevAt) {
+      let sum = 0;
+      for (let i = 0; i < 21; i++) sum += Math.hypot(hand[i].x - fxPrevHand[i].x, hand[i].y - fxPrevHand[i].y);
+      speed = sum / 21 / ((now - fxPrevAt) / 1000);
+    }
+    bg.setHand({ present: !!hand, speed });
+    fxPrevHand = hand ? hand.map((p) => ({ x: p.x, y: p.y })) : null;
+    fxPrevAt = now;
+  }
 
   // J/Z motion buffer — fed the SMOOTHED landmarks so idle jitter doesn't
   // accumulate into a fake "stroke"
