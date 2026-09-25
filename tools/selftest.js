@@ -550,6 +550,36 @@ function mkHand() {
     ok("sound: calls are safe with no audio unlocked",
       (() => { try { snd.select(); snd.lock(); snd.charge(0.5); snd.charge(0); snd.success(); return true; } catch { return false; } })());
 
+    ok("sound: varied cues accept their new optional args (and still work bare)",
+      (() => { try {
+        snd.success({ step: 3, tier: "first" }); snd.success({ tier: "mastery" }); snd.success({ mode: "drill", step: 2 });
+        snd.lock(2); snd.lock(); snd.word(); snd.correct(4); snd.correct(); snd.hit(3); snd.hit();
+        return true; } catch { return false; } })());
+
+    // ---- juice.js (reward variation helpers, pure) ----
+    const juice = await import("../js/juice.js");
+    ok("juice: createPicker never repeats back-to-back and uses every variant", (() => {
+      const p = juice.createPicker(3); let prev = -1; const seen = new Set();
+      for (let i = 0; i < 300; i++) { const v = p(); if (v === prev || v < 0 || v > 2) return false; prev = v; seen.add(v); }
+      return seen.size === 3 && juice.createPicker(1)() === 0;
+    })());
+    ok("juice: scaleStep walks C-major pentatonic across octaves",
+      [-1, 0, 1, 4, 5, 7].map((k) => juice.scaleStep(k)).join() === "-3,0,2,9,12,16");
+    ok("juice: rewardTier first / letter / mastery",
+      juice.rewardTier(0, 1) === "first" && juice.rewardTier(1, 2) === "letter" &&
+      juice.rewardTier(2, 3) === "mastery" && juice.rewardTier(5, 6) === "letter" && juice.rewardTier(0, 1, 1) === "mastery");
+    ok("juice: nextRun extends inside the window, restarts outside it",
+      juice.nextRun(3, 0, 1000) === 4 && juice.nextRun(3, 0, 60000) === 1 && juice.nextRun(0, null, 10) === 1);
+    ok("juice: climb caps, celebrationPlan scales with tier + run and stays bounded", (() => {
+      const a = juice.celebrationPlan("letter", 1), b = juice.celebrationPlan("letter", 5);
+      const f = juice.celebrationPlan("first", 1), m = juice.celebrationPlan("mastery", 50);
+      return juice.climb(1) === 0 && juice.climb(99) === 4 && b.particles > a.particles &&
+        f.particles > a.particles && f.moment === "first" && m.moment === "mastery" &&
+        m.particles <= 72 && m.rings <= 3 && a.moment === null;
+    })());
+    ok("juice: glowLevel 0 below x2, capped at 3",
+      juice.glowLevel(0) === 0 && juice.glowLevel(1) === 0 && juice.glowLevel(2) === 1 && juice.glowLevel(4) === 3 && juice.glowLevel(10) === 3);
+
     // ---- motion.js (J / Z tracing) ----
     const motMod = await import("../js/motion.js");
     ok("motion: STROKE has J + Z polylines", Array.isArray(motMod.STROKE.J) && Array.isArray(motMod.STROKE.Z));

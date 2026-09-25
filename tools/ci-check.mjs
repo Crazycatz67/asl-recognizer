@@ -726,6 +726,52 @@ await check("verdict.js: no letter's held-out real hands count as a different le
   return `worst cross-letter acceptance ${Math.round(100 * worst.rate)}% (${worst.pair})`;
 });
 
+// ---- 15. reward feedback: juice.js helpers + sound variation / loudness ----
+// The owner asked for rewards that don't repeat the same sfx — but never
+// louder. tools/lab/sound-audit.mjs records every note createSound() schedules
+// (fake AudioContext, no speakers) and reports variety + summed peak per cue.
+await check("juice.js: no-repeat picker, pentatonic steps, tiers, bounded plans", async () => {
+  const j = await import(pathToFileURL(path.join(ROOT, "js", "juice.js")));
+  let seed = 7;
+  const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = j.createPicker(4, rng);
+  let prev = -1, seen = new Set();
+  for (let i = 0; i < 400; i++) {
+    const v = pick();
+    if (v === prev) throw new Error("picker repeated an index back-to-back");
+    if (!(v >= 0 && v < 4)) throw new Error(`picker out of range: ${v}`);
+    seen.add(v); prev = v;
+  }
+  if (seen.size !== 4) throw new Error("picker never used every variant");
+  if (j.createPicker(1)() !== 0) throw new Error("1-variant picker must return 0");
+  const st = [-1, 0, 4, 5, 7].map((k) => j.scaleStep(k));
+  if (st.join() !== "-3,0,9,12,16") throw new Error(`scaleStep wrong: ${st}`);
+  if (j.rewardTier(0, 1) !== "first" || j.rewardTier(2, 3) !== "mastery" ||
+      j.rewardTier(3, 4) !== "letter" || j.rewardTier(1, 2) !== "letter")
+    throw new Error("rewardTier wrong");
+  if (j.nextRun(2, 1000, 5000) !== 3 || j.nextRun(2, 1000, 99999) !== 1 || j.nextRun(0, null, 5) !== 1)
+    throw new Error("nextRun wrong");
+  const big = j.celebrationPlan("mastery", 999);
+  if (big.particles > 72 || big.rings > 3) throw new Error("celebrationPlan not bounded");
+  if (j.celebrationPlan("letter", 1).particles >= j.celebrationPlan("first", 1).particles)
+    throw new Error("first-time should out-celebrate a plain rep");
+  if (j.glowLevel(1) !== 0 || j.glowLevel(2) !== 1 || j.glowLevel(9) !== 3) throw new Error("glowLevel wrong");
+  return "picker never repeats (400 draws, all 4 used), scale/tier/run/plan/glow verified";
+});
+await check("sound.js: frequent cues vary, none louder than the old loudest cue (0.161)", () => {
+  const out = execFileSync(process.execPath, [path.join(ROOT, "tools", "lab", "sound-audit.mjs"), "--json"],
+    { stdio: "pipe", env: process.env }).toString();
+  const r = JSON.parse(out);
+  const LOUDEST_BEFORE = 0.161; // success() before variation (audit of 1c70454)
+  const loud = Object.entries(r).filter(([, v]) => v.peak > LOUDEST_BEFORE + 0.002);
+  if (loud.length) throw new Error(`louder than before: ${loud.map(([k, v]) => `${k} ${v.peak}`).join(", ")}`);
+  const frequent = ["lock (spell letter)", "success (practice)", "success (drill word)", "word (spell word)", "correct (read)", "hit x1 (challenge)"];
+  const flat = frequent.filter((k) => !(r[k]?.voicings >= 3 && r[k]?.repeatPct === 0));
+  if (flat.length) throw new Error(`still repetitive: ${flat.join(", ")}`);
+  const top = Math.max(...Object.values(r).map((v) => v.peak));
+  return `${frequent.length} frequent cues each >= 3 voicings with 0% back-to-back repeats; loudest peak ${top}`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
