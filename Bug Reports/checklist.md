@@ -440,6 +440,11 @@ references are as of commit `41c43f0` and will drift.
     SW reload deferred while busy (LAB-056), N own 58 -> 67% offline, M/N
     pair tip. M<->N ~20-30% remains (data limit: needs more signers).
 
+50. **Guide ▲ / yellow tracer circles out of place (owner, 2026-09-25).**
+    `FIXED (needs live confirm)` — per-finger verdict errors tied every joint,
+    so the marker landed on the knuckle; now it goes to the flagged finger's
+    most-off joint (js/overlay.js). Selftest guard.
+
 ---
 
 ## Working the list

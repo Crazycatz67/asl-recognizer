@@ -283,7 +283,9 @@ export function createOverlay(canvas) {
       // colour with the SCORER's per-joint errors when given (reference.js
       // score().errors) — then every colour on the hand is exactly the state
       // the reward is judged on. Positions (ghost, lead lines) stay geometric.
-      if (errors && errors.length === 21) for (let i = 0; i < 21; i++) err[i] = errors[i];
+      const geo = err.slice(); // geometric error vs the ghost, kept for WHERE to point
+      const scored = !!(errors && errors.length === 21);
+      if (scored) for (let i = 0; i < 21; i++) err[i] = errors[i];
       const band = (e) => Math.max(0, Math.min(1, (e - tol) / (ERR_FULL - tol)));
 
       // stroke sizes scale to the hand's on-screen size
@@ -301,8 +303,18 @@ export function createOverlay(canvas) {
       // rank the off joints; worst first
       const offJoints = [];
       for (let i = 0; i < 21; i++) if (err[i] > tol) offJoints.push(i);
-      offJoints.sort((a, b) => err[b] - err[a]);
-      const worst = offJoints[0] ?? -1;
+      // worst first; ties (the trait verdict gives every joint of a finger the
+      // same error) broken by how far the joint actually is from the ghost
+      offJoints.sort((a, b) => err[b] - err[a] || geo[b] - geo[a]);
+      let worst = offJoints[0] ?? -1;
+      if (scored && worst >= 0) {
+        // the verdict picks the FINGER; the ▲ goes on that finger's joint
+        // that's furthest from where it should be (usually the tip) — before,
+        // the tie resolved to the lowest index (the knuckle / a thumb joint),
+        // so the yellow circle and lead line sat on the wrong joint
+        const f = FINGER_OF[worst];
+        for (const j of offJoints) if (FINGER_OF[j] === f && geo[j] > geo[worst]) worst = j;
+      }
       const shown = rv >= 0.15; // the guide layer (styles, glyphs, ghost) is on
       const stateOf = (e) => guideState(e, tol, ERR_FULL);
       // segment/joint colour: plain blue at reveal 0, state-coloured as reveal

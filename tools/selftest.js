@@ -132,6 +132,19 @@ function mkHand() {
     ok("overlay: drawGuide returns null or a worst-joint {part}",
       guideRet === null || (typeof guideRet === "object" && typeof guideRet.part === "string"),
       JSON.stringify(guideRet));
+    ok("overlay: with the trait verdict's per-finger errors, the ▲ goes on that finger's joint furthest from the ghost (the tip), not the knuckle", (() => {
+      const live = mkHand();
+      const wx = live[0].x, wy = live[0].y;
+      let r = 1e-6;
+      for (const p of live) r = Math.max(r, Math.hypot(p.x - wx, p.y - wy, p.z - live[0].z));
+      const tgt = [];
+      for (const p of live) tgt.push((p.x - wx) / r, (p.y - wy) / r, 0);
+      tgt[8 * 3 + 1] += 0.4; // the index TIP belongs lower (folded)
+      const errors = new Array(21).fill(0);
+      for (const j of [5, 6, 7, 8]) errors[j] = 0.15; // verdict: whole index finger "fix"
+      const g = overlay.drawGuide(live, tgt, { aspect: 1, tol: 0.06, errors });
+      return g?.joint === 8 && g.finger === "index";
+    })());
     // Stage 7c: colour-blind-safer ramp + redundant (non-colour) encoding
     ok("overlay: guideState splits good / close / fix at tol and mid-band",
       ov.guideState(0.05, 0.06, 0.36) === "good" &&
