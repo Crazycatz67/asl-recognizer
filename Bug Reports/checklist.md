@@ -414,6 +414,14 @@ references are as of commit `41c43f0` and will drift.
     (js/handshape.js): held-out real letters count 87.5%, N 33% -> 75%, wrong
     letters 2.6%. ci-check #13e.
 
+46. **Live-Lab cycle 1 (2026-09-25).** `FIXED (needs live confirm)` — merged
+    `8b30526`: physical wrong-shape probe + per-finger fold/raise rules (46
+    wrong-shape findings -> 0), B own 73->90%, E 73->80%, D 87->77% (by design:
+    straight "folded" fingers no longer pass), P thumb tucked (Q own 70->87%);
+    break-it.mjs (54 checks); fixed LAB-040 (fluid J-after-I spelled "IJ") and
+    LAB-054 (A->Z bridge timer not cancelled); tiered reward visuals + varied,
+    never-louder sounds (js/juice.js). Open lab items: docs/lab/ISSUES.md.
+
 ---
 
 ## Working the list
