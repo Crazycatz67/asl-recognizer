@@ -30,6 +30,7 @@ import { createAurora } from "./aurora.js"; // falls back to bg.js without WebGL
 import { createHandFx, createFramingJudge, handSpanH } from "./handfx.js";
 import { createInkBloom } from "./inkbloom.js";
 import { createGlyphFx } from "./glyphfx.js";
+import { createChallengeFx, burstCount } from "./challengefx.js";
 import { createGovernor, hasWebGL2, mountFxDebug } from "./fxquality.js";
 import { createChallenge, START_LIVES, PAUSE_GAP_MS } from "./challenge.js";
 import { createVersus } from "./versus.js";
@@ -396,6 +397,23 @@ document.addEventListener("visibilitychange", () => fxq.set({ hidden: document.v
 // same setMatch(score, bucket, regions) API either way
 const bg = createAurora({ governor: fxq, viewport, debug: DEBUG });
 if (DEBUG) window.__fx = { bg, gov: fxq }; // measure effects in isolation (see aurora.js bench)
+// B4: adaptive Challenge visuals — one intensity (combo, streak, word length,
+// difficulty) drives the aurora ramp, a frame aura, the banner and bursts
+const chAura = document.createElement("div");
+chAura.className = "ch-aura";
+chAura.setAttribute("aria-hidden", "true");
+chAura.hidden = true;
+viewport.appendChild(chAura);
+const cfx = createChallengeFx({ bg, aura: chAura, banner: chBanner, timeBar, combo: chCombo, governor: fxq });
+if (DEBUG) window.__fx.cfx = cfx;
+let raceHands = [null, null]; // Race: each player's latest hand (palm burst for the round winner)
+// only rewrite the banner when it changes — per-frame innerHTML restarted
+// the landed letter's pop animation every frame
+let partHitAt = 0;
+function setBannerHtml(html) {
+  if (chBanner.innerHTML === html) return; // compare live DOM: other paths set textContent
+  chBanner.innerHTML = html;
+}
 let fxPrevHand = null; // last frame's smoothed landmarks, for hand speed
 let fxPrevAt = 0;
 
@@ -1560,6 +1578,7 @@ function setMode(next) {
   // voice at its last pitch forever.
   sound.chargeStop();
   setGlow(0); // a combo/run glow belongs to the mode that earned it
+  cfx.reset(); // so do the Challenge aura / aurora ramp / Race split
   practiceRun = 0;
   stabilizer?.reset(); // a letter confirmed in one mode must not carry into the next
   viewport.dataset.mode = mode; // CSS hides the camera curtain in challenge
@@ -1692,6 +1711,7 @@ const vsStab = [0, 1].map(() => createStabilizer({ stableFrames: STABLE_FRAMES, 
 const leaderboard = createLeaderboard();
 const PLAYER_COLORS = [{ stroke: "#38bdf8", joint: "#e0f2fe" }, { stroke: "#fb923c", joint: "#ffedd5" }];
 const PLAYER_FLASH = ["#38bdf8", "#fb923c"];
+const PLAYER_DIM = [{ stroke: "rgba(56, 189, 248, 0.4)", joint: "rgba(224, 242, 254, 0.4)" }, { stroke: "rgba(251, 146, 60, 0.4)", joint: "rgba(255, 237, 213, 0.4)" }];
 const boardKey = () => (chPlay === "solo" ? `solo-${chDifficulty}` : chPlay);
 const boardTitle = () =>
   chPlay === "solo" ? `Solo · ${chDifficulty === "hard" ? "Hard" : "Normal"}` : chPlay === "race" ? "Race (winners)" : "Take turns (winners)";
@@ -1781,14 +1801,18 @@ let lastTickAt = 0;
 // (banner / flash / chip) — sound is never the only signal (Deaf-first).
 let lastDrainAt = 0;
 const bannerFor = (snap) => {
-  // word rounds: landed letters lit, the next one underlined
+  // word rounds: landed letters lit, the next one underlined; the letter
+  // just landed pops and drops an ember (CSS) for ~600 ms
   if (!snap.target || snap.target.length < 2) return escapeHtml(snap.target || "");
+  const popping = performance.now() - partHitAt < 600;
   return [...snap.target]
-    .map((c, i) => `<span class="${i < snap.progress ? "done" : i === snap.progress ? "next" : ""}">${c}</span>`)
+    .map((c, i) => `<span class="${i < snap.progress ? "done" : i === snap.progress ? "next" : ""}${popping && i === snap.progress - 1 ? " pop" : ""}">${c}</span>`)
     .join("");
 };
 function renderChallenge(snap, near) {
   if (!snap) return;
+  if (snap.partHit) partHitAt = performance.now();
+  cfx.update(snap);
   timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
   timeBar.classList.toggle("low", !!snap.low);
   timeBar.classList.toggle("drain", !!snap.draining);
@@ -1814,7 +1838,7 @@ function renderChallenge(snap, near) {
       refPanel.hidden = true;
       workspace.dataset.target = "off";
       chBanner.className = `ch-banner study${isWord ? " word" : ""}`;
-      chBanner.innerHTML = bannerFor(snap);
+      setBannerHtml(bannerFor(snap));
       chBanner.hidden = false;
     }
     chSeeing.hidden = true;
@@ -1855,6 +1879,10 @@ function renderChallenge(snap, near) {
     }
     fx.flash(snap.mult >= 3 ? "#fde047" : "#22c55e");
     handfx?.landed(fxHand);
+    cfx.hit();
+    // hit burst from the palm, bigger as the run heats up (governor-capped)
+    const nb = burstCount(18, cfx.intensity, fxq.level);
+    if (nb && fxHand) { const p = pagePoint(fxHand[9]); fx.burst(p.x, p.y, { count: nb }); }
     setGlow(glowLevel(snap.mult)); // the combo's visual twin, on the frame
     bg.pulse(0.35 + 0.15 * snap.mult);
     sound.hit(snap.mult);
@@ -1889,9 +1917,11 @@ function renderChallenge(snap, near) {
     chCard.hidden = false;
     sound.charge(0);
     setGlow(0);
+    cfx.reset();
     if (snap.newBest) {
       sound.newBest();
       fx.flash("#fde047");
+      if (fxHand) inkbloom?.bloom(fxHand, "mastery"); // gold bloom (full quality only)
       fx.rain({ count: 90, colors: ["#fde047", "#facc15", "#f8fafc", "#22c55e"] });
       buzz([0, 40, 30, 60, 30, 120]);
     } else {
@@ -1909,7 +1939,7 @@ function renderChallenge(snap, near) {
     refPanel.hidden = true;
     workspace.dataset.target = "off";
     chBanner.className = `ch-banner${snap.target.length > 1 ? " word" : ""}`;
-    chBanner.innerHTML = bannerFor(snap);
+    setBannerHtml(bannerFor(snap));
     chBanner.hidden = false;
     // live QA: "Challenge is too easy". The old live "seeing X" readout let
     // you cycle shapes until the model agreed — now play shows only whether
@@ -1933,13 +1963,15 @@ const vsName = (p) => `Player ${p + 1}`;
 function renderVersus(snap) {
   if (!snap) return;
   versusCurrent = snap.current;
+  raceLockFrac = snap.players.map((P) => P.lockFrac || 0);
+  const leader = snap.mode === "race" ? cfx.updateRace(snap) : -1;
   timeBar.style.setProperty("--time", snap.remainingFrac.toFixed(3));
   timeBar.classList.toggle("low", !!snap.low);
   const race = snap.mode === "race";
   [vsP1, vsP2].forEach((el, p) => {
     const P = snap.players[p];
     const lives = "♥".repeat(Math.max(0, P.lives)) + "♡".repeat(Math.max(0, START_LIVES - P.lives));
-    el.innerHTML = `${vsName(p)} · ${P.score}<small>${race ? `rounds ${P.wins}/7` : lives}${P.mult > 1 ? ` · ×${P.mult}` : ""}${P.locked ? " · locked" : ""}</small>`;
+    el.innerHTML = `${leader === p ? "★ " : ""}${vsName(p)} · ${P.score}<small>${race ? `rounds ${P.wins}/7` : lives}${P.mult > 1 ? ` · ×${P.mult}` : ""}${P.locked ? " · locked" : ""}</small>`;
     el.classList.toggle("active", !race && snap.phase !== "over" && snap.current === p);
     el.classList.toggle("idle", !race && snap.current !== p);
     el.classList.toggle("locked", !!P.locked);
@@ -1962,6 +1994,9 @@ function renderVersus(snap) {
     const el = w === 0 ? vsP1 : vsP2;
     el.classList.remove("won"); void el.offsetWidth; el.classList.add("won");
     fx.flash(PLAYER_FLASH[w]);
+    // the round winner's palm bursts in their colour
+    const wh = race ? raceHands[w] : fxHand;
+    if (wh && fxq.level !== "off") { const p = pagePoint(wh[9]); fx.burst(p.x, p.y, { count: 24, colors: [PLAYER_FLASH[w], "#f8fafc"] }); }
     sound.hit(snap.players[w].mult);
     buzz([0, 30, 25, 55]);
   } else if (snap.event === "miss") {
@@ -1984,6 +2019,7 @@ function renderVersus(snap) {
     chStart.textContent = "Rematch";
     chCard.hidden = false;
     if (w >= 0) { fx.flash(PLAYER_FLASH[w]); sound.newBest(); } else sound.gameOver();
+    cfx.reset();
     versus.stop();
     tracker?.setNumHands(1);
   }
@@ -2542,7 +2578,10 @@ function loop() {
       });
     } else if (mode === "challenge" && versus?.active && versus.mode === "race") {
       const owner = racePlayers(result.landmarks);
-      overlay.drawHands(result.landmarks, { colors: owner.map((o) => PLAYER_COLORS[o] || PLAYER_COLORS[0]) });
+      raceHands = [null, null];
+      owner.forEach((o, i) => { if (o >= 0) raceHands[o] = result.landmarks[i]; });
+      // a locked-out player's skeleton dims to 0.4 (the badge arc counts down)
+      overlay.drawHands(result.landmarks, { colors: owner.map((o) => (raceLockFrac[o] > 0 ? PLAYER_DIM[o] : PLAYER_COLORS[o]) || PLAYER_COLORS[0]) });
       // "1"/"2" wrist badges (shape + glyph, not just hue) + lockout countdown
       handfx?.drawRaceBadges(result.landmarks, owner, {
         locked: raceLockFrac, screenMirror: facingMode === "user", colors: PLAYER_FLASH,

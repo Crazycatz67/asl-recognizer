@@ -1712,6 +1712,19 @@ function mkHand() {
       document.querySelectorAll("canvas.fx-glyph").forEach((n) => n.remove());
       return a && c && b.msPerFrame >= 0;
     })());
+    const cfxMod = await import("../js/challengefx.js");
+    ok("challengefx: update() drives aura vars + aurora intensity; drain pulses; reset() clears", (() => {
+      const aura = document.createElement("div"), banner = document.createElement("div"), tb = document.createElement("div"), combo = document.createElement("div");
+      let inten = -1, split = "x";
+      const bgStub = { setIntensity: (x) => { inten = x; }, setSplit: (x) => { split = x; } };
+      const f = cfxMod.createChallengeFx({ bg: bgStub, aura, banner, timeBar: tb, combo });
+      f.update({ mult: 4, streak: 10, target: "CAT", difficulty: "hard", phase: "play", draining: true, remainingFrac: 0.2 });
+      const a1 = aura.dataset.drain === "1" && tb.classList.contains("notched") && combo.dataset.mult === "4" && inten > 0.8 && banner.dataset.diff === "hard" && /s$/.test(aura.style.getPropertyValue("--drain-period"));
+      f.updateRace({ players: [{ wins: 1 }, { wins: 4 }], over: false });
+      const a2 = split === 1;
+      f.reset();
+      return a1 && a2 && aura.hidden && inten === 0 && split === null && !tb.classList.contains("notched");
+    })());
     ok("fxmath: coverMap centres + crops like object-fit: cover (4:3 video on 16:9 and portrait)", (() => {
       const a = fxm.coverMap(0.5, 0.5, 640, 480, 1600, 900); // centre stays centre
       const b = fxm.coverMap(0, 0, 640, 480, 1600, 900);     // wide screen: top is cropped

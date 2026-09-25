@@ -17,7 +17,7 @@
 //       seen: [p1Letter|null, p2Letter|null] — each player's confirmed letter
 //             this frame (turns mode only reads the current player's slot)
 //   snapshot: { mode, phase, target, progress:[a,b], round, current, players:
-//     [{ score, lives, streak, mult, wins, locked }], roundWinner, lastGain,
+//     [{ score, lives, streak, mult, wins, locked, lockFrac }], roundWinner, lastGain,
 //     remainingFrac, low, event, gameWinner, over }
 //     phase: "study" | "go" | "play" | "won" | "miss" | "over"
 //     event: "letter" | "go" | "play" | "win" | "miss" | "over" | null
@@ -163,7 +163,11 @@ export function createVersus({ letters, words = [], mode = "turns", difficulty =
       const remainingFrac = Math.max(0, Math.min(1, (phaseEnd - now) / span));
       return {
         mode, phase, target, progress: progress.slice(), round, current, difficulty: diff,
-        players: players.map((P, i) => ({ ...P, mult: multFor(P.streak), locked: now < lockedUntil[i] })),
+        players: players.map((P, i) => ({
+          ...P, mult: multFor(P.streak), locked: now < lockedUntil[i],
+          // presentation: lockout time left 0..1 (the wrist countdown arc)
+          lockFrac: now < lockedUntil[i] ? Math.min(1, (lockedUntil[i] - now) / LOCK_FOR_MS) : 0,
+        })),
         roundWinner, lastGain, remainingFrac, low: phase === "play" && remainingFrac < 0.28,
         event, gameWinner, over: phase === "over",
       };

@@ -1110,6 +1110,30 @@ await check("inkbloom/glyphfx: splats follow the fingers + scale by tier; glyph 
   return "3/5/10 splats along the fingers, dye <= 0.45; 50-point cap; beside-the-hand placement verified";
 });
 
+// ---- 23. challengefx.js: one intensity for every Challenge effect ---------
+await check("challengefx.js: intensity monotonic in combo/streak/word/difficulty; drain pulse < 3 Hz; Race never 'full'", async () => {
+  const c = await import(pathToFileURL(path.join(ROOT, "js", "challengefx.js")));
+  const q = await import(pathToFileURL(path.join(ROOT, "js", "fxquality.js")));
+  const I = c.challengeIntensity;
+  const base = { mult: 1, streak: 0, len: 1, difficulty: "normal" };
+  if (I(base) !== 0) throw new Error("a fresh run should be calm (0)");
+  for (const [k, vals] of [["mult", [1, 2, 3, 4]], ["streak", [0, 3, 6, 12]], ["len", [1, 3, 4, 5]], ["difficulty", ["normal", "hard"]]]) {
+    const xs = vals.map((v) => I({ ...base, [k]: v }));
+    for (let i = 1; i < xs.length; i++) if (!(xs[i] > xs[i - 1])) throw new Error(`intensity not rising with ${k}: ${xs.join(",")}`);
+  }
+  const top = I({ mult: 4, streak: 40, len: 5, difficulty: "hard" });
+  if (top !== 1) throw new Error(`x4 + long streak + 5-letter word on Hard should hit 1, got ${top}`);
+  if (!(I({ mult: 4, streak: 10 }) > I({ ...base, streak: 12, len: 5, difficulty: "hard" }))) throw new Error("the combo should dominate the ramp");
+  const hz = [1, 0.5, 0, -1, 2].map(c.drainHz);
+  if (Math.abs(hz[0] - 0.6) > 1e-9 || Math.abs(hz[2] - 1.4) > 1e-9 || hz.some((h) => !(h >= 0.6 && h < 3))) throw new Error(`drain Hz out of range: ${hz}`);
+  if (c.burstCount(18, 1, "off") !== 0 || c.burstCount(100, 1, "lite") > 30 || c.burstCount(100, 1, "full") > 120 || !(c.burstCount(18, 1, "full") > c.burstCount(18, 0, "full"))) throw new Error("burstCount caps/scaling wrong");
+  if (c.raceLean([{ wins: 0 }, { wins: 5 }]) !== 1 || c.raceLean([{ wins: 2 }, { wins: 2 }]) !== 0 || !(c.raceLean([{ wins: 3 }, { wins: 2 }]) < 0)) throw new Error("raceLean sign wrong (+ = P1 behind)");
+  if (c.rampColor(0) !== "rgb(56, 189, 248)" || c.rampColor(1) !== "rgb(255, 200, 97)") throw new Error("ramp stops drifted from aurora.js");
+  const g = q.createGovernor({ mode: "race" });
+  for (const o of q.OVERRIDES) { g.set({ override: o }); if (g.level === "full") throw new Error(`Race reported "full" with override ${o}`); }
+  return `x1 ${I(base)} .. x4 ${I({ ...base, mult: 4 }).toFixed(2)} .. max ${top}; drain ${hz[0]}-${hz[2]} Hz; Race capped for all overrides`;
+});
+
 // ---- 14. js/orient.js (scaffolding — palm-orientation cue, stage S7) ------
 // Doesn't exist yet. When it lands, this is where its invariants get
 // asserted (sign stability under the 4 augmentation rotations, |area|
