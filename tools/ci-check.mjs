@@ -955,10 +955,12 @@ await check("main.js/index.html: the '?' tour pauses a live run and restores the
   if (!/runPaused = tour\.isOpen\(\)/.test(main) || (main.match(/&& !runPaused\)/g) || []).length < 2) bad.push("loop() doesn't pause challenge + versus while the tour is open");
   if (!/tourReturn/.test(main.slice(main.indexOf("onDone:")))) bad.push("tour onDone doesn't restore the borrowed mode");
   if (!/window\.__aslBusy = /.test(main)) bad.push("main.js doesn't define window.__aslBusy");
+  // owner 2026-09-25: a visible way back to the welcome screen + intro
+  if (!/id="homeBtn"/.test(html) || !/\$\("homeBtn"\)\.addEventListener\("click", goHome\)/.test(main) || !/hero\.open\(\{ onStart: \(\) => tour\.open\(\) \}\)/.test(main.slice(main.indexOf("function goHome")))) bad.push("Home button doesn't reopen the welcome screen -> tour");
   const cc = html.slice(html.indexOf("controllerchange"), html.indexOf("controllerchange") + 900);
   if (!/__aslBusy/.test(cc)) bad.push("index.html reloads on controllerchange without asking __aslBusy");
   if (bad.length) throw new Error(bad.join("; "));
-  return "tour pauses runs + restores mode; SW reload deferred while busy";
+  return "tour pauses runs + restores mode; SW reload deferred while busy; Home -> welcome -> tour";
 });
 
 // ---- 13j. main.js — the A->Z "Next" bridge can be cancelled (LAB-054) --------

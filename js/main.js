@@ -3610,6 +3610,14 @@ const hero = createHero({
   debug: DEBUG,
 });
 if (DEBUG) window.__fx.hero = hero;
-$("logoBtn").addEventListener("click", () => hero.open());
+// Home (and the logo): the whole first-visit experience again — the welcome
+// screen, then the tour on Start (owner, 2026-09-25: "a way to go back to the
+// starting intro and page"). The tour's own mode/run handling still applies.
+function goHome() {
+  if (tour.isOpen()) tour.close();
+  hero.open({ onStart: () => tour.open() });
+}
+$("homeBtn").addEventListener("click", goHome);
+$("logoBtn").addEventListener("click", goHome);
 if (loadPref("seen-intro") !== "1") hero.open({ onStart: () => tour.open() });
 else if (new URLSearchParams(location.search).has("hero")) hero.open();
